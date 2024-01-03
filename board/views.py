@@ -5,3 +5,7 @@ from django.shortcuts import render, redirect
 
 def index(request):
     return render(request, "index.html")
+
+
+def portfolio(request):
+    return render(request, "portfolio.html")
