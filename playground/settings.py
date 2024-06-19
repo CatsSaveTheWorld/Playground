@@ -26,9 +26,7 @@ SECRET_KEY = "django-insecure-+vj27qub=k5+%ho5r@=((ko2o-l)s*4@5)i&@3ya=51h(z$^l1
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "localhost",
-    "127.0.0.1",
-    "dowonplayground.iptime.org",
+    "211.209.134.220",
 ]
 
 
@@ -59,7 +57,7 @@ ROOT_URLCONF = "playground.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / 'TEMPLATES'],
+        "DIRS": [BASE_DIR / "TEMPLATES"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
