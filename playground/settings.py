@@ -17,13 +17,6 @@ import os, my_settings
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-def set_dbitems(file_path):
-    with open(file_path, 'r') as f:
-        result = f.readlines()
-        result = [x.strip() for x in result]
-        result = tuple(result)
-    return result
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
@@ -84,7 +77,7 @@ WSGI_APPLICATION = "playground.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-NAME, USER, PASSWORD, HOST, PORT = set_dbitems('database_items.txt')
+NAME, USER, PASSWORD, HOST, PORT = my_settings.db_items()
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',  # MariaDB를 사용할 경우 mysql 엔진 사용
