@@ -12,13 +12,10 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 
 from pathlib import Path
 
+import os, my_settings
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-def set_items(file_path):
-    with open(file_path, 'r') as f:
-        result = f.readline()
-    return result
 
 def set_dbitems(file_path):
     with open(file_path, 'r') as f:
@@ -31,10 +28,10 @@ def set_dbitems(file_path):
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = set_items("setting_items.txt")
+SECRET_KEY = my_settings.SECRET_KEY('secret')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = [
     "211.209.134.220",

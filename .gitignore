@@ -276,7 +276,7 @@ pyvenv.cfg
 pip-selfcheck.json
 
 ### settings.py ###
-setting_items.txt
+my_settings.py
 
 
 ### Database ###
