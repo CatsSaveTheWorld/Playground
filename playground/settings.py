@@ -15,18 +15,30 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+def set_items(file_path):
+    with open(file_path, 'r') as f:
+        result = f.readline()
+    return result
+
+def set_dbitems(file_path):
+    with open(file_path, 'r') as f:
+        result = f.readlines()
+        result = [x.strip() for x in result]
+        result = tuple(result)
+    return result
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-+vj27qub=k5+%ho5r@=((ko2o-l)s*4@5)i&@3ya=51h(z$^l1"
+SECRET_KEY = set_items("settings.items.txt")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = [
     "211.209.134.220",
+    "127.0.0"
 ]
 
 
@@ -75,13 +87,23 @@ WSGI_APPLICATION = "playground.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-
+NAME, USER, PASSWORD, HOST, PORT = set_dbitems('database_items.txt')
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',  # MariaDB를 사용할 경우 mysql 엔진 사용
+        'NAME': NAME,          # MariaDB에 생성된 데이터베이스 이름
+        'USER': USER,          # MariaDB 사용자 이름
+        'PASSWORD': PASSWORD,  # MariaDB 사용자 비밀번호
+        'HOST': HOST,                # MariaDB 서버 IP 주소
+        'PORT': PORT,                        # MariaDB 서버 포트 (기본값 3306)
     }
 }
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.sqlite3",
+#         "NAME": BASE_DIR / "db.sqlite3",
+#     }
+# }
 
 
 # Password validation
