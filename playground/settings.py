@@ -31,7 +31,7 @@ def set_dbitems(file_path):
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = set_items("settings.items.txt")
+SECRET_KEY = set_items("setting_items.txt")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
