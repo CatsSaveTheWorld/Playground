@@ -275,6 +275,10 @@ pyrightconfig.json
 pyvenv.cfg
 pip-selfcheck.json
 
+### settings.py ###
+setting_items.txt
+
+
 ### Database ###
 database_items.txt
 
