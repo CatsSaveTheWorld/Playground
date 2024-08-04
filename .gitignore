@@ -275,4 +275,8 @@ pyrightconfig.json
 pyvenv.cfg
 pip-selfcheck.json
 
+### Database ###
+database_item.txt
+
+
 # End of https://www.toptal.com/developers/gitignore/api/python,venv,django
