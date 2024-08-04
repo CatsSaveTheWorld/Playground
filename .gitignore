@@ -280,7 +280,7 @@ my_settings.py
 
 
 ### Database ###
-database_items.txt
+db_items.py
 
 
 # End of https://www.toptal.com/developers/gitignore/api/python,venv,django
