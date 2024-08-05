@@ -4,7 +4,31 @@
     <h5 class="my-3 border-bottom pb-2">질문등록</h5>
     <form method="post">
         {% csrf_token %}
-        {{ form.as_p }}
+        <!-- 오류표시 start -->
+        {% if form.errors %}
+        <div class="alert alert-danger" role="alert">
+            {% for field in form %}
+                {% if field.errors %}
+                <div>
+                    <strong>{{ field.label }}</strong>
+                    {{ field.erros }}
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+        <!-- 오류표시 End -->
+         <div class="mb-3">
+            <label for="subject" class="form-label">제목</label>
+            <input type="text" class="form-control" name="subject" id="subject"
+                value="{{ form.subject.value|default_if_none:'' }}">  {% comment %}form.subject.value|default_if_none:'' 의 의미는 오류발생 시 기존의 값은 유지하라는 뜻{% endcomment %}
+         </div>
+         <div class="mb-3">
+            <label for="contetn" class="form-label">내용</label>
+            <textarea class="form-control" name="content" id="content" rows="10">
+                {{ form.content.value|default_if_none:'' }} {% comment %}default_if_none 의 의미는 폼 데이터에 값이 없으면 None이 표시되는데, None이 아니라 공백으로 표시하라는 뜻{% endcomment %}
+            </textarea>
+        </div>
         <button type="submit" class="btn btn-primary">저장하기</button>
     </form>
 </div>
