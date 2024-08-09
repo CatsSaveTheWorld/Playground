@@ -79,6 +79,7 @@ WSGI_APPLICATION = "playground.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
+
 NAME, USER, PASSWORD, HOST, PORT = my_settings.db_items()
 DATABASES = {
     'default': {
