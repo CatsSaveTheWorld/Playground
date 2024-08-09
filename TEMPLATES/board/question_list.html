@@ -14,7 +14,7 @@
         <tbody>
             {% if question_list %}
                 {% for question in question_list %}
-                <tr class="text-center">
+                <tr class="text-start">
                     <td>
                         <!--번호 = 전체건수 - 시작인덱스 - 현재 인덱스 + 1-->
                         <!--sub: - 빼기(:도 포함), add: - 더하기-->
@@ -26,8 +26,8 @@
                         <span class="text-danger small mx-2">{{ question.answer_set.count }}</span>
                         {% endif %}
                     </td>
-                    <td>{{ question.author.username }}</td>
-                    <td>{{ question.create_date }}</td>
+                    <td class="text-start">{{ question.author.username }}</td>
+                    <td class="text-start">{{ question.create_date }}</td>
                 </tr>
                 {% endfor %}
             {% else %}
