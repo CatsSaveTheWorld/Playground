@@ -56,9 +56,14 @@ def answer_delete(request, answer_id):
     return redirect("board:detail", question_id=answer.question.id)
 
 
-def portfolio(request):
-    return render(request, "portfolio.html")
-
+@login_required(login_url="common:login")
+def answer_vote(request, answer_id):
+    answer = get_object_or_404(Answer, pk=answer_id)
+    if request.user == answer.author:
+        messages.error(request, "본인이 작성한 글은 추천할 수 없습니다.")
+    else:
+        answer.voter.add(request.user)
+    return redirect("board:detail", question_id=answer.question.id)
 
 
 

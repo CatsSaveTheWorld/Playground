@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from ..forms import QuestionForm
+from ..models import Question
 
 
 @login_required(login_url="common:login")
@@ -50,8 +51,14 @@ def question_delete(request, question_id):
     return redirect('board:index')
 
 
-
-
+@login_required(login_url="common:login")
+def question_vote(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    if request.user == question.author:
+        messages.error(request, "본인이 작성한 글을 추천할 수 없습니다.")
+    else:
+        question.voter.add(request.user)
+    return redirect("board:detail", question_id=question.id)
 
 
 
