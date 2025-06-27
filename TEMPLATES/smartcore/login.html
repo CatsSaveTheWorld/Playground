@@ -1,0 +1,67 @@
+<!-- templates/smartcore/login.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Either One’s SmartCore - 로그인</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #4169E1;
+            color: white;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .login-container {
+            background-color: #365cad;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px #0004;
+            text-align: center;
+            width: 300px;
+        }
+        .login-container h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 5px;
+        }
+        input[type="submit"] {
+            background-color: #274e9b;
+            color: white;
+            border: none;
+            padding: 10px;
+            width: 100%;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .error {
+            color: #ffcccc;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>Either One’s SmartCore</h1>
+        {% if error %}
+            <div class="error">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="text" name="username" placeholder="아이디" required>
+            <input type="password" name="password" placeholder="비밀번호" required>
+            <input type="submit" value="로그인">
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Either One’s SmartCore</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background-color: #0F0F0F; /* 훨씬 더 어두운 배경색 */
+            color: #FFFFFF;
+        }
+
+        .navbar {
+            background-color: #1A1A1A;
+            padding: 10px;
+            font-size: 18px;
+            border-bottom: 1px solid #00FFC8;
+        }
+
+        .navbar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 100px;
+            text-align: center;
+        }
+
+        .title {
+            background-color: #1A1A1A;
+            color: #FFFFFF;
+            padding: 20px;
+            margin: 0 auto 30px;
+            width: 400px;
+            border: 2px solid #00FFC8;
+            border-radius: 0px;
+        }
+
+        .button-box {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .button {
+            background-color: #1A1A1A;
+            color: #FFFFFF;
+            padding: 30px;
+            width: 200px;
+            border: 2px solid #00FFC8;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 0px;
+            transition: background-color 0.2s;
+        }
+
+        .card-box {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        .card {
+            background-color: #1A1A1A;
+            color: #FFFFFF;
+            padding: 30px;
+            width: 200px;
+            border: 2px solid #00FFC8;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 0px;
+            transition: background-color 0.2s;
+        }
+
+        .card:hover {
+            background-color: #2A2A2A;
+        }
+
+        .dropdown-content {
+            display: none;
+            background-color: #0F0F0F;
+            color: #FFFFFF;
+            margin-top: 10px;
+            padding: 10px;
+            border: 2px solid #00FFC8;
+            border-radius: 0px;
+            text-align: left;
+        }
+
+        .dropdown-content button {
+            display: block;
+            background: none;
+            border: none;
+            padding: 8px 0;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            color: #FFFFFF;
+        }
+
+        .dropdown-content button:hover {
+            background-color: #2A2A2A;
+            color: #00FFC8;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="{% url 'smartcore:dashboard' %}" style="color: #00FFC8; text-decoration: none;">
+            Either One’s SmartCore
+        </a> {{ request.user.username }}
+    (<a href="{% url 'smartcore:logout_view' %}">로그아웃</a>)
+</div>
+    <div class="container">
+        <div class="title">작업을 선택해주세요</div>
+        <div class="button-box">
+            <form action="{% url 'smartcore:loadout_list' %}">
+                <button class="button">로드아웃 조작</button>
+            </form>
+            <form action="{% url 'smartcore:detail_list' %}">
+                <button class="button">세부 기기 조작</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

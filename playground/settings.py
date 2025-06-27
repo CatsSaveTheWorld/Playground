@@ -24,8 +24,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = my_settings.SECRET_KEY('secret')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
-# DEBUG = True
+# DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = [
     "211.209.134.220",
@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "common",
     "board",
+    "smartcore",
 ]
 
 MIDDLEWARE = [
@@ -80,23 +81,23 @@ WSGI_APPLICATION = "playground.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
-NAME, USER, PASSWORD, HOST, PORT = my_settings.db_items()
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',  # MariaDB를 사용할 경우 mysql 엔진 사용
-        'NAME': NAME,          # MariaDB에 생성된 데이터베이스 이름
-        'USER': USER,          # MariaDB 사용자 이름
-        'PASSWORD': PASSWORD,  # MariaDB 사용자 비밀번호
-        'HOST': HOST,                # MariaDB 서버 IP 주소
-        'PORT': PORT,                        # MariaDB 서버 포트 (기본값 3306)
-    }
-}
+# NAME, USER, PASSWORD, HOST, PORT = my_settings.db_items()
 # DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',  # MariaDB를 사용할 경우 mysql 엔진 사용
+#         'NAME': NAME,          # MariaDB에 생성된 데이터베이스 이름
+#         'USER': USER,          # MariaDB 사용자 이름
+#         'PASSWORD': PASSWORD,  # MariaDB 사용자 비밀번호
+#         'HOST': HOST,                # MariaDB 서버 IP 주소
+#         'PORT': PORT,                        # MariaDB 서버 포트 (기본값 3306)
 #     }
 # }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators

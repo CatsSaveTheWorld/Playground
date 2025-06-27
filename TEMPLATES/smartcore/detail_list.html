@@ -1,0 +1,171 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Either One’s SmartCore</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background-color: #0F0F0F;
+            color: #FFFFFF;
+        }
+
+        .navbar {
+            background-color: #1A1A1A;
+            padding: 10px;
+            font-size: 18px;
+            border-bottom: 1px solid #00FFC8;
+        }
+
+        .navbar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+
+        .container {
+            text-align: center;
+            margin-top: 100px;
+        }
+
+        .title {
+            background-color: #1A1A1A;
+            color: #FFFFFF;
+            padding: 20px;
+            margin: 0 auto 30px;
+            width: 400px;
+            border: 2px solid #00FFC8;
+            border-radius: 0px;
+        }
+
+        .card-box {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background-color: #1A1A1A;
+            color: #FFFFFF;
+            padding: 30px;
+            width: 200px;
+            border: 2px solid #00FFC8;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 0px;
+            transition: background-color 0.2s;
+        }
+
+        .card:hover {
+            background-color: #2A2A2A;
+        }
+
+        .card.expanded {
+            padding-bottom: 150px;
+        }
+
+        .dropdown-content {
+            display: none;
+            background-color: #0F0F0F;
+            color: #FFFFFF;
+            margin-top: 10px;
+            padding: 10px;
+            border: 2px solid #00FFC8;
+            border-radius: 0px;
+            text-align: left;
+        }
+
+        .dropdown-content.active {
+            display: block;
+        }
+
+        .dropdown-content button {
+            display: block;
+            background: none;
+            border: none;
+            padding: 8px 0;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            color: #FFFFFF;
+        }
+
+        .dropdown-content button:hover {
+            background-color: #2A2A2A;
+            color: #00FFC8;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="{% url 'smartcore:dashboard' %}" style="color: #00FFC8; text-decoration: none;">
+            Either One’s SmartCore
+        </a> {{ request.user.username }}
+        (<a href="{% url 'smartcore:logout_view' %}">로그아웃</a>)
+    </div>
+
+    <div class="container">
+        <div class="title">세부 기기 조작</div>
+
+        <div class="card-box">
+            <div class="card" onclick="toggleDropdown('aircon')">
+                에어컨 조작
+                <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
+                    <button onclick="sendAction('/smartcore/aircon/power_on')">전원 켜기</button>
+                    <button onclick="sendAction('/smartcore/aircon/power_off')">전원 끄기</button>
+                    <button onclick="sendAction('/smartcore/aircon/temp_up')">온도 ↑</button>
+                    <button onclick="sendAction('/smartcore/aircon/temp_down')">온도 ↓</button>
+                    <button onclick="sendAction('/smartcore/aircon/mode_cool')">냉방 모드</button>
+                    <button onclick="sendAction('/smartcore/aircon/mode_fan')">송풍 모드</button>
+                </div>
+            </div>
+
+            <div class="card" onclick="toggleDropdown('electric_fan')">
+                선풍기 조작
+                <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
+                    <button onclick="sendAction('power_on')">전원 켜기</button>
+                    <button onclick="sendAction('power_off')">전원 끄기</button>
+                    <button onclick="sendAction('light_wind')">약풍</button>
+                    <button onclick="sendAction('medium_wind')">중풍</button>
+                    <button onclick="sendAction('strong_wind')">강풍</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleDropdown(id) {
+            const dropdown = document.getElementById("dropdown-" + id);
+            const card = dropdown.parentElement;
+
+            const isActive = dropdown.classList.contains("active");
+
+            dropdown.classList.toggle("active", !isActive);
+            card.classList.toggle("expanded", !isActive);
+        }
+
+        function sendAction(url) {
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    alert(data.message);
+                } else {
+                    alert("작업 실패: " + data.message);
+                }
+            })
+            .catch(error => {
+                alert("요청 중 오류 발생: " + error);
+            });
+        }
+    </script>
+</body>
+</html>
