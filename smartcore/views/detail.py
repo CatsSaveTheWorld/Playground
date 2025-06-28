@@ -3,12 +3,14 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from ..models import Controller  # 모델 import
+from django.conf import settings
 import pandas as pd
 import requests
+import os
 
 
-wifi_path = r"smartcore\management\data\wifi.csv".replace('\\', '/')
-aircon_path = r"smartcore\management\data\aircon_control_code.csv".replace('\\', '/')
+wifi_path = os.path.join(settings.BASE_DIR, 'smartcore', 'management', 'data', 'wifi.csv').replace('\\', '/')
+aircon_path = os.path.join(settings.BASE_DIR, 'smartcore', 'management', 'data', 'aircon_control_code.csv').replace('\\', '/')
 
 
 wifi = pd.read_csv(wifi_path)
