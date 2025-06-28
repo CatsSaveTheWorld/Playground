@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -8,15 +7,20 @@
         body {
             font-family: sans-serif;
             margin: 0;
-            background-color: #0F0F0F;
+            background-color: #000000;
             color: #FFFFFF;
         }
 
         .navbar {
-            background-color: #1A1A1A;
-            padding: 10px;
+            background-color: #000000;
+            padding: 10px 20px;
             font-size: 18px;
             border-bottom: 1px solid #00FFC8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1100;
         }
 
         .navbar a {
@@ -24,19 +28,14 @@
             text-decoration: none;
         }
 
-        .container {
-            text-align: center;
-            margin-top: 100px;
-        }
-
         .title {
-            background-color: #1A1A1A;
+            background-color: #000000;
             color: #FFFFFF;
             padding: 20px;
-            margin: 0 auto 30px;
+            margin: 100px auto 30px;
             width: 400px;
             border: 2px solid #00FFC8;
-            border-radius: 0px;
+            text-align: center;
         }
 
         .card-box {
@@ -47,14 +46,13 @@
         }
 
         .card {
-            background-color: #1A1A1A;
+            background-color: #000000;
             color: #FFFFFF;
             padding: 30px;
             width: 200px;
             border: 2px solid #00FFC8;
             font-size: 16px;
             cursor: pointer;
-            border-radius: 0px;
             transition: background-color 0.2s;
         }
 
@@ -68,12 +66,11 @@
 
         .dropdown-content {
             display: none;
-            background-color: #0F0F0F;
+            background-color: #000000;
             color: #FFFFFF;
             margin-top: 10px;
             padding: 10px;
             border: 2px solid #00FFC8;
-            border-radius: 0px;
             text-align: left;
         }
 
@@ -97,50 +94,113 @@
             background-color: #2A2A2A;
             color: #00FFC8;
         }
+
+        #toggleSidebar {
+            font-size: 28px;
+            background: none;
+            border: none;
+            color: #00FFC8;
+            cursor: pointer;
+            z-index: 1101;
+        }
+
+        #sidebar {
+            position: fixed;
+            top: 0;
+            right: -250px;
+            width: 250px;
+            height: 100%;
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 20px;
+            border-left: 1px solid #00FFC8;
+            transition: right 0.3s ease;
+            z-index: 1050;
+        }
+
+        #sidebar h5 {
+            color: #00FFC8;
+            font-size: 20px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        #sidebar ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        #sidebar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+
+        #sidebar a:hover {
+            text-decoration: underline;
+        }
+
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1049;
+        }
     </style>
 </head>
 <body>
     <div class="navbar">
-        <a href="{% url 'smartcore:dashboard' %}" style="color: #00FFC8; text-decoration: none;">
-            Either One’s SmartCore
-        </a> {{ request.user.username }}
-        (<a href="{% url 'smartcore:logout_view' %}">로그아웃</a>)
+        <div>
+            <a href="{% url 'smartcore:dashboard' %}">Either One’s SmartCore</a>
+            {{ request.user.username }} (<a href="{% url 'smartcore:logout_view' %}">로그아웃</a>)
+        </div>
+        <button id="toggleSidebar">&#9776;</button>
     </div>
 
-    <div class="container">
-        <div class="title">세부 기기 조작</div>
+    <div class="title">세부 기기 조작</div>
 
-        <div class="card-box">
-            <div class="card" onclick="toggleDropdown('aircon')">
-                에어컨 조작
-                <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
-                    <button onclick="sendAction('/smartcore/aircon/power_on')">전원 켜기</button>
-                    <button onclick="sendAction('/smartcore/aircon/power_off')">전원 끄기</button>
-                    <button onclick="sendAction('/smartcore/aircon/temp_up')">온도 ↑</button>
-                    <button onclick="sendAction('/smartcore/aircon/temp_down')">온도 ↓</button>
-                    <button onclick="sendAction('/smartcore/aircon/mode_cool')">냉방 모드</button>
-                    <button onclick="sendAction('/smartcore/aircon/mode_fan')">송풍 모드</button>
-                </div>
+    <div class="card-box">
+        <div class="card" onclick="toggleDropdown('aircon')">
+            에어컨 조작
+            <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
+                <button onclick="sendAction('/smartcore/aircon/power_on')">전원 켜기</button>
+                <button onclick="sendAction('/smartcore/aircon/power_off')">전원 끄기</button>
+                <button onclick="sendAction('/smartcore/aircon/temp_up')">온도 ↑</button>
+                <button onclick="sendAction('/smartcore/aircon/temp_down')">온도 ↓</button>
+                <button onclick="sendAction('/smartcore/aircon/mode_cool')">냉방 모드</button>
+                <button onclick="sendAction('/smartcore/aircon/mode_fan')">송풍 모드</button>
             </div>
+        </div>
 
-            <div class="card" onclick="toggleDropdown('electric_fan')">
-                선풍기 조작
-                <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
-                    <button onclick="sendAction('power_on')">전원 켜기</button>
-                    <button onclick="sendAction('power_off')">전원 끄기</button>
-                    <button onclick="sendAction('light_wind')">약풍</button>
-                    <button onclick="sendAction('medium_wind')">중풍</button>
-                    <button onclick="sendAction('strong_wind')">강풍</button>
-                </div>
+        <div class="card" onclick="toggleDropdown('electric_fan')">
+            선풍기 조작
+            <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
+                <button onclick="sendAction('power_on')">전원 켜기</button>
+                <button onclick="sendAction('power_off')">전원 끄기</button>
+                <button onclick="sendAction('light_wind')">약풍</button>
+                <button onclick="sendAction('medium_wind')">중풍</button>
+                <button onclick="sendAction('strong_wind')">강풍</button>
             </div>
         </div>
     </div>
+
+    <!-- 사이드바 -->
+    <div id="sidebar">
+        <h5>메뉴</h5>
+        <ul>
+            <li><a href="{% url 'board:index' %}">Playground</a></li>
+        </ul>
+    </div>
+
+    <!-- 오버레이 -->
+    <div id="overlay"></div>
 
     <script>
         function toggleDropdown(id) {
             const dropdown = document.getElementById("dropdown-" + id);
             const card = dropdown.parentElement;
-
             const isActive = dropdown.classList.contains("active");
 
             dropdown.classList.toggle("active", !isActive);
@@ -166,6 +226,34 @@
                 alert("요청 중 오류 발생: " + error);
             });
         }
+
+        const toggleSidebar = document.getElementById('toggleSidebar');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        let isOpen = false;
+
+        function openSidebar() {
+            sidebar.style.right = '0';
+            overlay.style.display = 'block';
+            isOpen = true;
+        }
+
+        function closeSidebar() {
+            sidebar.style.right = '-250px';
+            overlay.style.display = 'none';
+            isOpen = false;
+        }
+
+        toggleSidebar.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (isOpen) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        });
+
+        overlay.addEventListener('click', closeSidebar);
     </script>
 </body>
 </html>
