@@ -27,3 +27,9 @@ def signup(request):
         form = UserForm()
     return render(request, "common/signup.html", {'form': form})
 
+
+def some_view(request):
+    context = {
+        'has_iot_permission' : request.user.has_perm('smartcore.can_control_iot_devices')
+    }
+    return render(request, 'your_template.html', context)

@@ -7,6 +7,10 @@ class Controller(models.Model):
     ip_address = models.GenericIPAddressField()
     location = models.CharField(max_length=100, blank=True)
 
+    class Meta:
+        permissions = [
+            ("can_control_iot_devices", "Can control IoT devices"),
+        ]
 
 class Device(models.Model):
     controller = models.ForeignKey(Controller, on_delete=models.CASCADE)
