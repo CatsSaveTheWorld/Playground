@@ -7,8 +7,8 @@ import pandas as pd
 import requests
 
 
-wifi_path = r"E:\Python\github\PLAYGROUND\smartcore\management\data\wifi.csv".replace('\\', '/')
-aircon_path = r"E:\Python\github\PLAYGROUND\smartcore\management\data\aircon_control_code.csv".replace('\\', '/')
+wifi_path = r"smartcore\management\data\wifi.csv".replace('\\', '/')
+aircon_path = r"smartcore\management\data\aircon_control_code.csv".replace('\\', '/')
 
 
 wifi = pd.read_csv(wifi_path)
