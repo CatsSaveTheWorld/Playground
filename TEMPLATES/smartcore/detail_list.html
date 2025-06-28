@@ -165,23 +165,23 @@
         <div class="card" onclick="toggleDropdown('aircon')">
             에어컨 조작
             <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
-                <button onclick="sendAction('/smartcore/aircon/power_on')">전원 켜기</button>
-                <button onclick="sendAction('/smartcore/aircon/power_off')">전원 끄기</button>
-                <button onclick="sendAction('/smartcore/aircon/temp_up')">온도 ↑</button>
-                <button onclick="sendAction('/smartcore/aircon/temp_down')">온도 ↓</button>
-                <button onclick="sendAction('/smartcore/aircon/mode_cool')">냉방 모드</button>
-                <button onclick="sendAction('/smartcore/aircon/mode_fan')">송풍 모드</button>
+                <button onclick="sendAction('/smartcore/aircon/power_on/')">전원 켜기</button>
+                <button onclick="sendAction('/smartcore/aircon/power_off/')">전원 끄기</button>
+                <button onclick="sendAction('/smartcore/aircon/temp_up/')">온도 ↑</button>
+                <button onclick="sendAction('/smartcore/aircon/temp_down/')">온도 ↓</button>
+                <button onclick="sendAction('/smartcore/aircon/mode_cool/')">냉방 모드</button>
+                <button onclick="sendAction('/smartcore/aircon/mode_fan/')">송풍 모드</button>
             </div>
         </div>
 
         <div class="card" onclick="toggleDropdown('electric_fan')">
             선풍기 조작
             <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
-                <button onclick="sendAction('power_on')">전원 켜기</button>
-                <button onclick="sendAction('power_off')">전원 끄기</button>
-                <button onclick="sendAction('light_wind')">약풍</button>
-                <button onclick="sendAction('medium_wind')">중풍</button>
-                <button onclick="sendAction('strong_wind')">강풍</button>
+                <button onclick="sendAction('power_on/')">전원 켜기</button>
+                <button onclick="sendAction('power_off/')">전원 끄기</button>
+                <button onclick="sendAction('light_wind/')">약풍</button>
+                <button onclick="sendAction('medium_wind/')">중풍</button>
+                <button onclick="sendAction('strong_wind/')">강풍</button>
             </div>
         </div>
     </div>

@@ -283,4 +283,7 @@ my_settings.py
 db_items.py
 
 
+### Sensitive Information
+management
+
 # End of https://www.toptal.com/developers/gitignore/api/python,venv,django

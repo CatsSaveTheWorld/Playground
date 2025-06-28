@@ -14,6 +14,6 @@ urlpatterns = [
     # path("<int:question_id>/", base_views.detail, name="detail"),
 
     # 에어컨 관련
-    path('aircon/power_on', detail.aircon_power_on, name='aircon_power_on'),
-    path('aircon/power_off', detail.aircon_power_off, name='aircon_power_off'),
+    path('aircon/power_on/', detail.aircon_power_on, name='aircon_power_on'),
+    path('aircon/power_off/', detail.aircon_power_off, name='aircon_power_off'),
 ]
