@@ -1,0 +1,17 @@
+<!-- sidebar.html -->
+<div id="sidebar">
+    <h5>메뉴</h5>
+    {% if request.user.is_staff %}
+        <a href="{% url 'admin:index' %}">Admin Page</a>
+    {% else %}
+        <div class="notice">
+            <p>※ 이 페이지는 관리자 권한이 있어야 접근 가능합니다.</p>
+        </div>
+    {% endif %}
+    <ul>
+        <li><a href="{% url 'board:index' %}">Playground</a></li>
+        <li><a href="{% url 'smartcore:dashboard' %}">SmartCore</a></li>
+    </ul>
+</div>
+
+<div id="overlay"></div>

@@ -28,8 +28,9 @@ DEBUG = False
 # DEBUG = True
 
 ALLOWED_HOSTS = [
-    "localhost",
     "211.209.134.220",
+    "192.168.0.7",
+    "localhost",
     "127.0.0.1",
 ]
 
@@ -56,6 +57,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = "playground.urls"

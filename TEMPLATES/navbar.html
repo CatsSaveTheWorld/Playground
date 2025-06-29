@@ -28,36 +28,3 @@
         <button id="toggleSidebar" class="btn btn-outline-dark" style="font-size: 24px;">☰</button>
     </div>
 </nav>
-
-<div id="sidebar" style="
-  position: fixed;
-  top: 0;
-  right: -250px;
-  width: 250px;
-  height: 100%;
-  background-color: #f8f9fa;
-  color: black;
-  padding: 20px;
-  transition: right 0.3s ease;
-  z-index: 1050;
-  border-left: 1px solid #dee2e6;
-">
-  <h5>메뉴</h5>
-  <ul class="list-unstyled">
-    <li><a href="{% url 'board:index' %}" class="text-dark">Playground</a></li>
-    {% if user.is_authenticated and has_iot_permission %}
-      <li><a href="{% url 'smartcore:dashboard' %}" class="text-dark">SmartCore</a></li>
-    {% endif %}
-  </ul>
-</div>
-
-<script>
-  const toggleSidebar = document.getElementById('toggleSidebar');
-  const sidebar = document.getElementById('sidebar');
-  let sidebarOpen = false;
-
-  toggleSidebar.addEventListener('click', () => {
-    sidebarOpen = !sidebarOpen;
-    sidebar.style.right = sidebarOpen ? '0' : '-250px';
-  });
-</script>

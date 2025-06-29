@@ -30,10 +30,11 @@
         .title {
             background-color: #000000;
             color: #FFFFFF;
-            padding: 20px;
+            padding: 40px;
             margin: 100px auto 30px;
-            width: 400px;
+            width: 500px;
             border: 2px solid #00FFC8;
+            font-size: 30px;
             text-align: center;
         }
         .card-box {
@@ -41,22 +42,44 @@
             justify-content: center;
             gap: 30px;
             margin-bottom: 30px;
+            flex-wrap: wrap; /* 줄 바꿈 허용 */
+            align-items: flex-start;
         }
         .card {
             background-color: #000000;
             color: #FFFFFF;
-            padding: 30px;
+            padding: 20px;
             width: 200px;
             border: 2px solid #00FFC8;
-            font-size: 16px;
+            font-size: 20px;
+            text-align: center;
             cursor: pointer;
             transition: background-color 0.2s;
+            flex: 0 1 200px; /* 크기 제한: 최소 0, 최대 200px */
         }
         .card:hover {
             background-color: #2A2A2A;
         }
-        .card.expanded {
+        /* .card.expanded {
             padding-bottom: 150px;
+        } */
+        
+        /* ✅ 모바일 최적화: 768px 이하 화면 크기일 때 */
+        @media (max-width: 768px) {
+            .title {
+                width: 90%;
+                font-size: 24px;
+                padding: 30px;
+            }
+            .card-box {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .card {
+                width: 80%;
+                padding: 20px;
+                font-size: 20px;
+            }
         }
         .dropdown-content {
             display: none;
@@ -107,6 +130,10 @@
             border-left: 1px solid #00FFC8;
             transition: right 0.3s ease;
             Z-index: 1050; /* 오버레이보다 위에 */
+        }
+        #sidebar.closed {
+            right: -250px;
+            pointer-events: none;  /* 마우스 이벤트 비활성화 */
         }
         #sidebar h5 {
             color: #00FFC8;
@@ -202,7 +229,6 @@
                 <button onclick="sendAction('/smartcore/aircon/mode_fan/', event)">송풍 모드</button>
             </div>
         </div>
-
         <div class="card" onclick="toggleDropdown('electric_fan')" data-controller-id="1"> 선풍기 조작
             <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
                 <button onclick="sendAction('/smartcore/electric_fan/power_on/', event)">전원 켜기</button>
@@ -214,14 +240,7 @@
         </div>
     </div>
 
-    <div id="sidebar">
-        <h5>메뉴</h5>
-        <ul>
-            <li><a href="{% url 'board:index' %}">Playground</a></li>
-        </ul>
-    </div>
-
-    <div id="overlay"></div>
+    {% include "sidebar.html" %}
 
     <script>
         function toggleDropdown(id) {

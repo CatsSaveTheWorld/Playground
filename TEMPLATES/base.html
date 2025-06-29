@@ -10,15 +10,64 @@
     <!-- pybo CSS -->
     <link rel="stylesheet" type="text/css" href="{% static 'style.css' %}">
     <title>Welcome to the One's Playground!</title>
+    <style>
+        /* style.css 또는 base.html <style> 안에 삽입 */
+        #sidebar {
+            position: fixed; 
+            top: 0;
+            right: -250px; /* 초기에는 숨김 */
+            width: 250px;
+            height: 100%;
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 20px;
+            border-left: 1px solid #00FFC8;
+            transition: right 0.3s ease;
+            z-index: 1050; /* 다른 요소보다 위에 */
+        }
+
+        #sidebar h5 {
+            color: #00FFC8;
+            font-size: 20px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        #sidebar ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        #sidebar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+
+        #sidebar a:hover {
+            text-decoration: underline;
+        }
+
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1049;
+        }
+    </style>
 </head>
 <body>
-    <!--네비게이션 바-->
-    {% include "navbar.html" %}
-    <!-- 기본 템플릿 안에 삽입될 내용 Start -->
+    {% include "navbar.html" %}     <!--네비게이션 바-->
+    {% include "sidebar.html" %}    <!--사이드 바-->
 {% block content %}
 {% endblock %}
+
 <!-- 기본 템플릿 안에 삽입될 내용 End -->
  <script src="{% static 'bootstrap.min.js' %}"></script>
+
 <!-- 자바스크립트 Start -->
 {% block script %}
 <script type='text/javascript'>
@@ -39,6 +88,7 @@
         })
     })
 </script>
+<script src="{% static 'js/sidebar.js' %}"></script>
  {% endblock script %}
 </body>
 </html>
