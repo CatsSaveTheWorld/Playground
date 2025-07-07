@@ -11,13 +11,13 @@ import os
 # CSV 파일 경로 설정
 DATA_DIR = os.path.join(settings.BASE_DIR, 'smartcore', 'management', 'data')
 wifi_path = os.path.join(DATA_DIR, 'wifi.csv').replace('\\', '/')
-aircon_path = os.path.join(DATA_DIR, 'aircon_control_code.csv').replace('\\', '/')
+device_path = os.path.join(DATA_DIR, 'device_codes.csv').replace('\\', '/')
 
 # CSV 데이터 로드
 wifi = pd.read_csv(wifi_path)
 wifi_ssid, wifi_password = wifi['ssid'][0], wifi['password'][0]
-aircon = pd.read_csv(aircon_path, encoding='utf-8')
-aircon.bits = aircon.bits.astype(int)
+device = pd.read_csv(device_path, encoding='utf-8')
+device.bits = device.bits.astype(int)
 
 
 def detail_list(request):
@@ -31,12 +31,12 @@ def get_controller(controller_id):
         return None
 
 
-def get_ir_code(motion, bits=None):
-    query = (aircon.motion == motion)
+def get_ir_code(motion, bits=24):
+    query = (device.motion == motion)
     if bits:
-        query &= (aircon.bits == bits)
+        query &= (device.bits == bits)
     try:
-        return aircon.loc[query, 'code'].iloc[0]
+        return device.loc[query, 'code'].iloc[0]
     except IndexError:
         return None
 
@@ -106,6 +106,11 @@ def aircon_mode_cool(request):
 
 
 @csrf_exempt
+def aircon_dehumidification_mode(request):
+    return aircon_control(request, 'mode_dehumidification', '에어컨 제습 모드로 설정되었습니다!')
+
+
+@csrf_exempt
 def aircon_mode_fan(request):
     return aircon_control(request, 'mode_fan', '에어컨 송풍 모드로 설정되었습니다!')
 
@@ -127,7 +132,8 @@ def aircon_set_temp(request):
     if not controller:
         return JsonResponse({'status': 'fail', 'message': "컨트롤러 없음"}, status=404)
 
-    code = get_ir_code(temperature, bits=24)
+    motion = f"set_temp_{temperature}"
+    code = get_ir_code(motion, bits=24)
     if not code:
         return JsonResponse({'status': 'fail', 'message': f"{temperature}도 코드가 존재하지 않습니다."}, status=404)
 
