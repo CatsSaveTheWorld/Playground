@@ -212,33 +212,33 @@
         <div class="card" onclick="toggleDropdown('aircon')" data-device="aircon" data-location="거실">
             에어컨 조작
             <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
-                <button type="button" onclick="sendAction('power_on', event)">전원 켜기</button>
-                <button type="button" onclick="sendAction('power_off', event)">전원 끄기</button>
+                <button type="button" onclick="return sendAction('power_on', event)">전원 켜기</button>
+                <button type="button" onclick="return sendAction('power_off', event)">전원 끄기</button>
 
                 <hr style="border-top: 1px solid #00FFC8; margin: 10px 0;">
 
                 <div class="temp-setting-row">
                     <span class="temp-label">온도</span>
                     <input type="number" id="aircon-temp-input" placeholder="예: 24" min="16" max="30">
-                    <button type="button" onclick="sendTempAction(event)">설정</button>
+                    <button type="button" onclick="return sendTempAction(event)">설정</button>
                 </div>
 
                 <hr style="border-top: 1px solid #00FFC8; margin: 10px 0;">
-                <button type="button" onclick="sendAction('mode_auto', event)">자동 모드</button>
-                <button type="button" onclick="sendAction('mode_cool', event)">냉방 모드</button>
-                <button type="button" onclick="sendAction('mode_dehumidification', event)">제습 모드</button>
-                <button type="button" onclick="sendAction('mode_fan', event)">송풍 모드</button>
+                <button type="button" onclick="return sendAction('mode_auto', event)">자동 모드</button>
+                <button type="button" onclick="return sendAction('mode_cool', event)">냉방 모드</button>
+                <button type="button" onclick="return sendAction('mode_dehumidification', event)">제습 모드</button>
+                <button type="button" onclick="return sendAction('mode_fan', event)">송풍 모드</button>
             </div>
         </div>
 
         <div class="card" onclick="toggleDropdown('electric_fan')" data-device="electric_fan" data-location="거실">
             선풍기 조작
             <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
-                <button type="button" onclick="sendAction('power_on', event)">전원 켜기</button>
-                <button type="button" onclick="sendAction('power_off', event)">전원 끄기</button>
-                <button type="button" onclick="sendAction('light_wind', event)">약풍</button>
-                <button type="button" onclick="sendAction('medium_wind', event)">중풍</button>
-                <button type="button" onclick="sendAction('strong_wind', event)">강풍</button>
+                <button type="button" onclick="return sendAction('power_on', event)">전원 켜기</button>
+                <button type="button" onclick="return sendAction('power_off', event)">전원 끄기</button>
+                <button type="button" onclick="return sendAction('light_wind', event)">약풍</button>
+                <button type="button" onclick="return sendAction('medium_wind', event)">중풍</button>
+                <button type="button" onclick="return sendAction('strong_wind', event)">강풍</button>
             </div>
         </div>
     </div>
@@ -279,7 +279,7 @@
 
             if (!device || !location) {
                 alert('기기 정보 또는 위치 정보가 누락되었습니다.');
-                return;
+                return false;
             }
 
             // Django에 JSON POST
@@ -310,6 +310,7 @@
                 console.error('❌ Fetch error:', error);
                 alert('작업 중 오류가 발생했습니다: ' + error.message);
             });
+            return false;
         }
 
 
@@ -375,6 +376,7 @@
                 console.error('Fetch error:', error);
                 alert('서버 오류가 발생했습니다: ' + error.message);
             });
+            return false;
         }
 
         // 사이드바 토글 관련 JavaScript
