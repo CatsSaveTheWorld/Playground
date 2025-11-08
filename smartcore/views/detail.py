@@ -164,6 +164,7 @@ def aircon_set_temp(request):
 # ────────────────────────────────
 @csrf_exempt
 def ai_control(request):
+    print(f"[DEBUG] ai_control CALLED ({request.method})")
     """
     AI PC로부터 JSON 데이터를 받아 컨트롤러를 자동 탐색 후 제어 수행
     """
