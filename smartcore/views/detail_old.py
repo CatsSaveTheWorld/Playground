@@ -7,7 +7,6 @@ from django.conf import settings
 import pandas as pd
 import requests
 import os
-import json
 
 # CSV 파일 경로 설정
 DATA_DIR = os.path.join(settings.BASE_DIR, 'smartcore', 'management', 'data')
@@ -25,9 +24,6 @@ def detail_list(request):
     return render(request, "smartcore/detail_list.html")
 
 
-# ────────────────────────────────
-#  공통 유틸
-# ────────────────────────────────
 def get_controller(controller_id):
     try:
         return Controller.objects.get(id=controller_id)
@@ -65,11 +61,16 @@ def validate_post_request(request, keys):
     return True, None
 
 
-# ────────────────────────────────
-#  내부 제어 함수 (AI/웹 공통)
-# ────────────────────────────────
-def aircon_control_internal(controller_id, motion, success_message, bits=None):
-    controller = get_controller(controller_id)
+@csrf_exempt
+def aircon_control(request, motion, success_message, bits=None):
+    if request.method != "POST":
+        return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
+
+    is_valid, error_response = validate_post_request(request, ['controller_id'])
+    if not is_valid:
+        return error_response
+
+    controller = get_controller(request.POST.get("controller_id"))
     if not controller:
         return JsonResponse({'status': 'fail', 'message': "컨트롤러 없음"}, status=404)
 
@@ -81,23 +82,7 @@ def aircon_control_internal(controller_id, motion, success_message, bits=None):
     if success:
         return JsonResponse({'status': 'success', 'message': success_message})
     else:
-        return JsonResponse({'status': 'fail', 'message': f"기기 통신 오류: {result}"}, status=500)
-
-
-# ────────────────────────────────
-#  웹 요청용 (form-data)
-# ────────────────────────────────
-@csrf_exempt
-def aircon_control(request, motion, success_message, bits=None):
-    if request.method != "POST":
-        return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
-
-    is_valid, error_response = validate_post_request(request, ['controller_id'])
-    if not is_valid:
-        return error_response
-
-    controller_id = request.POST.get("controller_id")
-    return aircon_control_internal(controller_id, motion, success_message, bits)
+        return JsonResponse({'status': 'fail', 'message': f"기기 통신 오류가 발생했습니다: {result}"}, status=500)
 
 
 @csrf_exempt
@@ -157,51 +142,3 @@ def aircon_set_temp(request):
         return JsonResponse({'status': 'success', 'message': f'에어컨 온도가 {temperature}°C로 설정되었습니다.'})
     else:
         return JsonResponse({'status': 'fail', 'message': f"기기 통신 오류가 발생했습니다: {result}"}, status=500)
-
-
-# ────────────────────────────────
-#  AI 요청용 (JSON 기반)
-# ────────────────────────────────
-@csrf_exempt
-def ai_control(request):
-    """
-    AI PC로부터 JSON 데이터를 받아 컨트롤러를 자동 탐색 후 제어 수행
-    """
-    if request.method != "POST":
-        return JsonResponse({"status": "fail", "message": "POST 요청만 허용됩니다."}, status=400)
-
-    try:
-        data = json.loads(request.body)
-        device = data.get("device")
-        function = data.get("function")
-        location = data.get("location")
-    except Exception as e:
-        return JsonResponse({"status": "fail", "message": f"JSON 파싱 오류: {str(e)}"}, status=400)
-
-    # Controller 탐색
-    try:
-        controller = Controller.objects.get(device=device, location=location)
-    except Controller.DoesNotExist:
-        return JsonResponse({"status": "fail", "message": f"{location}의 {device} 컨트롤러를 찾을 수 없습니다."}, status=404)
-
-    controller_id = controller.id
-
-    # 제어 수행
-    if device == "aircon":
-        if function == "power_on":
-            return aircon_control_internal(controller_id, "power_on", "에어컨 전원이 켜졌습니다!")
-        elif function == "power_off":
-            return aircon_control_internal(controller_id, "power_off", "에어컨 전원이 꺼졌습니다!")
-        elif function == "mode_auto":
-            return aircon_control_internal(controller_id, "mode_auto", "에어컨 자동 모드로 설정되었습니다!")
-        elif function == "mode_cool":
-            return aircon_control_internal(controller_id, "mode_cool", "에어컨 냉방 모드로 설정되었습니다!")
-        elif function == "mode_dehumidification":
-            return aircon_control_internal(controller_id, "mode_dehumidification", "에어컨 제습 모드로 설정되었습니다!")
-        elif function == "mode_fan":
-            return aircon_control_internal(controller_id, "mode_fan", "에어컨 송풍 모드로 설정되었습니다!")
-        elif function.startswith("set_temp_"):
-            temp = function.split("_")[-1]
-            return aircon_control_internal(controller_id, f"set_temp_{temp}", f"에어컨 온도가 {temp}°C로 설정되었습니다.")
-
-    return JsonResponse({"status": "fail", "message": f"지원되지 않는 device/function: {device}/{function}"}, status=400)
