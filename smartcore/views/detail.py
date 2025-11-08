@@ -170,12 +170,14 @@ def ai_control(request):
     """
     if request.method != "POST":
         return JsonResponse({"status": "fail", "message": "POST 요청만 허용됩니다."}, status=400)
-
     try:
         data = json.loads(request.body)
+        print(f"[DEBUG] payload: {data}")
         device = data.get("device")
         function = data.get("function")
         location = data.get("location")
+        print(f"[DEBUG] {location=} {device=} {function=}")
+
     except Exception as e:
         return JsonResponse({"status": "fail", "message": f"JSON 파싱 오류: {str(e)}"}, status=400)
 
