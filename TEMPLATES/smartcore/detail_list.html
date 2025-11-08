@@ -209,7 +209,6 @@
 
     <div class="title">세부 기기 제어</div>
     <div class="card-box">
-        <!-- 에어컨 제어 -->
         <div class="card" onclick="toggleDropdown('aircon')" data-device="aircon" data-location="거실">
             에어컨 조작
             <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
@@ -232,7 +231,6 @@
             </div>
         </div>
 
-        <!-- 선풍기 제어 -->
         <div class="card" onclick="toggleDropdown('electric_fan')" data-device="electric_fan" data-location="거실">
             선풍기 조작
             <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
@@ -268,8 +266,8 @@
         // ✅ JSON 기반 sendAction 함수 (ai_control용)
         function sendAction(func, event) {
             if (event) {
-                event.preventDefault();
-                event.stopPropagation();  // 상위 클릭 이벤트 방지
+                event.preventDefault(); // ✅ 버튼의 기본 동작(폼 제출/페이지 리로드) 방지
+                event.stopPropagation();  // ✅ 상위 클릭 이벤트 방지 (이벤트 버블링 차단)
             }
 
             const button = event.currentTarget;
@@ -289,6 +287,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    // 'X-CSRFToken': getCookie('csrftoken') // CSRF 토큰 필요 시 주석 해제
                 },
                 credentials: 'include', // 로그인 세션 유지 (선택)
                 body: JSON.stringify({
@@ -314,24 +313,33 @@
         }
 
 
-        // sendTempAction 함수 (이것이 가장 중요!)
-        function sendTempAction(url, event) { 
+        // sendTempAction 함수 수정 (이것이 가장 중요!)
+        function sendTempAction(event) { 
             if (event) { 
-                event.preventDefault(); 
+                event.preventDefault(); // ✅ 버튼의 기본 동작(폼 제출/페이지 리로드) 방지
+                event.stopPropagation();  // ✅ 상위 클릭 이벤트 방지 (이벤트 버블링 차단)
             }
 
             const button = event.currentTarget;
             const card = button.closest('.card');
-            const controllerId = card ? card.dataset.controllerId : null;
-
-            if (!controllerId) {
-                console.error('Error: Controller ID not found for this action.');
-                alert('컨트롤러 ID를 찾을 수 없습니다. 페이지를 새로고침하거나 관리자에게 문의하세요.');
+            
+            // card에서 device와 location 정보를 가져옴 (컨트롤러 ID는 사용하지 않음)
+            const device = card ? card.dataset.device : null;
+            const location = card ? card.dataset.location : null;
+            
+            if (!device || !location) {
+                alert('기기 정보 또는 위치 정보가 누락되었습니다.');
                 return;
             }
+            // if (!controllerId) {
+            //     console.error('Error: Controller ID not found for this action.');
+            //     alert('컨트롤러 ID를 찾을 수 없습니다. 페이지를 새로고침하거나 관리자에게 문의하세요.');
+            //     return;
+            // }
 
             const tempInput = document.getElementById('aircon-temp-input');
-            const temperature = tempInput.value;
+            // 온도 값을 숫자로 변환
+            const temperature = tempInput.value ? parseInt(tempInput.value, 10) : null; 
 
             if (!temperature || isNaN(temperature) || temperature < 16 || temperature > 30) {
                 alert('유효한 온도를 입력해주세요 (예: 16 ~ 30도).');
@@ -339,16 +347,18 @@
                 return;
             }
 
-            fetch(url, {
+            // fetch URL을 sendAction과 동일하게 설정
+            fetch('/smartcore/detail/ai_control/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken') // 로그인 세션 유지 중이면 필요
+                    // 'X-CSRFToken': getCookie('csrftoken') // CSRF 토큰 필요 시 주석 해제
                 },
                 body: JSON.stringify({
-                    device: 'aircon',           // 예시
-                    function: 'power_on',       // 또는 'power_off'
-                    location: '거실'            // 컨트롤러 위치
+                    device: device,                         // card에서 가져온 device
+                    function: 'set_temperature',            // 온도 설정 함수명을 명시적으로 지정
+                    location: location,                     // card에서 가져온 location
+                    temperature: temperature                // ✅ 설정할 온도 값 추가
                 })
             })
             .then(response => {
