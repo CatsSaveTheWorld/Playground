@@ -331,29 +331,28 @@
             fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    // 'X-CSRFToken': getCookie('csrftoken'), // CSRF 토큰 사용 시
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') // 로그인 세션 유지 중이면 필요
                 },
-                body: new URLSearchParams({
-                    'controller_id': controllerId,
-                    'temperature': temperature
+                body: JSON.stringify({
+                    device: 'aircon',           // 예시
+                    function: 'power_on',       // 또는 'power_off'
+                    location: '거실'            // 컨트롤러 위치
                 })
             })
             .then(response => {
                 if (!response.ok) {
-                    return response.json().then(err => { 
-                        throw new Error(err.message || '서버 오류가 발생했습니다.'); 
-                    });
+                    throw new Error('서버 응답 오류 발생');
                 }
-                return response.json();
+                return response.json();  // JSON만 반환
             })
             .then(data => {
                 console.log('Success:', data);
-                alert(data.message); 
+                alert(data.message || '요청 성공!');
             })
             .catch(error => {
                 console.error('Fetch error:', error);
-                alert('작업 중 오류가 발생했습니다: ' + error.message);
+                alert('서버 오류가 발생했습니다: ' + error.message);
             });
         }
 
