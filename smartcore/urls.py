@@ -10,7 +10,7 @@ urlpatterns = [
     path("logout/", base.logout_view, name="logout_view"),
     path("loadout/", loadout.loadout_list, name="loadout_list"),
     path("detail/ai_control/", detail.ai_control, name="ai_control"),
-    path("detail/", detail.detail_list, name="detail_list"),
+    path("detail/", detail.detail_list, name="detail_list"),        # 임시로 위치 바꿈
 
 
     # ✅ AI 통합 제어 엔드포인트 추가
