@@ -209,7 +209,7 @@
 
     <div class="title">세부 기기 제어</div>
 
-    <div class="card-box">
+    <!-- <div class="card-box">
         <div class="card" onclick="toggleDropdown('aircon')" data-controller-id="1"> 에어컨 조작
             <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
                 <button onclick="sendAction('/smartcore/aircon/power_on/', event)">전원 켜기</button>
@@ -238,6 +238,42 @@
                 <button onclick="sendAction('/smartcore/electric_fan/strong_wind/', event)">강풍</button>
             </div>
         </div>
+    </div> -->
+    <div class="card-box">
+        <!-- 에어컨 제어 -->
+        <div class="card" onclick="toggleDropdown('aircon')" data-device="aircon" data-location="거실">
+            에어컨 조작
+            <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
+                <button type="button" onclick="sendAction('power_on', event)">전원 켜기</button>
+                <button type="button" onclick="sendAction('power_off', event)">전원 끄기</button>
+
+                <hr style="border-top: 1px solid #00FFC8; margin: 10px 0;">
+
+                <div class="temp-setting-row">
+                    <span class="temp-label">온도</span>
+                    <input type="number" id="aircon-temp-input" placeholder="예: 24" min="16" max="30">
+                    <button type="button" onclick="sendTempAction(event)">설정</button>
+                </div>
+
+                <hr style="border-top: 1px solid #00FFC8; margin: 10px 0;">
+                <button type="button" onclick="sendAction('mode_auto', event)">자동 모드</button>
+                <button type="button" onclick="sendAction('mode_cool', event)">냉방 모드</button>
+                <button type="button" onclick="sendAction('mode_dehumidification', event)">제습 모드</button>
+                <button type="button" onclick="sendAction('mode_fan', event)">송풍 모드</button>
+            </div>
+        </div>
+
+        <!-- 선풍기 제어 -->
+        <div class="card" onclick="toggleDropdown('electric_fan')" data-device="electric_fan" data-location="거실">
+            선풍기 조작
+            <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
+                <button type="button" onclick="sendAction('power_on', event)">전원 켜기</button>
+                <button type="button" onclick="sendAction('power_off', event)">전원 끄기</button>
+                <button type="button" onclick="sendAction('light_wind', event)">약풍</button>
+                <button type="button" onclick="sendAction('medium_wind', event)">중풍</button>
+                <button type="button" onclick="sendAction('strong_wind', event)">강풍</button>
+            </div>
+        </div>
     </div>
 
     {% include "sidebar.html" %}
@@ -260,48 +296,54 @@
         }
 
         // sendAction 함수
-        function sendAction(url, event) {
-            if (event) { 
-                event.preventDefault(); 
+        // ✅ JSON 기반 sendAction 함수 (ai_control용)
+        function sendAction(func, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();  // 상위 클릭 이벤트 방지
             }
 
             const button = event.currentTarget;
             const card = button.closest('.card');
-            const controllerId = card ? card.dataset.controllerId : null;
 
-            if (!controllerId) {
-                console.error('Error: Controller ID not found for this action.');
-                alert('컨트롤러 ID를 찾을 수 없습니다. 페이지를 새로고침하거나 관리자에게 문의하세요.');
+            // HTML 카드에 data-device, data-location 속성이 있어야 함
+            const device = card ? card.dataset.device : null;
+            const location = card ? card.dataset.location : null;
+
+            if (!device || !location) {
+                alert('기기 정보 또는 위치 정보가 누락되었습니다.');
                 return;
             }
 
-            fetch(url, {
+            // Django에 JSON POST
+            fetch('/smartcore/detail/ai_control/', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    // 'X-CSRFToken': getCookie('csrftoken'), // CSRF 토큰 사용 시
+                    'Content-Type': 'application/json',
                 },
-                body: new URLSearchParams({
-                    'controller_id': controllerId
+                credentials: 'include', // 로그인 세션 유지 (선택)
+                body: JSON.stringify({
+                    device: device,
+                    function: func,
+                    location: location
                 })
             })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { 
-                        throw new Error(err.message || '서버 오류가 발생했습니다.'); 
-                    });
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`서버 오류 (HTTP ${res.status})`);
                 }
-                return response.json();
+                return res.json();
             })
             .then(data => {
-                console.log('Success:', data);
-                alert(data.message); 
+                console.log('✅ Success:', data);
+                alert(data.message || '요청이 완료되었습니다.');
             })
             .catch(error => {
-                console.error('Fetch error:', error);
+                console.error('❌ Fetch error:', error);
                 alert('작업 중 오류가 발생했습니다: ' + error.message);
             });
         }
+
 
         // sendTempAction 함수 (이것이 가장 중요!)
         function sendTempAction(url, event) { 
