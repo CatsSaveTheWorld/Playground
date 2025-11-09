@@ -208,10 +208,60 @@
     </div>
 
     <div class="title">세부 기기 제어</div>
+    <!-- 카드 전체 박스 -->
     <div class="card-box">
+        {% for controller in controllers %}
+            {% if controller.device.device_type == "aircon" %}
+                <div
+                    class="card"
+                    onclick="toggleDropdown('aircon')"
+                    data-controller-id="{{ controller.id }}"
+                    data-device-type="{{ controller.device.device_type }}"
+                    data-location="{{ controller.location }}">
+                    에어컨 조작
+                    <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
+                        <button onclick="sendAction('/smartcore/aircon/power_on/', event)">전원 켜기</button>
+                        <button onclick="sendAction('/smartcore/aircon/power_off/', event)">전원 끄기</button>
+                        <hr>
+                        <div class="temp-setting-row">
+                            <span>온도</span>
+                            <input type="number" id="aircon-temp" min="16" max="30" placeholder="예: 24">
+                            <button onclick="sendTempAction('/smartcore/aircon/set_temp/', event)">설정</button>
+                        </div>
+                        <hr>
+                        <button onclick="sendAction('/smartcore/aircon/mode_auto/', event)">자동 모드</button>
+                        <button onclick="sendAction('/smartcore/aircon/mode_cool/', event)">냉방 모드</button>
+                        <button onclick="sendAction('/smartcore/aircon/mode_dehumidification/', event)">제습 모드</button>
+                        <button onclick="sendAction('/smartcore/aircon/mode_fan/', event)">송풍 모드</button>
+                    </div>
+                </div>
+            {% elif controller.device.device_type == "electric_fan" %}
+                <div
+                    class="card"
+                    onclick="toggleDropdown('electric_fan')"
+                    data-controller-id="{{ controller.id }}"
+                    data-device-type="{{ controller.device.device_type }}"
+                    data-location="{{ controller.location }}">
+                    선풍기 조작
+                    <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
+                        <button type="button" onclick="return sendAction('power_on', event)">전원 켜기</button>
+                        <button type="button" onclick="return sendAction('power_off', event)">전원 끄기</button>
+                        <button type="button" onclick="return sendAction('light_wind', event)">약풍</button>
+                        <button type="button" onclick="return sendAction('medium_wind', event)">중풍</button>
+                        <button type="button" onclick="return sendAction('strong_wind', event)">강풍</button>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    <!-- <div class="card-box">
     <div class="card-box">
-        <!-- 에어컨 제어 -->
-        <div class="card" onclick="toggleDropdown('aircon')" data-controller-id="{{ controller.id }}">
+        <div
+            class="card"
+            onclick="toggleDropdown('aircon')"
+            data-controller-id="{{ controller.id }}"
+            data-device-type="{{ controller.device.device_type }}"
+            data-location="{{ controller.location }}">
             에어컨 조작
             <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
                 <button onclick="sendAction('/smartcore/aircon/power_on/', event)">전원 켜기</button>
@@ -240,7 +290,7 @@
                 <button type="button" onclick="return sendAction('strong_wind', event)">강풍</button>
             </div>
         </div>
-    </div>
+    </div> -->
 
     <div id="toast" style="
         display:none;
@@ -280,12 +330,62 @@
         }
         
         // ✅ 공통 fetch 함수
+        // function sendAction(url, event) {
+        //     event.preventDefault();
+        //     event.stopPropagation();
+
+        //     // ✅ 수정된 부분: card 탐색 로직 강화
+        //     // 버튼 클릭 시에도 상위 .card 요소를 확실히 찾아서 controller_id를 가져오도록 변경
+        //     const card = event.target.closest('.card');
+        //     const controllerId = card ? card.dataset.controllerId : null;
+
+        //     console.log("[DEBUG] controllerId:", controllerId);
+
+        //     if (!controllerId) {
+        //         showToast("controller_id 누락됨!");
+        //         return;
+        //     }
+
+        //     fetch(url, {
+        //         method: 'POST',
+        //         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        //         body: new URLSearchParams({ 'controller_id': controllerId })
+        //     })
+        //     .then(res => res.json())
+        //     .then(data => {
+        //         console.log('✅', data);
+        //         // alert(data.message);
+        //         showToast(data.message);
+        //     })
+        //     .catch(err => {
+        //         console.error('❌', err);
+        //         // alert('요청 실패: ' + err.message);
+        //         showToast('요청 실패: ' + err.message);
+        //     });
+        //     return false;
+        // }
         function sendAction(url, event) {
             event.preventDefault();
-            event.stopPropagation();
 
-            const card = event.currentTarget.closest('.card');
-            const controllerId = card.dataset.controllerId;
+            // ✅ stopPropagation() 때문에 .card 탐색이 막힐 수 있으므로 document 기준으로 탐색
+            let element = event.target;
+            let card = null;
+
+            while (element) {
+                if (element.classList && element.classList.contains('card')) {
+                    card = element;
+                    break;
+                }
+                element = element.parentElement;
+            }
+
+            const controllerId = card ? card.dataset.controllerId : null;
+            console.log("[DEBUG] controllerId:", controllerId);
+
+            if (!controllerId) {
+                showToast("controller_id 누락됨!");
+                return;
+            }
 
             fetch(url, {
                 method: 'POST',
@@ -293,17 +393,8 @@
                 body: new URLSearchParams({ 'controller_id': controllerId })
             })
             .then(res => res.json())
-            .then(data => {
-                console.log('✅', data);
-                // alert(data.message);
-                showToast(data.message);
-            })
-            .catch(err => {
-                console.error('❌', err);
-                // alert('요청 실패: ' + err.message);
-                showToast('요청 실패: ' + err.message);
-            });
-            return false;
+            .then(data => showToast(data.message))
+            .catch(err => showToast('요청 실패: ' + err.message));
         }
         // ✅ 온도 설정
         function sendTempAction(url, event) {
