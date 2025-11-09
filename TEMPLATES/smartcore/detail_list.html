@@ -211,7 +211,7 @@
     <div class="card-box">
     <div class="card-box">
         <!-- 에어컨 제어 -->
-        <div class="card" onclick="toggleDropdown('aircon')" data-controller-id="1">
+        <div class="card" onclick="toggleDropdown('aircon')" data-controller-id="{{ controller.id }}">
             에어컨 조작
             <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
                 <button onclick="sendAction('/smartcore/aircon/power_on/', event)">전원 켜기</button>
