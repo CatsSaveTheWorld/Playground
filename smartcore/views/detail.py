@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from ..models import Controller, Device
@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 import os
 import json
+
 
 # CSV 파일 경로 설정
 DATA_DIR = os.path.join(settings.BASE_DIR, 'smartcore', 'management', 'data')
@@ -101,20 +102,21 @@ def aircon_control_internal(controller_id, motion, success_message, bits=None):
 # ────────────────────────────────
 @csrf_exempt
 def aircon_entry(request):
-    """
-    웹페이지(Form)와 AI PC(JSON) 요청을 모두 처리하는 통합 엔드포인트
-    """
     if request.method != "POST":
         return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
 
     data = parse_request_data(request)
-    print(f"[DEBUG] aircon_entry 데이터: {data}")
-
     controller_id = data.get("controller_id")
     motion = data.get("motion") or data.get("function")
 
-    # controller_id가 없으면 device/location으로 탐색 (AI 요청용)
-    if not controller_id:
+    print(f"[DEBUG] controller_id : {controller_id}")
+    print(f"[DEBUG] motion : {motion}")
+
+    # 1️⃣ controller_id 우선 확인
+    if controller_id:
+        controller = get_object_or_404(Controller, id=controller_id)
+    else:
+        # 2️⃣ 없으면 device/location으로 탐색 (AI 요청용)
         device_name = data.get("device")
         location = data.get("location")
         if not (device_name and location):
@@ -126,11 +128,11 @@ def aircon_entry(request):
         except Controller.DoesNotExist:
             return JsonResponse({'status': 'fail', 'message': f"{location}의 {device_name} 컨트롤러를 찾을 수 없습니다."}, status=404)
 
-    # motion(혹은 function)이 비어있을 경우 예외 처리
+    # 3️⃣ motion(혹은 function) 누락 방지
     if not motion:
         return JsonResponse({'status': 'fail', 'message': 'motion 또는 function 값이 필요합니다.'}, status=400)
 
-    # 동작 수행
+    # 4️⃣ 동작 수행
     success_message = motion_messages[motion]
     return aircon_control_internal(controller_id, motion, success_message)
 
