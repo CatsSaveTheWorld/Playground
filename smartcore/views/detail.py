@@ -106,35 +106,56 @@ def aircon_entry(request):
         return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
 
     data = parse_request_data(request)
+    print(f"[DEBUG] aircon_entry 데이터 keys: {list(data.keys())}")
+
     controller_id = data.get("controller_id")
+    device_id = data.get("device_id")
     motion = data.get("motion") or data.get("function")
 
-    print(f"[DEBUG] controller_id : {controller_id}")
-    print(f"[DEBUG] motion : {motion}")
+    # ────────────────────────────────
+    #  Controller 탐색 함수
+    # ────────────────────────────────
+    def search_controller(controller_id, device_id):
+        """controller_id 또는 device_id로 Controller 객체 탐색"""
+        if controller_id:
+            return get_object_or_404(Controller, id=controller_id)
+        elif device_id:
+            return get_object_or_404(Controller, device_id=device_id)
+        else:
+            return None
 
-    # 1️⃣ controller_id 우선 확인
-    if controller_id:
-        controller = get_object_or_404(Controller, id=controller_id)
-    else:
-        # 2️⃣ 없으면 device/location으로 탐색 (AI 요청용)
+    controller = search_controller(controller_id, device_id)    # 파라미터를 따로 안줘도 됨.
+
+    # 1️⃣ Controller가 없는 경우
+    if controller is None:
         device_name = data.get("device")
         location = data.get("location")
+
         if not (device_name and location):
-            return JsonResponse({'status': 'fail', 'message': 'controller_id 또는 device/location 정보가 필요합니다.'}, status=400)
+            return JsonResponse(
+                {'status': 'fail', 'message': 'controller_id, device_id 또는 device/location 정보가 필요합니다.'},
+                status=400
+            )
 
         try:
             controller = Controller.objects.get(device=device_name, location=location)
-            controller_id = controller.id
         except Controller.DoesNotExist:
-            return JsonResponse({'status': 'fail', 'message': f"{location}의 {device_name} 컨트롤러를 찾을 수 없습니다."}, status=404)
+            return JsonResponse(
+                {'status': 'fail', 'message': f"{location}의 {device_name} 컨트롤러를 찾을 수 없습니다."},
+                status=404
+            )
 
-    # 3️⃣ motion(혹은 function) 누락 방지
+    # 2️⃣ motion 값 검증
     if not motion:
         return JsonResponse({'status': 'fail', 'message': 'motion 또는 function 값이 필요합니다.'}, status=400)
 
+    # 3️⃣ 디버그 로그
+    print(f"[DEBUG] controller 선택됨: {controller.name} (id={controller.id}, ip={controller.ip_address})")
+    print(f"[DEBUG] motion : {motion}")
+
     # 4️⃣ 동작 수행
-    success_message = motion_messages[motion]
-    return aircon_control_internal(controller_id, motion, success_message)
+    success_message = motion_messages.get(motion, "명령 전송 완료")
+    return aircon_control_internal(controller.id, motion, success_message)
 
 
 # ────────────────────────────────
