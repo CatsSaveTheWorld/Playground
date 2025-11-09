@@ -240,7 +240,7 @@ def ai_control(request):
     try:
         # 1️⃣ device_name (문자열)에 해당하는 Device 객체 찾기
         device_obj = Device.objects.get(device_type=device_type, location=location)
-        controller = device_obj.controller
+        controller = Controller.objects.filter(device=device_obj).first()
 
     except Device.DoesNotExist:
         return JsonResponse({
