@@ -106,11 +106,15 @@ def aircon_entry(request):
         return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
 
     data = parse_request_data(request)
-    print(f"[DEBUG] aircon_entry 데이터 keys: {list(data.keys())}")
+    # print(f"[DEBUG] aircon_entry 데이터 keys: {list(data.keys())}")
 
     controller_id = data.get("controller_id")
     device_id = data.get("device_id")
     motion = data.get("motion") or data.get("function")
+
+    # print(f"[DEBUG] controller_id: {controller_id}")
+    # print(f"[DEBUG] device_id: {device_id}")
+    # print(f"[DEBUG] motion: {motion}")
 
     # ────────────────────────────────
     #  Controller 탐색 함수
@@ -125,6 +129,7 @@ def aircon_entry(request):
             return None
 
     controller = search_controller(controller_id, device_id)    # 파라미터를 따로 안줘도 됨.
+    # print(f"[DEBUG] motion: {motion}")
 
     # 1️⃣ Controller가 없는 경우
     if controller is None:
