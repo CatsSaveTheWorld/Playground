@@ -138,7 +138,7 @@ def aircon_entry(request):
 
         if not (device_name and location):
             return JsonResponse(
-                {'status': 'fail', 'message': 'controller_id, device_id 또는 device/location 정보가 필요합니다.'},
+                {'status': 'fail', 'message': 'controller, device_id 또는 device/location 정보가 필요합니다.'},
                 status=400
             )
 
@@ -247,6 +247,10 @@ def ai_control(request):
     device_type = data.get("device_type")    # ex) aircon
     function = data.get("function")
     location = data.get("location")
+
+    print(f"[DEBUG] device_type : {device_type}")
+    print(f"[DEBUG] function : {function}")
+    print(f"[DEBUG] location : {location}")
 
     if not all([device_type, function, location]):
         return JsonResponse({
