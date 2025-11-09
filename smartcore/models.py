@@ -8,8 +8,15 @@ class Device(models.Model):
     - device_type: 기기 종류 (예: aircon, fan, light 등)
     - name: 사용자 표시용 기기 이름
     """
-    device_uid = models.CharField(max_length=100, unique=True)
     device_type = models.CharField(max_length=50)
+    device_uid = models.CharField(max_length=100, unique=True)
+    controller = models.OneToOneField(
+        "Controller", 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name="controlled_device"
+    )
     name = models.CharField(max_length=100)
     location = models.CharField(max_length=100)
 
