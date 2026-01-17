@@ -14,6 +14,7 @@ import json
 DATA_DIR = os.path.join(settings.BASE_DIR, 'smartcore', 'management', 'data')
 wifi_path = os.path.join(DATA_DIR, 'wifi.csv').replace('\\', '/')
 device_path = os.path.join(DATA_DIR, 'device_codes.csv').replace('\\', '/')
+pc_path = os.path.join(DATA_DIR, 'Computers.csv').replace('\\', '/')
 
 # CSV 데이터 로드
 wifi = pd.read_csv(wifi_path)
@@ -25,7 +26,7 @@ device.bits = device.bits.astype(int)
 def detail_list(request):
     devices = Device.objects.all()
     controllers = Controller.objects.all()  # 모든 컨트롤러 조회
-    pcs_df = pd.read_csv("E:\Python\github\PLAYGROUND\smartcore\management\data/Computers.csv", encoding='cp949')
+    pcs_df = pd.read_csv(pc_path, encoding='cp949')
     pcs = [
         {
             "name": row[0],
@@ -238,7 +239,7 @@ def pc_power_on(request):
     pc_name = data.get("pc_name")
     pc_mac = data.get("pc_mac")
     pc_ip = data.get("pc_ip")
-    
+
     print(pc_name, pc_mac, pc_ip)
     
     if not pc_mac or not pc_ip:
