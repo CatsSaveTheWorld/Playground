@@ -25,32 +25,9 @@ device.bits = device.bits.astype(int)
 def detail_list(request):
     devices = Device.objects.all()
     controllers = Controller.objects.all()  # 모든 컨트롤러 조회
-    pcs_df = pd.read_csv("E:\Python\github\PLAYGROUND\smartcore\management\data/Computers.csv", encoding='cp949')
-    pcs = [
-        {
-            "name": row[0],
-            "mac": row[1],
-            "broadcast_ip": row[2],
-            "port": row[3],
-        }
-        for row in pcs_df.values
-    ]
-    # ✅ PC 제어용 목록 (WOL 대상)
-    # - 필요하면 DB 모델로 빼도 되지만, 우선은 여기서 관리하는 형태로 구성
-    # - broadcast_ip는 보통 같은 서브넷 브로드캐스트(예: 192.168.0.255)를 쓰는 게 안정적
-    # pcs = [
-    #     {
-    #         "id": "main_desktop",
-    #         "name": "메인 데스크톱",
-    #         "mac": "AA:BB:CC:DD:EE:FF",        # TODO: 실제 MAC으로 변경
-    #         "broadcast_ip": "192.168.0.255",    # TODO: 네트워크에 맞게 변경
-    #     }
-    # ]
-
     context = {
         "devices": devices,
         "controllers": controllers,
-        "pcs": pcs,
     }
     return render(request, "smartcore/detail_list.html", context)
 
@@ -229,36 +206,29 @@ def aircon_set_temp(request):
     return aircon_control_internal(controller_id, motion, success_message)
 
 # PC 제어
-@csrf_exempt
 def pc_power_on(request):
     if request.method != "POST":
         return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
     
     data = parse_request_data(request)
-    pc_name = data.get("pc_name")
+    pc_id = data.get("pc_id")
     pc_mac = data.get("pc_mac")
     pc_ip = data.get("pc_ip")
     
-    print(pc_name, pc_mac, pc_ip)
-    
-    if not pc_mac or not pc_ip:
-        return JsonResponse({'status': 'fail', 'message': 'pc_name / pc_mac / pc_ip 값이 없습니다.'}, status=400)
+    if not pc_id or not pc_mac or not pc_ip:
+        return JsonResponse({'status': 'fail', 'message': 'pc_id / pc_mac / pc_ip 값이 없습니다.'}, status=400)
 
-    success_message = f"{pc_name} PC가 정상적으로 켜졌습니다!"
-    try:
-        send_wol(pc_mac, pc_ip)
-    except Exception as e:
-        return JsonResponse({'status': 'fail', 'message': f'WOL 전송 실패: {e}'}, status=400)
-
+    success_message = f"PC가 정상적으로 켜졌습니다!"
+    send_wol(pc_mac, pc_ip)
     return JsonResponse({'status': 'success', 'message': success_message})
 
 
-@csrf_exempt
 def pc_power_off(request):
     if request.method != "POST":
         return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
     
     data = parse_request_data(request)
+    pc_id = data.get("pc_id")
     pc_mac = data.get("pc_mac")
     pc_ip = data.get("pc_ip")
 
@@ -379,7 +349,7 @@ def handle_aircon_command(controller_id, function):
 # ────────────────────────────────
 #  PC 전원 켜기 요청
 # ────────────────────────────────
-def send_wol(mac: str, ip: str = "255.255.255.255", port: int = 9) -> None:
+def send_wol(mac: str, ip: str = "192.168.0.2", port: int = 9) -> None:
     import re
     import socket
     """

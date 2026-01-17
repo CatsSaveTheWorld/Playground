@@ -33,4 +33,11 @@ urlpatterns = [
     path("aircon/mode_cool/", detail.aircon_mode_cool, name="aircon_mode_cool"),
     path("aircon/mode_dehumidification/", detail.aircon_dehumidification_mode, name="aircon_mode_dehumidification"),
     path("aircon/mode_fan/", detail.aircon_mode_fan, name="aircon_mode_fan"),
+
+    # ────────────────────────────────
+    #  PC 제어
+    # ────────────────────────────────
+    path("pc/power_on/", detail.pc_power_on, name="pc_power_on"),
+    path("pc/power_off/", detail.pc_power_off, name="pc_power_off"),
+
 ]

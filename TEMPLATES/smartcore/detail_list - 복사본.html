@@ -367,30 +367,28 @@
             return false;
         }
 
+        const controllerId = card.dataset.controllerId;
+        const pcId = card.dataset.pcId;
+
         const params = new URLSearchParams();
 
-        // ✅ PC 카드인지 판별: data-pc-mac / data-pc-ip가 있으면 PC로 간주
-        const pcMac  = card.dataset.pcMac;   // data-pc-mac
-        const pcIp   = card.dataset.pcIp;    // data-pc-ip
-        const pcName = card.dataset.pcName;  // data-pc-name
+        if (controllerId) {
+            params.set('controller_id', controllerId);
+        } else if (pcId) {
+            const pcMac = card.dataset.pcMac;
+            const pcIp = card.dataset.pcIp;
 
-        if (pcMac || pcIp) {
-            // PC 제어
             if (!pcMac || !pcIp) {
                 showToast('pc_mac 또는 pc_ip 누락됨!');
                 return false;
             }
-            params.set('pc_name', pcName || '');
+
+            params.set('pc_id', pcId);
             params.set('pc_mac', pcMac);
             params.set('pc_ip', pcIp);
         } else {
-            // 컨트롤러(에어컨/선풍기 등) 제어
-            const controllerId = card.dataset.controllerId; // data-controller-id
-            if (!controllerId) {
-                showToast('controller_id 누락됨!');
-                return false;
-            }
-            params.set('controller_id', controllerId);
+            showToast('controller_id / pc_id 누락됨!');
+            return false;
         }
 
         fetch(url, {

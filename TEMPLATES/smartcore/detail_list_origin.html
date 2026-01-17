@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Either One's SmartCore</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚡%3C/text%3E%3C/svg%3E">
+    <style>
+        /* 모든 CSS 스타일은 여기에 */
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background-color: #000000;
+            color: #FFFFFF;
+        }
+        .navbar {
+            background-color: #000000;
+            padding: 10px 20px;
+            font-size: 18px;
+            border-bottom: 1px solid #00FFC8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            Z-index: 1000;
+        }
+        .navbar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+        .title {
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 40px;
+            margin: 100px auto 30px;
+            width: 500px;
+            border: 2px solid #00FFC8;
+            font-size: 30px;
+            text-align: center;
+        }
+        .card-box {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap; /* 줄 바꿈 허용 */
+            align-items: flex-start;
+        }
+        .card {
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 20px;
+            width: 200px;
+            border: 2px solid #00FFC8;
+            font-size: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            flex: 0 1 200px; /* 크기 제한: 최소 0, 최대 200px */
+        }
+        .card:hover {
+            background-color: #2A2A2A;
+        }
+        /* .card.expanded {
+            padding-bottom: 150px;
+        } */
+        
+        /* ✅ 모바일 최적화: 768px 이하 화면 크기일 때 */
+        @media (max-width: 768px) {
+            .title {
+                width: 90%;
+                font-size: 24px;
+                padding: 30px;
+            }
+            .card-box {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .card {
+                width: 80%;
+                padding: 20px;
+                font-size: 20px;
+            }
+        }
+        .dropdown-content {
+            display: none;
+            background-color: #000000;
+            color: #FFFFFF;
+            margin-top: 10px;
+            padding: 10px;
+            border: 2px solid #00FFC8;
+            text-align: left;
+        }
+        .dropdown-content.active {
+            display: block;
+        }
+        .dropdown-content button {
+            display: block;
+            background: none; 
+            border: none;
+            padding: 8px 0;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            color: #FFFFFF;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        .dropdown-content button:hover {
+            background-color: #2A2A2A;
+            color: #00FFC8;
+        }
+        #toggleSidebar {
+            font-size: 28px;
+            background: none; 
+            border: none; 
+            color: #00FFC8;
+            cursor: pointer;
+            Z-index: 1001;
+        }
+        #sidebar {
+            position: fixed; 
+            top: 0;
+            right: -250px; /* 초기에는 숨김 */
+            width: 250px;
+            height: 100%;
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 20px;
+            border-left: 1px solid #00FFC8;
+            transition: right 0.3s ease;
+            Z-index: 1050; /* 오버레이보다 위에 */
+        }
+        #sidebar.closed {
+            right: -250px;
+            pointer-events: none;  /* 마우스 이벤트 비활성화 */
+        }
+        #sidebar h5 {
+            color: #00FFC8;
+            font-size: 20px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        #sidebar ul {
+            list-style: none; 
+            padding-left: 0;
+        }
+        #sidebar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+        #sidebar a:hover {
+            text-decoration: underline;
+        }
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5); /* 반투명 검은색 오버레이 */
+            z-index: 1049; /* 사이드바 아래 */
+        }
+
+        /* 온도 입력 필드와 버튼을 감싸는 컨테이너 */
+        .temp-setting-row {
+            display: flex; /* 내부 요소를 가로로 정렬 */
+            align-items: center; /* 세로 중앙 정렬 */
+            margin: 10px 0; /* 위아래 여백 추가 */
+            width: 100%; /* 부모 요소의 너비를 꽉 채우도록 설정 */
+            gap: 10px; /* 요소들 사이의 간격 */
+        }
+
+        /* "온도" 텍스트 레이블 스타일 */
+        .temp-setting-row .temp-label {
+            flex-shrink: 0; /* "온도" 텍스트가 줄어들지 않도록 함 */
+            padding-right: 5px; /* 입력 필드와의 간격 */
+            color: #FFF; /* 텍스트 색상 */
+        }
+
+        /* 온도 입력 필드 스타일 */
+        .temp-setting-row input[type="number"] {
+            flex-grow: 1; /* 남은 공간을 모두 차지하도록 함 */
+            padding: 8px 10px;
+            background-color: #333;
+            border: 1px solid #00FFC8;
+            color: #FFF;
+            border-radius: 4px; /* 모서리 둥글게 */
+        }
+
+        /* 온도 설정 버튼 스타일 */
+        .temp-setting-row button {
+            flex-shrink: 0; /* 버튼이 줄어들지 않도록 함 */
+            padding: 8px 15px; /* 패딩 조절 */
+            width: auto; /* 버튼 너비를 내용에 맞춤 */
+        }
+
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div>
+            <a href="{% url 'smartcore:dashboard' %}">Either One's SmartCore</a>
+            {{ request.user.username }} (<a href="{% url 'smartcore:logout_view' %}">로그아웃</a>)
+        </div>
+        <button id="toggleSidebar">&#9776;</button>
+    </div>
+    
+    <div class="title">세부 기기 제어</div>
+    <!-- 카드 전체 박스 -->
+    <div class="card-box">
+        {% for controller in controllers %}
+            {% if controller.device.device_type == "aircon" %}
+                <div
+                    class="card"
+                    onclick="toggleDropdown('aircon')"
+                    data-controller-id="{{ controller.id }}"
+                    data-device-type="{{ controller.device.device_type }}"
+                    data-location="{{ controller.location }}">
+                    에어컨 조작
+                    <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
+                        <button onclick="sendAction('/smartcore/aircon/power_on/', event)">전원 켜기</button>
+                        <button onclick="sendAction('/smartcore/aircon/power_off/', event)">전원 끄기</button>
+                        <hr>
+                        <div class="temp-setting-row">
+                            <span>온도</span>
+                            <input type="number" id="aircon-temp" min="16" max="30" placeholder="예: 24">
+                            <button onclick="sendTempAction('/smartcore/aircon/set_temp/', event)">설정</button>
+                        </div>
+                        <hr>
+                        <button onclick="sendAction('/smartcore/aircon/mode_auto/', event)">자동 모드</button>
+                        <button onclick="sendAction('/smartcore/aircon/mode_cool/', event)">냉방 모드</button>
+                        <button onclick="sendAction('/smartcore/aircon/mode_dehumidification/', event)">제습 모드</button>
+                        <button onclick="sendAction('/smartcore/aircon/mode_fan/', event)">송풍 모드</button>
+                    </div>
+                </div>
+            {% elif controller.device.device_type == "electric_fan" %}
+                <div
+                    class="card"
+                    onclick="toggleDropdown('electric_fan')"
+                    data-controller-id="{{ controller.id }}"
+                    data-device-type="{{ controller.device.device_type }}"
+                    data-location="{{ controller.location }}">
+                    선풍기 조작
+                    <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
+                        <button type="button" onclick="return sendAction('power_on', event)">전원 켜기</button>
+                        <button type="button" onclick="return sendAction('power_off', event)">전원 끄기</button>
+                        <button type="button" onclick="return sendAction('light_wind', event)">약풍</button>
+                        <button type="button" onclick="return sendAction('medium_wind', event)">중풍</button>
+                        <button type="button" onclick="return sendAction('strong_wind', event)">강풍</button>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    <!-- <div class="card-box">
+    <div class="card-box">
+        <div
+            class="card"
+            onclick="toggleDropdown('aircon')"
+            data-controller-id="{{ controller.id }}"
+            data-device-type="{{ controller.device.device_type }}"
+            data-location="{{ controller.location }}">
+            에어컨 조작
+            <div id="dropdown-aircon" class="dropdown-content" onclick="event.stopPropagation()">
+                <button onclick="sendAction('/smartcore/aircon/power_on/', event)">전원 켜기</button>
+                <button onclick="sendAction('/smartcore/aircon/power_off/', event)">전원 끄기</button>
+                <hr>
+                <div class="temp-setting-row">
+                    <span>온도</span>
+                    <input type="number" id="aircon-temp" min="16" max="30" placeholder="예: 24">
+                    <button onclick="sendTempAction('/smartcore/aircon/set_temp/', event)">설정</button>
+                </div>
+                <hr>
+                <button onclick="sendAction('/smartcore/aircon/mode_auto/', event)">자동 모드</button>
+                <button onclick="sendAction('/smartcore/aircon/mode_cool/', event)">냉방 모드</button>
+                <button onclick="sendAction('/smartcore/aircon/mode_dehumidification/', event)">제습 모드</button>
+                <button onclick="sendAction('/smartcore/aircon/mode_fan/', event)">송풍 모드</button>
+            </div>
+        </div>
+    </div>
+        <div class="card" onclick="toggleDropdown('electric_fan')" data-device="electric_fan" data-location="거실">
+            선풍기 조작
+            <div id="dropdown-electric_fan" class="dropdown-content" onclick="event.stopPropagation()">
+                <button type="button" onclick="return sendAction('power_on', event)">전원 켜기</button>
+                <button type="button" onclick="return sendAction('power_off', event)">전원 끄기</button>
+                <button type="button" onclick="return sendAction('light_wind', event)">약풍</button>
+                <button type="button" onclick="return sendAction('medium_wind', event)">중풍</button>
+                <button type="button" onclick="return sendAction('strong_wind', event)">강풍</button>
+            </div>
+        </div>
+    </div> -->
+
+    <div id="toast" style="
+        display:none;
+        position:fixed;
+        top:30px;
+        left:50%;
+        transform:translateX(-50%);
+        background-color:rgba(0,0,0,0.85);
+        color:#fff;
+        padding:10px 24px;
+        border-radius:8px;
+        font-size:15px;
+        z-index:2000;
+        opacity:0;
+        transition:opacity 0.3s ease;
+    "></div>
+
+    {% include "sidebar.html" %}
+
+    <script>
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.style.display = 'block';
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.style.display = 'none', 300);
+            }, 2000); // 2초 후 자동 사라짐
+        }
+        function toggleDropdown(id) {
+            const dropdown = document.getElementById("dropdown-" + id);
+            document.querySelectorAll('.dropdown-content.active').forEach(el => {
+                if (el !== dropdown) el.classList.remove('active');
+            });
+            dropdown.classList.toggle('active');
+        }
+        
+        // ✅ 공통 fetch 함수
+        // function sendAction(url, event) {
+        //     event.preventDefault();
+        //     event.stopPropagation();
+
+        //     // ✅ 수정된 부분: card 탐색 로직 강화
+        //     // 버튼 클릭 시에도 상위 .card 요소를 확실히 찾아서 controller_id를 가져오도록 변경
+        //     const card = event.target.closest('.card');
+        //     const controllerId = card ? card.dataset.controllerId : null;
+
+        //     console.log("[DEBUG] controllerId:", controllerId);
+
+        //     if (!controllerId) {
+        //         showToast("controller_id 누락됨!");
+        //         return;
+        //     }
+
+        //     fetch(url, {
+        //         method: 'POST',
+        //         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        //         body: new URLSearchParams({ 'controller_id': controllerId })
+        //     })
+        //     .then(res => res.json())
+        //     .then(data => {
+        //         console.log('✅', data);
+        //         // alert(data.message);
+        //         showToast(data.message);
+        //     })
+        //     .catch(err => {
+        //         console.error('❌', err);
+        //         // alert('요청 실패: ' + err.message);
+        //         showToast('요청 실패: ' + err.message);
+        //     });
+        //     return false;
+        // }
+        function sendAction(url, event) {
+            event.preventDefault();
+
+            // ✅ stopPropagation() 때문에 .card 탐색이 막힐 수 있으므로 document 기준으로 탐색
+            let element = event.target;
+            let card = null;
+
+            while (element) {
+                if (element.classList && element.classList.contains('card')) {
+                    card = element;
+                    break;
+                }
+                element = element.parentElement;
+            }
+
+            const controllerId = card ? card.dataset.controllerId : null;
+            console.log("[DEBUG] controllerId:", controllerId);
+
+            if (!controllerId) {
+                showToast("controller_id 누락됨!");
+                return;
+            }
+
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ 'controller_id': controllerId })
+            })
+            .then(res => res.json())
+            .then(data => showToast(data.message))
+            .catch(err => showToast('요청 실패: ' + err.message));
+        }
+        // ✅ 온도 설정
+        function sendTempAction(url, event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const card = event.currentTarget.closest('.card');
+            const controllerId = card.dataset.controllerId;
+            const temp = document.getElementById('aircon-temp').value;
+
+            if (!temp || isNaN(temp)) {
+                alert('온도를 올바르게 입력하세요.');
+                return false;
+            }
+
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    'controller_id': controllerId,
+                    'temperature': temp
+                })
+            })
+            .then(res => res.json())
+            // .then(data => alert(data.message))
+            .then(data => showToast(data.message))
+            .catch(err => showToast('요청 실패: ' + err.message));
+
+            return false;
+        }
+
+        // 사이드바 토글 관련 JavaScript
+        const toggleSidebar = document.getElementById('toggleSidebar');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        let isOpen = false;
+
+        function openSidebar() {
+            sidebar.style.right = '0';
+            overlay.style.display = 'block';
+            isOpen = true;
+        }
+
+        function closeSidebar() {
+            sidebar.style.right = '-250px';
+            overlay.style.display = 'none';
+            isOpen = false;
+        }
+
+        toggleSidebar.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (isOpen) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        });
+
+        overlay.addEventListener('click', closeSidebar);
+
+        document.addEventListener('click', function(event) {
+            document.querySelectorAll('.dropdown-content.active').forEach(dropdown => {
+                const card = dropdown.parentElement;
+                if (!card.contains(event.target)) { // 클릭된 요소가 카드 영역에 속하지 않으면
+                    dropdown.classList.remove('active');
+                    card.classList.remove('expanded');
+                }
+            });
+        });
+
+        // CSRF 토큰을 가져오는 함수 (필요한 경우)
+        // function getCookie(name) {
+        //     let cookieValue = null;
+        //     if (document.cookie && document.cookie !== '') {
+        //         const cookies = document.cookie.split(';');
+        //         for (let i = 0; i < cookies.length; i++) {
+        //             const cookie = cookies[i].trim();
+        //             if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        //                 cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        //                 break;
+        //             }
+        //         }
+        //     }
+        //     return cookieValue;
+        // }
+    </script>
+</body>
+</html>
