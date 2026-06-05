@@ -298,13 +298,16 @@
                              data-controller-id="{{ controller.id }}"
                              data-device-type="{{ controller.device.device_type }}"
                              data-location="{{ controller.location }}">
-                            선풍기 조작
+                            선풍기 조작 [사용 안함]
                             <div class="dropdown-content" onclick="event.stopPropagation()">
-                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">전원 켜기</button>
+                                <!-- <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">풍량 올리기</button>
                                 <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">전원 끄기</button>
-                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">약풍</button>
-                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">중풍</button>
-                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">강풍</button>
+                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">풍향 바꾸기</button>
+                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">타이머 30분 추가</button> -->
+                                <button onclick="sendAction('/smartcore/electric_fan/power_cycle/', event)">풍량 올리기</button>
+                                <button onclick="sendAction('/smartcore/electric_fan/stop/', event)">전원 끄기</button>
+                                <button onclick="sendAction('/smartcore/electric_fan/fan_way_toggle/', event)">풍향 바꾸기</button>
+                                <button onclick="sendAction('/smartcore/electric_fan/timer_add_30m/', event)">타이머 30분 추가</button>
                             </div>
                         </div>
                     {% endif %}

@@ -40,4 +40,11 @@ urlpatterns = [
     path("pc/power_on/", detail.pc_power_on, name="pc_power_on"),
     path("pc/power_off/", detail.pc_power_off, name="pc_power_off"),
 
+    # ────────────────────────────────
+    # 선풍기 제어
+    # ────────────────────────────────
+    path("electric_fan/power_cycle/", detail.electricfan_power_cycle, name="electricfan_power_cycle"),
+    path("electric_fan/stop/", detail.electricfan_stop, name="electricfan_stop"),
+    path("electric_fan/fan_way_toggle/", detail.electricfan_fan_way_toggle, name="electricfan_fan_way_toggle"),
+    path("electric_fan/timer_add_30m/", detail.electricfan_timer_add_30m, name="electricfan_timer_add_30m"),
 ]
