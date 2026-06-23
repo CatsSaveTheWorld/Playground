@@ -246,12 +246,12 @@ def pc_power_on(request):
     if not pc_mac or not pc_ip:
         return JsonResponse({'status': 'fail', 'message': 'pc_name / pc_mac / pc_ip 값이 없습니다.'}, status=400)
 
-    success_message = f"{pc_name} PC가 정상적으로 켜졌습니다!"
     try:
         send_wol(pc_mac, pc_ip)
     except Exception as e:
         return JsonResponse({'status': 'fail', 'message': f'WOL 전송 실패: {e}'}, status=400)
 
+    success_message = f"{pc_name} PC가 정상적으로 켜졌습니다!"
     return JsonResponse({'status': 'success', 'message': success_message})
 
 
@@ -446,7 +446,7 @@ def send_wol(mac: str, ip: str = "255.255.255.255", port: int = 9) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         s.sendto(packet, (ip, port))
-
+        print(f"WOL => MAC={mac}, IP={ip}, PORT={port}")
 
 # ────────────────────────────────
 #  선풍기 내부 제어 함수 (공통)
