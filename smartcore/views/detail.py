@@ -241,13 +241,13 @@ def pc_power_on(request):
     pc_mac = data.get("pc_mac")
     pc_ip = data.get("pc_ip")
 
-    print(pc_name, pc_mac, pc_ip)
+    # print(pc_name, pc_mac, pc_ip)     # 디버그용
     
     if not pc_mac or not pc_ip:
         return JsonResponse({'status': 'fail', 'message': 'pc_name / pc_mac / pc_ip 값이 없습니다.'}, status=400)
 
     try:
-        send_wol(pc_mac, pc_ip)
+        send_wol(pc_mac)
     except Exception as e:
         return JsonResponse({'status': 'fail', 'message': f'WOL 전송 실패: {e}'}, status=400)
 
