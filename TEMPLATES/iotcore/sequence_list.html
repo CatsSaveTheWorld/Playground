@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Either One's IoTCore</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚡%3C/text%3E%3C/svg%3E">
+    <style>
+        /* 모든 CSS 스타일은 여기에 */
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background-color: #000000;
+            color: #FFFFFF;
+        }
+        .navbar {
+            background-color: #000000;
+            padding: 10px 20px;
+            font-size: 18px;
+            border-bottom: 1px solid #00FFC8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1000;
+        }
+        .navbar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+        .title {
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 40px;
+            margin: 100px auto 30px;
+            width: 500px;
+            border: 2px solid #00FFC8;
+            font-size: 30px;
+            text-align: center;
+        }
+        .card-box {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap; /* 줄 바꿈 허용 */
+            align-items: flex-start;
+        }
+        .card {
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 20px;
+            width: 200px;
+            border: 2px solid #00FFC8;
+            font-size: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            flex: 0 1 200px; /* 크기 제한: 최소 0, 최대 200px */
+        }
+        .card:hover {
+            background-color: #2A2A2A;
+        }
+        /* .card.expanded {
+            padding-bottom: 150px;
+        } */
+        
+        /* ✅ 모바일 최적화: 768px 이하 화면 크기일 때 */
+        @media (max-width: 768px) {
+            .title {
+                width: 90%;
+                font-size: 24px;
+                padding: 30px;
+            }
+            .card-box {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .card {
+                width: 80%;
+                padding: 20px;
+                font-size: 20px;
+            }
+        }
+        .dropdown-content {
+            display: none;
+            background-color: #000000;
+            color: #FFFFFF;
+            margin-top: 10px;
+            padding: 10px;
+            border: 2px solid #00FFC8;
+            text-align: left;
+        }
+        .dropdown-content.active {
+            display: block;
+        }
+        .dropdown-content button {
+            display: block;
+            background: none; 
+            border: none;
+            padding: 8px 0;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            color: #FFFFFF;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        .dropdown-content button:hover {
+            background-color: #2A2A2A;
+            color: #00FFC8;
+        }
+        #toggleSidebar {
+            font-size: 28px;
+            background: none; 
+            border: none; 
+            color: #00FFC8;
+            cursor: pointer;
+            z-index: 1001;
+        }
+        #sidebar {
+            position: fixed; 
+            top: 0;
+            right: -250px; /* 초기에는 숨김 */
+            width: 250px;
+            height: 100%;
+            background-color: #000000;
+            color: #FFFFFF;
+            padding: 20px;
+            border-left: 1px solid #00FFC8;
+            transition: right 0.3s ease;
+            z-index: 1050; /* 오버레이보다 위에 */
+        }
+        #sidebar.closed {
+            right: -250px;
+            pointer-events: none;  /* 마우스 이벤트 비활성화 */
+        }
+        #sidebar h5 {
+            color: #00FFC8;
+            font-size: 20px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        #sidebar ul {
+            list-style: none; 
+            padding-left: 0;
+        }
+        #sidebar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+        #sidebar a:hover {
+            text-decoration: underline;
+        }
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5); /* 반투명 검은색 오버레이 */
+            z-index: 1049; /* 사이드바 아래 */
+        }
+
+        /* 온도 입력 필드와 버튼을 감싸는 컨테이너 */
+        .temp-setting-row {
+            display: flex; /* 내부 요소를 가로로 정렬 */
+            align-items: center; /* 세로 중앙 정렬 */
+            margin: 10px 0; /* 위아래 여백 추가 */
+            width: 100%; /* 부모 요소의 너비를 꽉 채우도록 설정 */
+            gap: 10px; /* 요소들 사이의 간격 */
+        }
+
+        /* "온도" 텍스트 레이블 스타일 */
+        .temp-setting-row .temp-label {
+            flex-shrink: 0; /* "온도" 텍스트가 줄어들지 않도록 함 */
+            padding-right: 5px; /* 입력 필드와의 간격 */
+            color: #FFF; /* 텍스트 색상 */
+        }
+
+        /* 온도 입력 필드 스타일 */
+        .temp-setting-row input[type="number"] {
+            flex-grow: 1; /* 남은 공간을 모두 차지하도록 함 */
+            padding: 8px 10px;
+            background-color: #333;
+            border: 1px solid #00FFC8;
+            color: #FFF;
+            border-radius: 4px; /* 모서리 둥글게 */
+        }
+
+        /* 온도 설정 버튼 스타일 */
+        .temp-setting-row button {
+            flex-shrink: 0; /* 버튼이 줄어들지 않도록 함 */
+            padding: 8px 15px; /* 패딩 조절 */
+            width: auto; /* 버튼 너비를 내용에 맞춤 */
+        }
+
+    
+
+        /* ✅ 섹션(PC/방 제어) 2개를 가로로 배치 */
+        .detail-row{
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 60px;
+            flex-wrap: wrap;
+            padding: 0 20px;
+        }
+
+        .detail-section{
+            flex: 0 1 560px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .detail-section .title{
+            margin: 100px 0 30px;
+        }
+
+        @media (max-width: 768px) {
+            .detail-row{
+                flex-direction: column;
+                gap: 0;
+            }
+            .detail-section{
+                flex: 1 1 auto;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div>
+            <a href="{% url 'iotcore:dashboard' %}">Either One's IoTCore</a>
+            {{ request.user.username }} (<a href="{% url 'iotcore:logout_view' %}">로그아웃</a>)
+            Sequence Control Page
+        </div>
+        <button id="toggleSidebar">&#9776;</button>
+    </div>
+
+    <h2>시퀀스 목록</h2>
+    <a href="{% url 'iotcore:sequence_create' %}">
+        새 시퀀스
+    </a>
+    <hr>
+        {% for sequence in sequences %}
+            <h3>{{ sequence.name }}</h3>
+            <p>{{ sequence.description }}</p>
+            <hr>
+        {% empty %}
+            등록된 시퀀스가 없습니다.
+        {% endfor %}
+
+<div id="toast" style="
+        display:none;
+        position:fixed;
+        top:30px;
+        left:50%;
+        transform:translateX(-50%);
+        background-color:rgba(0,0,0,0.85);
+        color:#fff;
+        padding:10px 24px;
+        border-radius:8px;
+        font-size:15px;
+        z-index:2000;
+        opacity:0;
+        transition:opacity 0.3s ease;
+    "></div>
+
+    {% include "sidebar.html" %}
+
+    
+<script>
+</script>
+
+</body>
+</html>

@@ -1,7 +1,8 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from ...models import Device
-from .common import parse_request_data, control_internal
+from .common import parse_request_data
+from ...device.services.device_service import DeviceService
 
 motion_messages = {
     "power_on": "에어컨 전원이 켜졌습니다!",
@@ -53,7 +54,7 @@ def aircon_entry(request):
 
     # 🔹 3️⃣ 실제 제어 요청 수행
     success_message = motion_messages.get(motion, "요청된 동작을 수행했습니다.")
-    return control_internal(
+    return DeviceService.control(
         device.id,
         motion,
         success_message

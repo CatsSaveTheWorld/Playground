@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Either One's IoTCore</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚡%3C/text%3E%3C/svg%3E">
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background-color: #000000;
+            color: #FFFFFF;
+        }
+        .navbar {
+            background-color: #000000;
+            padding: 10px 20px;
+            font-size: 18px;
+            border-bottom: 1px solid #00FFC8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1000;
+        }
+        .navbar a {
+            color: #00FFC8;
+            text-decoration: none;
+        }
+        .sequence-container{
+            width:900px;
+            margin:60px auto;
+        }
+        #toggleSidebar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            width: 36px;
+            height: 36px;
+
+            font-size: 26px;
+            line-height: 1;
+
+            background: transparent;
+            border: none;
+
+            color: #00FFC8;
+            cursor: pointer;
+
+            padding: 0;
+        }
+        /* ===========================
+        Sequence Header
+        =========================== */
+
+        .sequence-header{
+            border:2px solid #00FFC8;
+            padding:20px;
+            margin-bottom:20px;
+
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-end;
+        }
+
+        .sequence-info{
+            flex:1;
+        }
+
+        .sequence-info h1{
+            margin:0;
+            font-size:48px;
+        }
+
+        .sequence-info p{
+            margin-top:20px;
+            margin-bottom:0;
+        }
+
+        .sequence-actions{
+            display:flex;
+            gap:10px;
+            align-items:center;
+        }
+
+        .sequence-actions form{
+            margin:0;
+        }
+
+        .sequence-actions button{
+            padding:8px 16px;
+            cursor:pointer;
+        }
+
+        .btn-run{
+            background:#198754;
+            color:white;
+            border:none;
+        }
+
+        .btn-run:hover{
+            background:#157347;
+        }
+
+        .btn-delete{
+            background:#dc3545;
+            color:white;
+            border:none;
+        }
+
+        .btn-delete:hover{
+            background:#bb2d3b;
+        }
+
+        /* ===========================
+        Toolbar
+        =========================== */
+
+        .step-toolbar{
+
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+
+            margin-bottom:20px;
+        }
+
+        .step-toolbar-right{
+
+            display:flex;
+            gap:10px;
+        }
+
+        .step-toolbar button{
+
+            padding:8px 14px;
+            cursor:pointer;
+        }
+
+        /* ===========================
+        Step List
+        =========================== */
+
+        .step-list{
+
+            display:flex;
+            flex-direction:column;
+            gap:15px;
+        }
+
+        .step-card{
+
+            border:2px solid #00FFC8;
+            padding:20px;
+        }
+
+        .step-header{
+
+            display:flex;
+            align-items:center;
+            gap:10px;
+
+            margin-bottom:20px;
+        }
+
+        .step-order{
+
+            font-weight:bold;
+            font-size:20px;
+        }
+
+        .step-body{
+
+            display:flex;
+            gap:80px;
+        }
+
+        .step-body > div{
+
+            min-width:120px;
+        }
+
+        /* ===========================
+        Step Form
+        =========================== */
+
+        .step-form{
+
+            border:2px solid #00FFC8;
+            padding:20px;
+
+            margin-bottom:20px;
+        }
+
+        .form-row{
+
+            display:flex;
+            align-items:center;
+
+            margin-bottom:15px;
+        }
+
+        .form-row label{
+
+            width:120px;
+        }
+
+        .form-row select,
+        .form-row input{
+
+            flex:1;
+
+            padding:8px;
+
+            background:#111;
+
+            color:white;
+
+            border:1px solid #00FFC8;
+        }
+
+        .form-buttons{
+
+            display:flex;
+            justify-content:flex-end;
+            gap:10px;
+
+            margin-top:20px;
+        }
+
+        /* ===========================
+        Legacy
+        =========================== */
+
+        .bottom-toolbar{
+
+            display:none;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div>
+            <a href="{% url 'iotcore:dashboard' %}">Either One's IoTCore</a>
+            {{ request.user.username }} (<a href="{% url 'iotcore:logout_view' %}">로그아웃</a>)
+        </div>
+        <button id="toggleSidebar">&#9776;</button>
+    </div>
+    <div class="sequence-container">
+
+        <!-- =========================
+            Sequence Header
+        ========================== -->
+        <div class="sequence-header">
+
+            <div class="sequence-info">
+
+                <h1>{{ sequence.name }}</h1>
+
+                <p>{{ sequence.description }}</p>
+
+            </div>
+
+            <div class="sequence-actions">
+
+                <form method="post"
+                    action="{% url 'iotcore:sequence_run' sequence.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-run">
+                        실행
+                    </button>
+                </form>
+
+                <form method="post"
+                    action="{% url 'iotcore:sequence_delete' sequence.id %}">
+                    {% csrf_token %}
+                    <button
+                        type="submit"
+                        class="btn-delete"
+                        onclick="return confirm('정말 삭제하시겠습니까?');">
+                        삭제
+                    </button>
+                </form>
+
+            </div>
+
+        </div>
+
+        <!-- =========================
+            Toolbar
+        ========================== -->
+
+        <div class="step-toolbar">
+
+            <label>
+                <input type="checkbox">
+                전체 선택
+            </label>
+
+            <div class="step-toolbar-right">
+
+                <button type="button">
+                    순서 편집
+                </button>
+
+                <button
+                    type="button"
+                    id="btnAddStep">
+
+                    + Step 추가
+
+                </button>
+
+            </div>
+
+        </div>
+
+        <!-- =========================
+            Step Form
+        ========================== -->
+
+        <form
+            id="stepForm"
+            class="step-form"
+            action="{% url 'iotcore:sequence_step_create' sequence.id %}"
+            method="post"
+            style="display:none;">
+
+            {% csrf_token %}
+
+            <div class="form-row">
+
+                <label>장치</label>
+
+                <select
+                    id="device-select"
+                    name="device">
+
+                    <option value="">
+                        장치를 선택하세요.
+                    </option>
+
+                    {% for device in devices %}
+
+                    <option
+                        value="{{ device.id }}"
+                        data-device-type="{{ device.device_type }}">
+
+                        {{ device.name }}
+
+                    </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </div>
+
+            <div class="form-row">
+
+                <label>동작</label>
+
+                <select
+                    id="function-select"
+                    name="function">
+
+                    <option value="">
+                        장치를 먼저 선택하세요.
+                    </option>
+
+                </select>
+
+            </div>
+
+            <div class="form-row">
+
+                <label>지연 시간(분)</label>
+
+                {{ step_form.delay }}
+
+            </div>
+
+            <div class="form-buttons">
+
+                <button type="button">
+
+                    취소
+
+                </button>
+
+                <button type="submit">
+
+                    추가
+
+                </button>
+
+            </div>
+
+        </form>
+
+        {{ device_actions|json_script:"device-actions" }}
+
+        <!-- =========================
+            Step List
+        ========================== -->
+
+        <div class="step-list">
+
+            {% for step in steps %}
+
+            <div class="step-card">
+
+                <div class="step-header">
+
+                    <input type="checkbox">
+
+                    <span class="step-order">
+
+                        {{ step.order }}
+
+                    </span>
+
+                </div>
+
+                <div class="step-body">
+
+                    <div>
+
+                        <strong>장치</strong><br>
+
+                        {{ step.device.name }}
+
+                    </div>
+
+                    <div>
+
+                        <strong>동작</strong><br>
+
+                        {{ step.function }}
+
+                    </div>
+
+                    <div>
+
+                        <strong>지연</strong><br>
+
+                        {{ step.delay }}분
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            {% empty %}
+
+            <div class="step-card">
+
+                등록된 Step이 없습니다.
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+<div id="toast" style="
+        display:none;
+        position:fixed;
+        top:30px;
+        left:50%;
+        transform:translateX(-50%);
+        background-color:rgba(0,0,0,0.85);
+        color:#fff;
+        padding:10px 24px;
+        border-radius:8px;
+        font-size:15px;
+        z-index:2000;
+        opacity:0;
+        transition:opacity 0.3s ease;
+    "></div>
+
+    {% include "sidebar.html" %}
+
+    
+<script>
+    const btnAddStep = document.getElementById("btnAddStep");
+    const stepForm = document.getElementById("stepForm");
+
+    const deviceSelect = document.getElementById("device-select");
+    const functionSelect = document.getElementById("function-select");
+
+    const deviceActions = JSON.parse(
+        document.getElementById("device-actions").textContent
+    );
+
+    // Step 추가 버튼
+    btnAddStep.addEventListener("click", function () {
+        stepForm.style.display = "block";
+    });
+
+    // 장치 변경
+    deviceSelect.addEventListener("change", function () {
+
+        const selectedOption =
+            deviceSelect.options[deviceSelect.selectedIndex];
+
+        const deviceType =
+            selectedOption.dataset.deviceType;
+
+        // 기존 목록 제거
+        functionSelect.innerHTML = "";
+
+        if (!deviceType) {
+
+            functionSelect.innerHTML =
+                '<option value="">장치를 먼저 선택하세요.</option>';
+
+            return;
+        }
+
+        const actions = deviceActions[deviceType];
+
+        actions.forEach(function(action){
+
+            const option = document.createElement("option");
+
+            option.value = action.code;
+            option.textContent = action.display_name;
+
+            functionSelect.appendChild(option);
+
+        });
+
+    });
+    
+    // 사이드바 토글
+    const toggleSidebar = document.getElementById('toggleSidebar');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    let isOpen = false;
+
+    function openSidebar() {
+        sidebar.style.right = '0';
+        overlay.style.display = 'block';
+        isOpen = true;
+    }
+
+    function closeSidebar() {
+        sidebar.style.right = '-250px';
+        overlay.style.display = 'none';
+        isOpen = false;
+    }
+
+    toggleSidebar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isOpen) {
+            closeSidebar();
+        } else {
+            openSidebar();
+        }
+    });
+
+    overlay.addEventListener('click', closeSidebar);
+</script>
+
+</body>
+</html>

@@ -1,6 +1,6 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-from .common import control_internal, parse_request_data
+from .common import parse_request_data
 from django.conf import settings
 from ...infrastructure.wol.client import WOLClient
 import requests

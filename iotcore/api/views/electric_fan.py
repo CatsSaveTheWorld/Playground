@@ -4,7 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from ...infrastructure.ir.client import IRClient
 from ...device.repositories.controller_repository import ControllerRepository
-from .common import parse_request_data, control_internal
+from .common import parse_request_data
 
 
 motion_messages = {

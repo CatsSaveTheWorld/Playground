@@ -1,4 +1,50 @@
 <!-- sidebar.html -->
+<style>
+    #sidebar {
+        position: fixed; 
+        top: 0;
+        right: -250px; /* 초기에는 숨김 */
+        width: 250px;
+        height: 100%;
+        background-color: #000000;
+        color: #FFFFFF;
+        padding: 20px;
+        border-left: 1px solid #00FFC8;
+        transition: right 0.3s ease;
+        z-index: 1050; /* 오버레이보다 위에 */
+    }
+    #sidebar.closed {
+        right: -250px;
+        pointer-events: none;  /* 마우스 이벤트 비활성화 */
+    }
+    #sidebar h5 {
+        color: #00FFC8;
+        font-size: 20px;
+        margin-top: 0;
+        margin-bottom: 20px;
+    }
+    #sidebar ul {
+        list-style: none; 
+        padding-left: 0;
+    }
+    #sidebar a {
+        color: #00FFC8;
+        text-decoration: none;
+    }
+    #sidebar a:hover {
+        text-decoration: underline;
+    }
+    #overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.5); /* 반투명 검은색 오버레이 */
+        z-index: 1049; /* 사이드바 아래 */
+    }
+</style>
 <div id="sidebar">
     <h5>메뉴</h5>
     {% if request.user.is_staff %}

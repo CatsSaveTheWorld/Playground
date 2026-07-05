@@ -1,7 +1,7 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from ...models import Controller, Device
-from .common import control_internal, parse_request_data
+from .common import parse_request_data
 from .aircon import handle_aircon_command
 
 # ────────────────────────────────

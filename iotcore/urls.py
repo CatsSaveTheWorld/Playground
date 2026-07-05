@@ -16,7 +16,7 @@ urlpatterns = [
     # ────────────────────────────────
     #  페이지별 View
     # ────────────────────────────────
-    path("sequence/", sequence.sequence_list, name="loadout_list"),
+    path("sequence/", sequence.sequence_list, name="sequence_list"),
     path("detail/", detail.detail_list, name="detail_list"),
 
     # ────────────────────────────────
@@ -48,4 +48,14 @@ urlpatterns = [
     path("electric_fan/stop/", electric_fan.electricfan_stop, name="electricfan_stop"),
     path("electric_fan/fan_way_toggle/", electric_fan.electricfan_fan_way_toggle, name="electricfan_fan_way_toggle"),
     path("electric_fan/timer_add_30m/", electric_fan.electricfan_timer_add_30m, name="electricfan_timer_add_30m"),
+
+    # ────────────────────────────────
+    # 시퀀스 제어
+    # ────────────────────────────────
+    path("sequence/create/", sequence.sequence_create, name="sequence_create",),
+    path("sequence/<int:sequence_id>/run/", sequence.sequence_run, name="sequence_run",),
+    path("sequence/<int:sequence_id>/delete/", sequence.sequence_delete, name="sequence_delete",),
+    path("sequence/<int:sequence_id>/step/create/", sequence.sequence_step_create, name="sequence_step_create"),
+    path("sequence/<int:sequence_id>/edit/", sequence.sequence_edit, name="sequence_edit"),
+
 ]
