@@ -3,7 +3,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Either One’s SmartCore</title>
+  <title>Either One’s IoTCore</title>
   <style>
     body {
       font-family: sans-serif;
@@ -142,18 +142,18 @@
 <body>
   <div class="navbar">
   <div>
-    <a href="{% url 'smartcore:dashboard' %}">Either One’s SmartCore</a>
-    {{ request.user.username }} (<a href="{% url 'smartcore:logout_view' %}">로그아웃</a>)
+    <a href="{% url 'iotcore:dashboard' %}">Either One’s IoTCore</a>
+    {{ request.user.username }} (<a href="{% url 'iotcore:logout_view' %}">로그아웃</a>)
   </div>
   <button id="toggleSidebar">&#9776;</button>
   </div>
 
   <div class="title">작업을 선택해주세요</div>
   <div class="button-box">
-    <form action="{% url 'smartcore:loadout_list' %}">
+    <form action="{% url 'iotcore:loadout_list' %}">
       <button class="button">로드아웃 조작</button>
     </form>
-    <form action="{% url 'smartcore:detail_list' %}">
+    <form action="{% url 'iotcore:detail_list' %}">
       <button class="button">세부 기기 조작</button>
     </form>
   </div>

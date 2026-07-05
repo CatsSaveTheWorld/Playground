@@ -15,18 +15,18 @@ def login_view(request):
         if user is not None:
             login(request, user)
             if user.is_staff:  # 또는 원하는 조건
-                return redirect("smartcore:dashboard")
+                return redirect("iotcore:dashboard")
             else:
                 messages.error(request, "접근 권한이 없습니다.")
                 return redirect("common:login")
         else:
-            return render(request, "smartcore/login.html", {'error': True})
-    return render(request, "smartcore/login.html")
+            return render(request, "iotcore/login.html", {'error': True})
+    return render(request, "iotcore/login.html")
 
 
 def logout_view(request):
     logout(request)
-    return redirect('smartcore:login_view')
+    return redirect('iotcore:login_view')
 
 
 def staff_check(user):
@@ -36,6 +36,6 @@ def staff_check(user):
 @login_required(login_url="common:login")
 @user_passes_test(staff_check, login_url="common:login")
 def dashboard(request):
-    return render(request, "smartcore/dashboard.html")
+    return render(request, "iotcore/dashboard.html")
 
 

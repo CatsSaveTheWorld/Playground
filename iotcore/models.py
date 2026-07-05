@@ -23,8 +23,6 @@ class Controller(models.Model):
     mac_address = models.CharField(max_length=17, unique=True)  # MAC 주소
     ip_address = models.GenericIPAddressField()  # IP 주소
     location = models.CharField(max_length=100, blank=True)  # 물리적 위치
-    
-    # ForeignKey에서 OneToOneField로 변경
     device = models.OneToOneField(
         Device,
         on_delete=models.SET_NULL,
@@ -40,3 +38,39 @@ class Controller(models.Model):
 
     def __str__(self):
         return f"{self.name} (MAC: {self.mac_address})"
+    
+
+class Sequence(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+    
+
+class SequenceStep(models.Model):
+    sequence = models.ForeignKey(
+        Sequence,
+        on_delete=models.CASCADE,
+        related_name="steps"
+    )
+    order = models.PositiveIntegerField()
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE
+    )
+    function = models.CharField(max_length=50)
+    parameter = models.JSONField(blank=True, null=True)
+    delay = models.PositiveIntegerField(default=0)   # 다음 명령 전 대기(ms)
+
+    class Meta:
+        ordering = ["order"]
+        # 아래는 같은 시퀀스 내에서 같은 데이터가 들어가는 걸 DB차원에서 방지.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["sequence", "order"],
+                name="unique_sequence_order"
+            )
+        ]

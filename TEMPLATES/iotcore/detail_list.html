@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Either One's SmartCore</title>
+    <title>Either One's IoTCore</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚡%3C/text%3E%3C/svg%3E">
     <style>
         /* 모든 CSS 스타일은 여기에 */
@@ -234,8 +234,8 @@
 <body>
     <div class="navbar">
         <div>
-            <a href="{% url 'smartcore:dashboard' %}">Either One's SmartCore</a>
-            {{ request.user.username }} (<a href="{% url 'smartcore:logout_view' %}">로그아웃</a>)
+            <a href="{% url 'iotcore:dashboard' %}">Either One's IoTCore</a>
+            {{ request.user.username }} (<a href="{% url 'iotcore:logout_view' %}">로그아웃</a>)
         </div>
         <button id="toggleSidebar">&#9776;</button>
     </div>
@@ -254,8 +254,8 @@
                              data-pc-ip="{{ pc.broadcast_ip }}">
                             {{ pc.name }}
                             <div class="dropdown-content" onclick="event.stopPropagation()">
-                                <button onclick="sendAction('/smartcore/pc/power_on/', event)">전원 켜기</button>
-                                <button onclick="sendAction('/smartcore/pc/power_off/', event)">전원 끄기</button>
+                                <button onclick="sendAction('/iotcore/pc/power_on/', event)">전원 켜기</button>
+                                <button onclick="sendAction('/iotcore/pc/power_off/', event)">전원 끄기</button>
                             </div>
                         </div>
                     {% endfor %}
@@ -277,19 +277,19 @@
                              data-location="{{ controller.location }}">
                             에어컨 조작
                             <div class="dropdown-content" onclick="event.stopPropagation()">
-                                <button onclick="sendAction('/smartcore/aircon/power_on/', event)">전원 켜기</button>
-                                <button onclick="sendAction('/smartcore/aircon/power_off/', event)">전원 끄기</button>
+                                <button onclick="sendAction('/iotcore/aircon/power_on/', event)">전원 켜기</button>
+                                <button onclick="sendAction('/iotcore/aircon/power_off/', event)">전원 끄기</button>
                                 <hr>
                                 <div class="temp-setting-row">
                                     <span>온도</span>
                                     <input type="number" class="aircon-temp" min="16" max="30" placeholder="예: 24">
-                                    <button onclick="sendTempAction('/smartcore/aircon/set_temp/', event)">설정</button>
+                                    <button onclick="sendTempAction('/iotcore/aircon/set_temp/', event)">설정</button>
                                 </div>
                                 <hr>
-                                <button onclick="sendAction('/smartcore/aircon/mode_auto/', event)">자동 모드</button>
-                                <button onclick="sendAction('/smartcore/aircon/mode_cool/', event)">냉방 모드</button>
-                                <button onclick="sendAction('/smartcore/aircon/mode_dehumidification/', event)">제습 모드</button>
-                                <button onclick="sendAction('/smartcore/aircon/mode_fan/', event)">송풍 모드</button>
+                                <button onclick="sendAction('/iotcore/aircon/mode_auto/', event)">자동 모드</button>
+                                <button onclick="sendAction('/iotcore/aircon/mode_cool/', event)">냉방 모드</button>
+                                <button onclick="sendAction('/iotcore/aircon/mode_dehumidification/', event)">제습 모드</button>
+                                <button onclick="sendAction('/iotcore/aircon/mode_fan/', event)">송풍 모드</button>
                             </div>
                         </div>
                     {% elif controller.device.device_type == "electric_fan" %}
@@ -304,10 +304,10 @@
                                 <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">전원 끄기</button>
                                 <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">풍향 바꾸기</button>
                                 <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">타이머 30분 추가</button> -->
-                                <button onclick="sendAction('/smartcore/electric_fan/power_cycle/', event)">풍량 올리기</button>
-                                <button onclick="sendAction('/smartcore/electric_fan/stop/', event)">전원 끄기</button>
-                                <button onclick="sendAction('/smartcore/electric_fan/fan_way_toggle/', event)">풍향 바꾸기</button>
-                                <button onclick="sendAction('/smartcore/electric_fan/timer_add_30m/', event)">타이머 30분 추가</button>
+                                <button onclick="sendAction('/iotcore/electric_fan/power_cycle/', event)">풍량 올리기</button>
+                                <button onclick="sendAction('/iotcore/electric_fan/stop/', event)">전원 끄기</button>
+                                <button onclick="sendAction('/iotcore/electric_fan/fan_way_toggle/', event)">풍향 바꾸기</button>
+                                <button onclick="sendAction('/iotcore/electric_fan/timer_add_30m/', event)">타이머 30분 추가</button>
                             </div>
                         </div>
                     {% endif %}

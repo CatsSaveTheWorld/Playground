@@ -8,7 +8,7 @@ import os
 
 
 # CSV 파일 경로 설정
-DATA_DIR = os.path.join(settings.BASE_DIR, 'smartcore', 'management', 'data')
+DATA_DIR = os.path.join(settings.BASE_DIR, 'iotcore', 'management', 'data')
 pc_path = os.path.join(DATA_DIR, 'Computers.csv').replace('\\', '/')
 
 
@@ -42,5 +42,5 @@ def detail_list(request):
         "controllers": controllers,
         "pcs": pcs,
     }
-    return render(request, "smartcore/detail_list.html", context)
+    return render(request, "iotcore/detail_list.html", context)
 

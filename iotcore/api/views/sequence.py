@@ -6,7 +6,7 @@ from django.utils import timezone
 # from ..models import Question
 
 # Create your views here.
-def loadout_list(request):
-    return render(request, "smartcore/loadout_list.html")
+def sequence_list(request):
+    return render(request, "iotcore/sequence_list.html")
 
 

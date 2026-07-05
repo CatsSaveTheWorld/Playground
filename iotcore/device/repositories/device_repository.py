@@ -1,4 +1,4 @@
-from smartcore.models import Device
+from iotcore.models import Device
 
 class DeviceRepository:
     

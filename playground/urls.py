@@ -26,7 +26,7 @@ urlpatterns = [
     path('index/', include('board.urls')),
     path("board/", include("board.urls")),
     path("common/", include("common.urls")),
-    path("smartcore/", include("smartcore.urls")),
+    path("iotcore/", include("iotcore.urls")),
 ]
 
 # 개발 환경에서만 사용

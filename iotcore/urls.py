@@ -1,8 +1,8 @@
 from django.urls import path
-from smartcore.api.views import base, loadout, detail
-from smartcore.api.views import aircon, pc, electric_fan, ai
+from iotcore.api.views import base, sequence, detail
+from iotcore.api.views import aircon, pc, electric_fan, ai
 
-app_name = "smartcore"
+app_name = "iotcore"
 
 urlpatterns = [
     # ────────────────────────────────
@@ -16,7 +16,7 @@ urlpatterns = [
     # ────────────────────────────────
     #  페이지별 View
     # ────────────────────────────────
-    path("loadout/", loadout.loadout_list, name="loadout_list"),
+    path("sequence/", sequence.sequence_list, name="loadout_list"),
     path("detail/", detail.detail_list, name="detail_list"),
 
     # ────────────────────────────────
