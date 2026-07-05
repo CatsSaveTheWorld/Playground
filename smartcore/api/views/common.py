@@ -1,31 +1,31 @@
 import json
 from django.http import JsonResponse
+from ...device.repositories.device_repository import DeviceRepository
 from ...device.repositories.controller_repository import ControllerRepository
 from ...device.services.device_service import DeviceService
 
 
 
-def control_internal(controller_id, motion, success_message=None, bits=None):
-    """
-    공통 제어 함수
+def control_internal(device_id, motion, success_message=None, bits=None):
 
-    Args:
-        controller_id (int): 컨트롤러 ID
-        motion (str): IR 동작명 (power_on, temp_up ...)
-        success_message (str, optional): 성공 시 표시할 메시지
-        bits (int, optional): IR 비트 수
-    """
+    device = DeviceRepository.get_by_id(device_id)
 
-    controller = ControllerRepository.get_controller(controller_id)
+    if not device:
+        return JsonResponse({
+            "status": "error",
+            "message": "기기를 찾을 수 없습니다."
+        })
+
+    controller = ControllerRepository.get_controller_by_device(device_id)
 
     if not controller:
         return JsonResponse({
             "status": "error",
-            "message": "컨트롤러를 찾을 수 없습니다."
+            "message": "연결된 컨트롤러를 찾을 수 없습니다."
         })
 
     success, error_message = DeviceService.execute_ir(
-        controller_id=controller_id,
+        controller_id=controller.id,
         motion=motion,
         bits=bits
     )
@@ -33,7 +33,7 @@ def control_internal(controller_id, motion, success_message=None, bits=None):
     if success:
         return JsonResponse({
             "status": "success",
-            "message": success_message or f"{controller.device.name} 제어를 완료했습니다."
+            "message": success_message or f"{device.name} 제어를 완료했습니다."
         })
 
     return JsonResponse({

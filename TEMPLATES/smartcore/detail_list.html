@@ -272,7 +272,7 @@
                     {% if controller.device.device_type == "aircon" %}
                         <div class="card"
                              onclick="toggleDropdown(this)"
-                             data-controller-id="{{ controller.id }}"
+                             data-device-id="{{ controller.device.id }}"
                              data-device-type="{{ controller.device.device_type }}"
                              data-location="{{ controller.location }}">
                             에어컨 조작
@@ -295,7 +295,7 @@
                     {% elif controller.device.device_type == "electric_fan" %}
                         <div class="card"
                              onclick="toggleDropdown(this)"
-                             data-controller-id="{{ controller.id }}"
+                             data-device-id="{{ controller.device.id }}"
                              data-device-type="{{ controller.device.device_type }}"
                              data-location="{{ controller.location }}">
                             선풍기 조작 [사용 안함]
@@ -388,12 +388,12 @@
             params.set('pc_ip', pcIp);
         } else {
             // 컨트롤러(에어컨/선풍기 등) 제어
-            const controllerId = card.dataset.controllerId; // data-controller-id
-            if (!controllerId) {
-                showToast('controller_id 누락됨!');
+            const deviceId = card.dataset.deviceId; // data-device-id
+            if (!deviceId) {
+                showToast('device_id 누락됨!');
                 return false;
             }
-            params.set('controller_id', controllerId);
+            params.set('device_id', deviceId);
         }
 
         fetch(url, {
@@ -414,10 +414,10 @@
         event.stopPropagation();
 
         const card = event.target.closest('.card');
-        const controllerId = card ? card.dataset.controllerId : null;
+        const deviceId = card ? card.dataset.deviceId : null;
 
-        if (!controllerId) {
-            showToast('controller_id 누락됨!');
+        if (!deviceId) {
+            showToast('device_id 누락됨!');
             return false;
         }
 
@@ -433,7 +433,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
-                'controller_id': controllerId,
+                'device_id': deviceId,
                 'temperature': temp
             })
         })

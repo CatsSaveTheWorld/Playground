@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from ...models import Controller
+from ...models import Device
 from .common import parse_request_data, control_internal
 
 motion_messages = {
@@ -22,25 +22,31 @@ def aircon_entry(request):
     if request.method != "POST":
         return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
 
-    data = parse_request_data(request)
-    controller_id = data.get("controller_id")
+    data = parse_request_data(request)  # data 예시) data : {'device_id': '1', 'motion': 'power_on'}
+    # print(f"[DEBUG] data : {data}")
+    device_id = data.get("device_id")
     motion = data.get("motion") or data.get("function")
 
-    print(f"[DEBUG] controller_id : {controller_id}")
-    print(f"[DEBUG] motion : {motion}")
+    # print(f"[DEBUG] device_id : {device_id}")
+    # print(f"[DEBUG] motion : {motion}")
 
-    if not controller_id:
-        return JsonResponse({'status': 'fail', 'message': 'controller_id 누락'}, status=400)
+    if not device_id:
+        return JsonResponse({'status': 'fail', 'message': 'device_id 누락'}, status=400)
 
-    # 🔹 1️⃣ Controller 조회
-    controller = Controller.objects.filter(id=controller_id).select_related("device").first()
-    if not controller:
-        return JsonResponse({'status': 'fail', 'message': f'존재하지 않는 controller_id: {controller_id}'}, status=404)
+    # 🔹 1️⃣ Device 조회
+    device = Device.objects.filter(id=device_id).first()
+    # print(f"[DEBUG] device : {device}")
+    if not device:
+        return JsonResponse({
+            'status': 'fail', 
+            'message': f'존재하지 않는 device_id: {device_id}'}, 
+            status=404
+        )
+    # print(f"[DEBUG] 여기까지 정상")
 
-    # 🔹 2️⃣ Controller에서 필요한 정보 추출
-    device = controller.device
-    location = controller.location
-    print(f"[DEBUG] Controller 연결 정보 → device: {device}, location: {location}")
+    # 🔹 2️⃣ device에서 필요한 정보 추출
+    # location = device.location
+    # print(f"[DEBUG] Controller 연결 정보 → device: {device}, location: {location}")
 
     if not motion:
         return JsonResponse({'status': 'fail', 'message': 'motion/function 값이 없습니다.'}, status=400)
@@ -48,7 +54,7 @@ def aircon_entry(request):
     # 🔹 3️⃣ 실제 제어 요청 수행
     success_message = motion_messages.get(motion, "요청된 동작을 수행했습니다.")
     return control_internal(
-        controller.id,
+        device.id,
         motion,
         success_message
     )
@@ -57,7 +63,7 @@ def aircon_entry(request):
 # ────────────────────────────────
 #  에어컨 제어 함수 (AI 요청용)
 # ────────────────────────────────
-def handle_aircon_command(controller_id, function):
+def handle_aircon_command(device_id, function):
     """
     function 값에 따라 에어컨 제어 수행
     """
@@ -70,25 +76,36 @@ def handle_aircon_command(controller_id, function):
         "mode_fan": ("mode_fan", motion_messages["mode_fan"]),
     }
 
-    # set_temp_xx 형태일 경우
     if function.startswith("set_temp_"):
         temp = function.split("_")[-1]
         motion = f"set_temp_{temp}"
+
         return control_internal(
-            controller_id,
+            device_id,
             motion,
             f"에어컨 온도가 {temp}°C로 설정되었습니다."
         )
 
-    # 일반적인 명령 처리
     if function not in mapping:
         print("[DEBUG] 제어 함수가 제어 사전(맵)에 없음.")
         print(f"[DEBUG] function : {function}")
-        return JsonResponse({"status": "fail", "message": f"지원되지 않는 기능: {function}"}, status=400)
+        return JsonResponse(
+            {
+                "status": "fail",
+                "message": f"지원되지 않는 기능: {function}"
+            },
+            status=400
+        )
 
     motion, message = mapping[function]
+
     print("[DEBUG] 에어컨 제어 실행.")
-    return control_internal(controller_id, motion, message)
+
+    return control_internal(
+        device_id,
+        motion,
+        message
+    )
 
 # ────────────────────────────────
 #  에어컨 호환용 뷰 (기존 웹 요청 URL 유지)
