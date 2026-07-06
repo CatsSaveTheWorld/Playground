@@ -57,5 +57,6 @@ urlpatterns = [
     path("sequence/<int:sequence_id>/delete/", sequence.sequence_delete, name="sequence_delete",),
     path("sequence/<int:sequence_id>/step/create/", sequence.sequence_step_create, name="sequence_step_create"),
     path("sequence/<int:sequence_id>/edit/", sequence.sequence_edit, name="sequence_edit"),
+    path("sequence/step/delete/", sequence.sequence_step_delete, name="sequence_step_delete"),
 
 ]

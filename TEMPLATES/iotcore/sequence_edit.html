@@ -293,26 +293,25 @@
         <div class="step-toolbar">
 
             <label>
-                <input type="checkbox">
+                <input type="checkbox" id="checkAll">
                 전체 선택
             </label>
 
             <div class="step-toolbar-right">
 
+                <button type="button" id="btnAddStep">
+                    + Step 추가
+                </button>
+
+                <button type="button" id="btnDeleteStep">
+                    - Step 삭제
+                </button>
+
                 <button type="button">
                     순서 편집
                 </button>
 
-                <button
-                    type="button"
-                    id="btnAddStep">
-
-                    + Step 추가
-
-                </button>
-
             </div>
-
         </div>
 
         <!-- =========================
@@ -412,7 +411,7 @@
 
                 <div class="step-header">
 
-                    <input type="checkbox">
+                    <input type="checkbox" class="step-checkbox" value="{{ step.id }}">
 
                     <span class="step-order">
 
@@ -486,7 +485,9 @@
     
 <script>
     const btnAddStep = document.getElementById("btnAddStep");
+    const btnDeleteStep = document.getElementById("btnDeleteStep");
     const stepForm = document.getElementById("stepForm");
+    const checkAll = document.getElementById("checkAll");
 
     const deviceSelect = document.getElementById("device-select");
     const functionSelect = document.getElementById("function-select");
@@ -499,6 +500,69 @@
     btnAddStep.addEventListener("click", function () {
         stepForm.style.display = "block";
     });
+
+    // Step 전체 선택
+    checkAll.addEventListener("change", function () {
+    document.querySelectorAll(".step-checkbox")
+        .forEach(cb => {
+
+            cb.checked = checkAll.checked;
+        });
+    });
+
+    // Step 삭제 버튼
+    btnDeleteStep.addEventListener("click", function () {
+        const checkedSteps = [
+            ...document.querySelectorAll(".step-checkbox:checked")
+        ];
+
+        if (checkedSteps.length === 0) {
+            showToast("삭제할 Step을 선택하세요.");
+            return;
+        }
+
+        const stepIds = checkedSteps.map(cb => cb.value);
+        const formData = new FormData();
+        stepIds.forEach(id => {
+            formData.append("step_ids", id);
+        });
+        const csrfToken =
+            document.querySelector("#stepForm [name=csrfmiddlewaretoken]").value;
+
+        formData.append(
+            "csrfmiddlewaretoken",
+            csrfToken
+        );
+        fetch("{% url 'iotcore:sequence_step_delete' %}", {
+            method: "POST",
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("HTTP Error");
+            }
+            return response.json();
+
+        })
+        .then(data => {
+            if (!data.success) {
+                showToast(data.message);
+                return;
+            }
+            showToast(data.message);
+
+            // TODO
+            // 나중에는 여기서 DOM만 수정하도록 변경 예정
+            setTimeout(() => {
+                location.reload();
+            }, 800);
+        })
+        .catch(error => {
+            console.error(error);
+            showToast("Step 삭제 중 오류가 발생했습니다.");
+        });
+
+});
 
     // 장치 변경
     deviceSelect.addEventListener("change", function () {
@@ -551,6 +615,22 @@
         sidebar.style.right = '-250px';
         overlay.style.display = 'none';
         isOpen = false;
+    }
+
+    function showToast(message) {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.style.display = "block";
+
+        requestAnimationFrame(() => {
+            toast.style.opacity = "1";
+        });
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            setTimeout(() => {
+                toast.style.display = "none";
+            }, 300);
+        }, 1500);
     }
 
     toggleSidebar.addEventListener('click', (e) => {

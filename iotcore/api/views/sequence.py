@@ -5,7 +5,11 @@ from ...models import Device, Sequence, SequenceStep
 from ...forms import SequenceForm, SequenceStepForm
 from ...device_actions import DeviceActionRegistry
 from ...device.services.sequence_executor import SequenceExecutor
+from ...device.services.sequence_service import SequenceService
 from django.db.models import Max
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+
 
 
 # Create your views here.
@@ -145,4 +149,26 @@ def sequence_edit(request, sequence_id:int):
     return render(request, "iotcore/sequence_edit.html", context)
 
 
+@login_required
+@require_POST
+def sequence_step_delete(request):
+    step_ids = request.POST.getlist("step_ids")
 
+    if not step_ids:
+        return JsonResponse({
+            "success": False,
+            "message": "삭제할 Step이 없습니다."
+        }, status=400)
+
+    steps = SequenceStep.objects.filter(id__in=step_ids)
+    sequence = steps.first().sequence if steps.exists() else None
+    count = steps.count()
+    steps.delete()
+
+    if sequence:
+        SequenceService.normalize_order(sequence)
+
+    return JsonResponse({
+        "success": True,
+        "message": f"{count}개의 Step이 삭제되었습니다."
+    })
