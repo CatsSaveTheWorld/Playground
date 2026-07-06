@@ -86,3 +86,13 @@ class DeviceActionRegistry:
         device_type에 해당하는 Action 목록을 반환한다.
         """
         return cls._ACTIONS.get(device_type, [])
+    
+    @classmethod
+    def get_display_name(cls, device_type, code):
+        actions = cls.get_actions(device_type)
+
+        for action in actions:
+            if action.code == code:
+                return action.display_name
+
+        return code

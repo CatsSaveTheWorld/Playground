@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
-from django.utils import timezone
 from ...models import Device, Sequence, SequenceStep
 from ...forms import SequenceForm, SequenceStepForm
 from ...device_actions import DeviceActionRegistry
@@ -113,7 +112,17 @@ def sequence_step_create(request, sequence_id:int):
 @login_required(login_url="common:login")
 def sequence_edit(request, sequence_id:int):
     sequence = get_object_or_404(Sequence, id=sequence_id)
-    steps = sequence.steps.all()
+    steps = (
+        sequence.steps
+        .select_related("device")
+        .order_by("order")
+    )
+
+    for step in steps:
+        step.function_display = DeviceActionRegistry.get_display_name(
+            step.device.device_type,
+            step.function,
+        )
     step_form = SequenceStepForm()
     devices = Device.objects.all().order_by("name")
     device_actions = {}
