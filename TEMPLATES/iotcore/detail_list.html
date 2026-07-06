@@ -425,7 +425,7 @@
         const temp = tempInput ? tempInput.value : null;
 
         if (!temp || isNaN(temp)) {
-            alert('온도를 올바르게 입력하세요.');
+            showToast('온도를 올바르게 입력하세요.');
             return false;
         }
 
