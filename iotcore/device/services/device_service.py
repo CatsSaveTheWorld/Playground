@@ -15,11 +15,15 @@ class DeviceService:
         """
         device = step.device
         dispatch = {
-            "AIRCON": DeviceService.execute_aircon,
-            "FAN": DeviceService.execute_fan,
+            "aircon": DeviceService.execute_aircon,
+            "fan": DeviceService.execute_fan,
             "LIGHT": DeviceService.execute_light,
         }
         executor = dispatch.get(device.device_type)
+        
+        # print(f"[DEBUG] DeviceService.executor 내부 dispatch : {dispatch}")
+        # print(f"[DEBUG] DeviceService.executor 결과 executor : {executor}")
+        # print(f"[DEBUG] DeviceService.executor 결과 device_type : {device.device_type}")
 
         if executor is None:
             return False, f"지원하지 않는 장치 타입입니다. ({device.device_type})"

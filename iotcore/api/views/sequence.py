@@ -49,6 +49,7 @@ def sequence_run(request, sequence_id):
         Sequence,
         pk=sequence_id
     )
+    # print(f"[DEBUG] 시퀀스 실행 준비 완료 : {sequence}")
     SequenceExecutor.execute(sequence)
     messages.success(
         request,
