@@ -188,18 +188,50 @@ def aircon_dehumidification_mode(request):
 @csrf_exempt
 def aircon_set_temp(request):
     if request.method != "POST":
-        return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "POST 요청만 허용됩니다."
+            },
+            status=400
+        )
 
     data = parse_request_data(request)
-    controller_id = data.get("controller_id")
+
+    device_id = data.get("device_id")
     temperature = data.get("temperature")
 
-    if not controller_id or not temperature:
-        return JsonResponse({'status': 'fail', 'message': 'controller_id 또는 temperature 값이 없습니다.'}, status=400)
+    if not device_id or not temperature:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "device_id 또는 temperature 값이 없습니다."
+            },
+            status=400
+        )
 
     if not str(temperature).isdigit():
-        return JsonResponse({'status': 'fail', 'message': '유효한 온도 값이 아닙니다. (숫자만 가능)'}, status=400)
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "유효한 온도 값이 아닙니다. (숫자만 가능)"
+            },
+            status=400
+        )
 
     motion = f"set_temp_{temperature}"
     success_message = f"에어컨 온도가 {temperature}°C로 설정되었습니다."
-    return control_internal(controller_id, motion, success_message)
+
+    success, message = DeviceService.control(
+        device_id=device_id,
+        motion=motion,
+        success_message=success_message,
+    )
+
+    return JsonResponse(
+        {
+            "success": success,
+            "message": message,
+        },
+        status=200 if success else 400,
+    )
