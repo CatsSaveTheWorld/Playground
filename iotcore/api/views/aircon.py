@@ -19,45 +19,77 @@ motion_messages = {
 # ────────────────────────────────
 @csrf_exempt
 def aircon_entry(request):
-    # get 요청 아닌 것들 거르기
+    # POST 요청만 허용
     if request.method != "POST":
-        return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "POST 요청만 허용됩니다."
+            },
+            status=400
+        )
 
-    data = parse_request_data(request)  # data 예시) data : {'device_id': '1', 'motion': 'power_on'}
-    # print(f"[DEBUG] data : {data}")
+    # 요청 데이터 파싱
+    data = parse_request_data(request)
+    print(f"[DEBUG] data : {data}")
+
     device_id = data.get("device_id")
     motion = data.get("motion") or data.get("function")
 
-    # print(f"[DEBUG] device_id : {device_id}")
-    # print(f"[DEBUG] motion : {motion}")
+    print(f"[DEBUG] device_id : {device_id}")
+    print(f"[DEBUG] motion : {motion}")
 
     if not device_id:
-        return JsonResponse({'status': 'fail', 'message': 'device_id 누락'}, status=400)
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "device_id 누락"
+            },
+            status=400
+        )
 
-    # 🔹 1️⃣ Device 조회
+    # Device 조회
     device = Device.objects.filter(id=device_id).first()
-    # print(f"[DEBUG] device : {device}")
+    print(f"[DEBUG] device : {device}")
+
     if not device:
-        return JsonResponse({
-            'status': 'fail', 
-            'message': f'존재하지 않는 device_id: {device_id}'}, 
+        return JsonResponse(
+            {
+                "success": False,
+                "message": f"존재하지 않는 device_id: {device_id}"
+            },
             status=404
         )
-    # print(f"[DEBUG] 여기까지 정상")
-
-    # 🔹 2️⃣ device에서 필요한 정보 추출
-    # location = device.location
-    # print(f"[DEBUG] Controller 연결 정보 → device: {device}, location: {location}")
 
     if not motion:
-        return JsonResponse({'status': 'fail', 'message': 'motion/function 값이 없습니다.'}, status=400)
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "motion/function 값이 없습니다."
+            },
+            status=400
+        )
 
-    # 🔹 3️⃣ 실제 제어 요청 수행
-    success_message = motion_messages.get(motion, "요청된 동작을 수행했습니다.")
-    return DeviceService.control(
-        device.id,
+    # 성공 메시지 결정
+    success_message = motion_messages.get(
         motion,
-        success_message
+        "요청된 동작을 수행했습니다."
+    )
+
+    # 서비스 호출
+    success, message = DeviceService.control(
+        device_id=device.id,
+        motion=motion,
+        success_message=success_message,
+    )
+
+    # View는 반드시 JsonResponse를 반환
+    return JsonResponse(
+        {
+            "success": success,
+            "message": message,
+        },
+        status=200 if success else 400
     )
 
 
