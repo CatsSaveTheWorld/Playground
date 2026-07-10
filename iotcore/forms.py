@@ -29,14 +29,65 @@ class SequenceForm(forms.ModelForm):
 
 
 class SequenceStepForm(forms.ModelForm):
+    # --------------------------
+    # Form 전용 필드
+    # 시 / 분 / 초를 UI에서 입력받아 초 단위로 DB에 저장.
+    # --------------------------
+    hour = forms.IntegerField(
+        min_value=0,
+        initial=0,
+        required=False,
+    )
+
+    minute = forms.IntegerField(
+        min_value=0,
+        initial=0,
+        required=False,
+    )
+
+    second = forms.IntegerField(
+        min_value=0,
+        initial=0,
+        required=False,
+    )
+
     class Meta:
-        model = SequenceStep                    # 사용할 모델
-        fields = ['device', 'delay']     # QuestionForm에서 사용할 Question 모델의 속성
-    widgets = {
-        "delay": forms.NumberInput(
-            attrs={
-                "min": 0,
-                "placeholder": "0 (분)"
-            }
-        ),
-    }
+        model = SequenceStep
+        fields = [
+            "device",
+            "delay_position",
+        ]
+
+        widgets = {
+            "delay_position": forms.RadioSelect(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        delay = self.instance.delay if self.instance.pk else 0
+
+        self.fields["hour"].initial = delay // 3600
+        self.fields["minute"].initial = (delay % 3600) // 60
+        self.fields["second"].initial = delay % 60
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        hour = self.cleaned_data.get("hour") or 0
+        minute = self.cleaned_data.get("minute") or 0
+        second = self.cleaned_data.get("second") or 0
+
+        instance.delay = (
+            hour * 3600 +
+            minute * 60 +
+            second
+        )
+
+        # print(f"[DEBUG] delay = {instance.delay}")
+        # print(f"[DEBUG] delay_position = {instance.delay_position}")
+
+        if commit:
+            instance.save()
+
+        return instance

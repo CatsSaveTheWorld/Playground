@@ -51,6 +51,14 @@ class Sequence(models.Model):
     
 
 class SequenceStep(models.Model):
+    BEFORE = "before"
+    AFTER = "after"
+
+    DELAY_POSITION_CHOICES = [
+        (BEFORE, "동작 전"),
+        (AFTER, "동작 후"),
+    ]
+
     sequence = models.ForeignKey(
         Sequence,
         on_delete=models.CASCADE,
@@ -63,11 +71,16 @@ class SequenceStep(models.Model):
     )
     function = models.CharField(max_length=50)
     parameter = models.JSONField(blank=True, null=True)
-    delay = models.PositiveIntegerField(default=0)   # 다음 명령 전 대기(ms)
+
+    delay = models.PositiveIntegerField(default=0)  #  지연 시간 (초)
+    delay_position = models.CharField(
+        max_length=10,
+        choices=DELAY_POSITION_CHOICES,
+        default=AFTER,
+    )
 
     class Meta:
         ordering = ["order"]
-        # 아래는 같은 시퀀스 내에서 같은 데이터가 들어가는 걸 DB차원에서 방지.
         constraints = [
             models.UniqueConstraint(
                 fields=["sequence", "order"],

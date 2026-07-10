@@ -1,3 +1,5 @@
+{% load duration %}
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -228,6 +230,38 @@
             margin-top:20px;
         }
 
+        .delay-container {
+            display:flex;
+            align-items:center;
+            gap:8px;
+            flex:1;
+        }
+
+        .delay-container input {
+            flex:none;
+            width:60px;
+            text-align:center;
+        }
+
+        .delay-position{
+            display:flex;
+            align-items:center;
+            gap:20px;
+            margin-left:auto;
+        }
+
+        .form-row .delay-position > label{
+            width:fit-content;
+            display:flex;
+            align-items:center;
+            gap:4px;
+            margin:0;
+        }
+
+        .delay-position input[type="radio"]{
+            margin:0;
+        }
+
         /* ===========================
         Legacy
         =========================== */
@@ -358,7 +392,6 @@
             <div class="form-row">
 
                 <label>동작</label>
-
                 <select
                     id="function-select"
                     name="function">
@@ -366,17 +399,33 @@
                     <option value="">
                         장치를 먼저 선택하세요.
                     </option>
-
                 </select>
 
             </div>
 
             <div class="form-row">
+                <label>지연 시간</label>
 
-                <label>지연 시간(분)</label>
+                <div class="delay-container">
+                    {{ step_form.hour }}
+                    <span>시</span>
 
-                {{ step_form.delay }}
+                    {{ step_form.minute }}
+                    <span>분</span>
 
+                    {{ step_form.second }}
+                    <span>초</span>
+
+                    <div class="delay-position">
+                        <label>
+                            {{ step_form.delay_position.0.tag }} 동작 전
+                        </label>
+
+                        <label>
+                            {{ step_form.delay_position.1.tag }} 동작 후
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <div class="form-buttons">
@@ -422,33 +471,21 @@
                 </div>
 
                 <div class="step-body">
-
                     <div>
-
                         <strong>장치</strong><br>
-
                         {{ step.device.name }}
-
                     </div>
 
                     <div>
-
                         <strong>동작</strong><br>
-
                         {{ step.function_display }}
-
                     </div>
 
                     <div>
-
                         <strong>지연</strong><br>
-
-                        {{ step.delay }}분
-
+                        {{ step.delay|duration }}
                     </div>
-
                 </div>
-
             </div>
 
             {% empty %}

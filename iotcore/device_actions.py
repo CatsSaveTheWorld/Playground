@@ -33,26 +33,26 @@ class DeviceActionRegistry:
                 display_name="자동 모드",
             ),
             DeviceAction(
-                code="mode_auto",
+                code="mode_cool",
                 display_name="냉방 모드",
             ),
             DeviceAction(
-                code="mode_auto",
+                code="mode_dehumidification",
                 display_name="제습 모드",
             ),
             DeviceAction(
-                code="mode_auto",
+                code="mode_fan",
                 display_name="송풍 모드",
             ),
         ],
 
         "fan": [
             DeviceAction(
-                code="power_cycle",
+                code="power_on",
                 display_name="전원",
             ),
             DeviceAction(
-                code="stop",
+                code="power_off",
                 display_name="정지",
             ),
         ],
