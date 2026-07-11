@@ -56,6 +56,8 @@
         =========================== */
 
         .sequence-header{
+            position: relative;
+
             border:2px solid #00FFC8;
             padding:20px;
             margin-bottom:20px;
@@ -63,6 +65,24 @@
             display:flex;
             justify-content:space-between;
             align-items:flex-end;
+        }
+        
+        .sequence-back-link{
+            position:absolute;
+            top:20px;
+            right:20px;
+
+            color:#00FFC8;
+            font-size:15px;
+
+            text-decoration:underline;
+            text-underline-offset:4px;
+
+            cursor:pointer;
+        }
+
+        .sequence-back-link:hover{
+            color:#FFFFFF;
         }
 
         .sequence-info{
@@ -102,6 +122,16 @@
 
         .btn-run:hover{
             background:#157347;
+        }
+
+        .btn-edit{
+            background:#495057;
+            color:white;
+            border:none;
+        }
+
+        .btn-edit:hover{
+            background:#495057;
         }
 
         .btn-delete{
@@ -286,6 +316,12 @@
             Sequence Header
         ========================== -->
         <div class="sequence-header">
+            <a
+                href="{% url 'iotcore:sequence_list' %}"
+                class="sequence-back-link"
+            >
+                ← 시퀀스 목록으로
+            </a>
 
             <div class="sequence-info">
 
@@ -302,6 +338,14 @@
                     {% csrf_token %}
                     <button type="submit" class="btn-run">
                         실행
+                    </button>
+                </form>
+
+                <form method="get"
+                    action="{% url 'iotcore:sequence_update' sequence.id %}">
+                    <!-- {% csrf_token %} -->
+                    <button type="submit" class="btn-edit">
+                        시퀀스 편집
                     </button>
                 </form>
 

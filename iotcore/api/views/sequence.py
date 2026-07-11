@@ -6,7 +6,7 @@ from ...forms import SequenceForm, SequenceStepForm
 from ...device_actions import DeviceActionRegistry
 from ...device.services.sequence_executor import SequenceExecutor
 from ...device.services.sequence_service import SequenceService
-from django.db.models import Max
+from django.db.models import Max, Count
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
@@ -15,7 +15,11 @@ from django.views.decorators.http import require_POST
 # Create your views here.
 @login_required(login_url="common:login")
 def sequence_list(request):
-    sequences = Sequence.objects.all().order_by("name")
+    sequences = sequences = (
+        Sequence.objects
+        .annotate(step_count=Count("steps"))
+        .order_by("name")
+    )
     context = {
         "sequences": sequences,
     }
@@ -58,9 +62,45 @@ def sequence_run(request, sequence_id):
         request,
         f'"{sequence.name}" 시퀀스를 실행했습니다.'
     )
-    return redirect(
-        "iotcore:sequence_edit",
-        sequence_id
+    return redirect("iotcore:sequence_list")
+
+
+@login_required(login_url="common:login")
+def sequence_update(request, sequence_id):
+    sequence = get_object_or_404(
+        Sequence,
+        pk=sequence_id
+    )
+
+    if request.method == "POST":
+        form = SequenceForm(
+            request.POST,
+            instance=sequence
+        )
+
+        if form.is_valid():
+            form.save()
+
+            return redirect(
+                "iotcore:sequence_edit",
+                sequence_id
+            )
+
+    else:
+        form = SequenceForm(
+            instance=sequence
+        )
+
+    context = {
+        "form": form,
+        "sequence": sequence,
+        "is_update": True,
+    }
+
+    return render(
+        request,
+        "iotcore/sequence_form.html",
+        context,
     )
 
 
