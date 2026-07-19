@@ -1,6 +1,6 @@
 from django.urls import path
 from iotcore.api.views import base, sequence, detail
-from iotcore.api.views import aircon, pc, electric_fan, ai
+from iotcore.api.views import aircon, pc, electric_fan, ai, main_led
 
 app_name = "iotcore"
 
@@ -48,6 +48,12 @@ urlpatterns = [
     path("electric_fan/stop/", electric_fan.electricfan_stop, name="electricfan_stop"),
     path("electric_fan/fan_way_toggle/", electric_fan.electricfan_fan_way_toggle, name="electricfan_fan_way_toggle"),
     path("electric_fan/timer_add_30m/", electric_fan.electricfan_timer_add_30m, name="electricfan_timer_add_30m"),
+
+    # ────────────────────────────────
+    # 전등 제어
+    # ────────────────────────────────
+    path("main_led/power_on/", main_led.main_led_power_on, name="main_led_power_on"),
+    path("main_led/power_off/", main_led.main_led_power_off, name="main_led_power_off"),
 
     # ────────────────────────────────
     # 시퀀스 제어

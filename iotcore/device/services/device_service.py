@@ -3,6 +3,7 @@ from ..repositories.ircode_repository import IRCodeRepository
 from ...infrastructure.ir.client import IRClient
 from ...device.repositories.device_repository import DeviceRepository
 from django.http import JsonResponse
+from ...infrastructure.zigbee.client import ZigbeeClient
 
 
 class DeviceService:
@@ -37,15 +38,26 @@ class DeviceService:
         if not device:
             return False, "기기를 찾을 수 없습니다."
 
-        controller = ControllerRepository.get_controller_by_device(device_id)
-        if not controller:
-            return False, "연결된 컨트롤러를 찾을 수 없습니다."
+        if device.protocol == 'ir':
+            controller = ControllerRepository.get_controller_by_device(device_id)
+            if not controller:
+                return False, "연결된 컨트롤러를 찾을 수 없습니다."
 
-        success, error_message = DeviceService.execute_ir(
-            controller_id=controller.id,
-            motion=motion,
-            bits=bits,
-        )
+            success, error_message = DeviceService.execute_ir(
+                controller_id=controller.id,
+                motion=motion,
+                bits=bits,
+            )
+        
+        elif device.protocol == 'tuya':
+            pass
+
+        elif device.protocol == 'zigbee':
+            print(f"[DEBUG] device.protocol : zigbee")
+            success, error_message = DeviceService.execute_zigbee(
+                device_id=device_id,
+                motion=motion,
+            )
 
         if success:
             return True, success_message or f"{device.name} 제어를 완료했습니다."
@@ -71,11 +83,30 @@ class DeviceService:
         )
 
     @staticmethod
-    def execute_light(step):
-        return DeviceService.control(
-            device_id=step.device.id,
-            motion=step.function,
+    def execute_zigbee(device_id, motion):
+
+        device = DeviceRepository.get_by_id(device_id)
+
+        if not device:
+            return False, "기기를 찾을 수 없습니다."
+
+        mapping = {
+            "power_on": "ON",
+            "power_off": "OFF",
+        }
+
+        state = mapping.get(motion)
+        # print(f"[DEBUG] state : {state}")
+
+
+        if state is None:
+            return False, f"지원하지 않는 동작입니다. ({motion})"
+
+        return ZigbeeClient.send_zigbee_request(
+            device.device_uid,
+            state
         )
+    
 
     @staticmethod
     def execute_ir(controller_id, motion, bits=None):

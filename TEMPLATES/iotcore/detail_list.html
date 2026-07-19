@@ -312,6 +312,25 @@
                         </div>
                     {% endif %}
                 {% endfor %}
+                {% for device in devices %}
+                    {% if device.device_type == "light" %}
+                        <div class="card"
+                            onclick="toggleDropdown(this)"
+                            data-device-id="{{ device.id }}"
+                            data-device-type="{{ device.device_type }}">
+                            전등 조작
+                            <div class="dropdown-content" onclick="event.stopPropagation()">
+                                <button onclick="sendAction('/iotcore/main_led/power_on/', event)">
+                                    전원 켜기
+                                </button>
+
+                                <button onclick="sendAction('/iotcore/main_led/power_off/', event)">
+                                    전원 끄기
+                                </button>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
             </div>
         </div>
 

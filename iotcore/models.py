@@ -1,13 +1,38 @@
 from django.db import models
 
+# class Device(models.Model):
+#     """
+#     IoT 기기 정보 테이블 (예: 거실 에어컨, 안방 선풍기 등)
+#     """
+#     device_type = models.CharField(max_length=50)  # 예: aircon, electric_fan 등
+#     device_uid = models.CharField(max_length=100, unique=True)  # 시스템 내 고유 식별자
+#     name = models.CharField(max_length=100)  # 사용자에게 표시될 기기 이름
+#     location = models.CharField(max_length=100)  # 설치 위치
+
+#     def __str__(self):
+#         return f"{self.name} ({self.device_type})"
+
 class Device(models.Model):
+
+    class Protocol(models.TextChoices):
+        IR = "ir", "IR"
+        TUYA = "tuya", "Tuya"
+        ZIGBEE = "zigbee", "Zigbee"
+
     """
-    IoT 기기 정보 테이블 (예: 거실 에어컨, 안방 선풍기 등)
+    IoT 기기 정보 테이블
     """
-    device_type = models.CharField(max_length=50)  # 예: aircon, electric_fan 등
-    device_uid = models.CharField(max_length=100, unique=True)  # 시스템 내 고유 식별자
-    name = models.CharField(max_length=100)  # 사용자에게 표시될 기기 이름
-    location = models.CharField(max_length=100)  # 설치 위치
+
+    device_type = models.CharField(max_length=50)
+    protocol = models.CharField(
+        max_length=20,
+        choices=Protocol.choices,
+        default=Protocol.IR,
+    )
+
+    device_uid = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
+    location = models.CharField(max_length=100)
 
     def __str__(self):
         return f"{self.name} ({self.device_type})"
