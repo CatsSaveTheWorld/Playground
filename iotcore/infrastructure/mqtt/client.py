@@ -18,6 +18,9 @@ class MQTTClient:
     @classmethod
     def publish(cls, topic, payload):
 
+        if not cls._client.is_connected():
+            cls.connect()
+
         if isinstance(payload, dict):
             payload = json.dumps(payload)
 
