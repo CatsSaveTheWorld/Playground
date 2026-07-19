@@ -27,6 +27,10 @@ SECRET_KEY = my_settings.SECRET_KEY('secret')
 DEBUG = False
 # DEBUG = True
 
+# MQTT 테스트 용 장고 서버 IP주소
+MQTT_HOST = "127.0.0.1"   # IoT 서버 IP
+MQTT_PORT = 1883
+
 ALLOWED_HOSTS = [
     "211.209.134.102",
     "192.168.0.8",
