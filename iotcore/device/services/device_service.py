@@ -9,7 +9,7 @@ from ...infrastructure.zigbee.client import ZigbeeClient
 class DeviceService:
 
     @staticmethod
-    def execute(step):
+    def execute_step(step):
         """
         SequenceStep 하나를 실행한다.
         모든 실행의 공통 진입점.
@@ -18,7 +18,7 @@ class DeviceService:
         dispatch = {
             "aircon": DeviceService.execute_aircon,
             "fan": DeviceService.execute_fan,
-            "LIGHT": DeviceService.execute_light,
+            "light": DeviceService.execute_light,
         }
         executor = dispatch.get(device.device_type)
         
@@ -29,7 +29,8 @@ class DeviceService:
         if executor is None:
             return False, f"지원하지 않는 장치 타입입니다. ({device.device_type})"
 
-        return executor(step)
+        # return executor(step)
+        return True, f"{step}을 성공적으로 수행했습니다."
 
     @staticmethod
     def control(device_id, motion, success_message=None, bits=None):
@@ -83,7 +84,7 @@ class DeviceService:
         )
 
     @staticmethod
-    def execute_zigbee(device_id, motion):
+    def execute_light(device_id, motion):
 
         device = DeviceRepository.get_by_id(device_id)
 

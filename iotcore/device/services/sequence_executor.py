@@ -28,7 +28,7 @@ class SequenceExecutor:
             ):
                 time.sleep(step.delay)
 
-            success, message = DeviceService.execute(step)
+            success, message = DeviceService.execute_step(step)
 
             if not success:
                 return False, message
