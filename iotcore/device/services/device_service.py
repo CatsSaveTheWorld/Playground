@@ -33,7 +33,7 @@ class DeviceService:
         # return True, f"{step}을 성공적으로 수행했습니다."
 
     @staticmethod
-    def control(device_id, motion, success_message=None, bits=None):
+    def control(device_id, motion, success_message=None, bits=None) -> tuple:
 
         device = DeviceRepository.get_by_id(device_id)
         print(f"[DEBUG] control device : {device}")
@@ -56,13 +56,12 @@ class DeviceService:
             print(f"[DEBUG] control success : {success}")
             print(f"[DEBUG] control error_message : {error_message}")
 
-        
         elif device.protocol == 'tuya':
             pass
 
         elif device.protocol == 'zigbee':
             print(f"[DEBUG] device.protocol : zigbee")
-            success, error_message = DeviceService.execute_zigbee(
+            success, error_message = DeviceService.execute_light(
                 device_id=device_id,
                 motion=motion,
             )
