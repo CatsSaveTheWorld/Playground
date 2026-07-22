@@ -36,14 +36,14 @@ class DeviceService:
     def control(device_id, motion, success_message=None, bits=None) -> tuple:
 
         device = DeviceRepository.get_by_id(device_id)
-        print(f"[DEBUG] control device : {device}")
+        # print(f"[DEBUG] control device : {device}")
 
         if not device:
             return False, "기기를 찾을 수 없습니다."
 
         if device.protocol == 'ir':
             controller = ControllerRepository.get_controller_by_device(device_id)
-            print(f"[DEBUG] control controller : {controller}")
+            # print(f"[DEBUG] control controller : {controller}")
 
             if not controller:
                 return False, "연결된 컨트롤러를 찾을 수 없습니다."
@@ -53,14 +53,14 @@ class DeviceService:
                 motion=motion,
                 bits=bits,
             )            
-            print(f"[DEBUG] control success : {success}")
-            print(f"[DEBUG] control error_message : {error_message}")
+            # print(f"[DEBUG] control success : {success}")
+            # print(f"[DEBUG] control error_message : {error_message}")
 
         elif device.protocol == 'tuya':
             pass
 
         elif device.protocol == 'zigbee':
-            print(f"[DEBUG] device.protocol : zigbee")
+            # print(f"[DEBUG] device.protocol : zigbee")
             success, error_message = DeviceService.execute_light(
                 device_id=device_id,
                 motion=motion,
