@@ -50,6 +50,21 @@ class MusicAssistantClientTests(SimpleTestCase):
         "_send_command",
         return_value=(True, None),
     )
+    def test_resume_uses_player_queue_resume_command(self, send_command):
+        result = MusicAssistantClient.resume("player-1")
+
+        self.assertEqual(result, (True, None))
+        send_command.assert_called_once_with(
+            command="player_queues/resume",
+            args={"queue_id": "player-1"},
+            action_name="재생 재개",
+        )
+
+    @patch.object(
+        MusicAssistantClient,
+        "_send_command",
+        return_value=(True, None),
+    )
     def test_set_repeat_uses_supported_repeat_mode(self, send_command):
         result = MusicAssistantClient.set_repeat("player-1", "all")
 
@@ -106,6 +121,39 @@ class DeviceServiceSpeakerTests(SimpleTestCase):
             player_name="거실 스피커",
         )
         play_previous.assert_called_once_with("player-1")
+
+    @patch.object(
+        MusicAssistantClient,
+        "resume",
+        return_value=(True, None),
+    )
+    @patch.object(
+        MusicAssistantClient,
+        "resolve_player_id",
+        return_value=("player-1", None),
+    )
+    @patch(
+        "iotcore.device.services.device_service.DeviceRepository.get_by_id",
+        return_value=SimpleNamespace(
+            device_uid="speaker-uid",
+            name="거실 스피커",
+        ),
+    )
+    def test_execute_speaker_delegates_resume(
+        self,
+        get_by_id,
+        resolve_player_id,
+        resume,
+    ):
+        result = DeviceService.execute_speaker(4, "resume")
+
+        self.assertEqual(result, (True, None))
+        get_by_id.assert_called_once_with(4)
+        resolve_player_id.assert_called_once_with(
+            player_id="speaker-uid",
+            player_name="거실 스피커",
+        )
+        resume.assert_called_once_with("player-1")
 
     @patch.object(
         MusicAssistantClient,
@@ -173,6 +221,31 @@ class SpeakerEndpointTests(SimpleTestCase):
 
     @patch(
         "iotcore.api.views.speaker.DeviceService.control",
+        return_value=(True, "현재 곡 재생을 재개합니다!"),
+    )
+    @patch(
+        "iotcore.api.views.speaker.DeviceRepository.get_by_id",
+        return_value=SimpleNamespace(id=4, device_type="speaker"),
+    )
+    def test_resume_endpoint_passes_motion_to_service(
+        self,
+        get_by_id,
+        control,
+    ):
+        response = self.client.post(
+            reverse(
+                "iotcore:speaker_resume",
+                kwargs={"device_id": 4},
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["success"])
+        get_by_id.assert_called_once_with(4)
+        self.assertEqual(control.call_args.kwargs["motion"], "resume")
+
+    @patch(
+        "iotcore.api.views.speaker.DeviceService.control",
         return_value=(True, "반복 재생 모드가 설정되었습니다!"),
     )
     @patch(
@@ -237,7 +310,12 @@ class SpeakerTemplateTests(SimpleTestCase):
             "sendSpeakerTransportAction(event, 'previous')",
             html,
         )
+        self.assertIn(
+            "sendSpeakerTransportAction(event, 'resume')",
+            html,
+        )
         self.assertIn("이전 곡", html)
+        self.assertIn("현재 곡 재생", html)
         self.assertIn("repeat-controls", html)
         self.assertIn("sendSpeakerRepeat(event, 'off')", html)
         self.assertIn("sendSpeakerRepeat(event, 'all')", html)

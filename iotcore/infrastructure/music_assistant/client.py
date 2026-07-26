@@ -142,6 +142,22 @@ class MusicAssistantClient:
         )
 
     @staticmethod
+    def resume(device_id):
+        """일시정지된 현재 플레이어 큐의 재생을 재개한다."""
+        player_value, error = MusicAssistantClient._validate_id(
+            device_id,
+            "device_id",
+        )
+        if error:
+            return False, error
+
+        return MusicAssistantClient._send_command(
+            command="player_queues/resume",
+            args={"queue_id": player_value},
+            action_name="재생 재개",
+        )
+
+    @staticmethod
     def play_next(device_id):
         """현재 플레이어 큐의 다음 곡을 재생한다."""
         player_value, error = MusicAssistantClient._validate_id(

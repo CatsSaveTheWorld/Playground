@@ -367,7 +367,10 @@
             gap: 8px;
         }
 
-        .speaker-control-row.transport-controls,
+        .speaker-control-row.transport-controls {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
         .speaker-control-row.repeat-controls {
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
@@ -610,7 +613,14 @@
                                     aria-label="이전 곡"
                                     title="이전 곡"
                                     onclick="sendSpeakerTransportAction(event, 'previous')">
-                                    <span aria-hidden="true">◀</span>
+                                    <span aria-hidden="true">│◀</span>
+                                </button>
+                                <button type="button"
+                                    class="speaker-control-button"
+                                    aria-label="현재 곡 재생"
+                                    title="현재 곡 재생"
+                                    onclick="sendSpeakerTransportAction(event, 'resume')">
+                                    <span aria-hidden="true">▶</span>
                                 </button>
                                 <button type="button"
                                     class="speaker-control-button"
@@ -624,7 +634,7 @@
                                     aria-label="다음 곡"
                                     title="다음 곡"
                                     onclick="sendSpeakerTransportAction(event, 'next')">
-                                    <span aria-hidden="true">▶</span>
+                                    <span aria-hidden="true">▶│</span>
                                 </button>
                             </div>
 
@@ -962,6 +972,7 @@
 
         const paths = {
             previous: 'previous',
+            resume: 'resume',
             pause: 'pause',
             next: 'next',
         };

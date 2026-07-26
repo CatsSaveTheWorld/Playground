@@ -11,6 +11,7 @@ motion_messages = {
     "play_playlist": "플레이 리스트를 재생합니다!", 
     "play_music": "현재 곡을 재생합니다!", 
     "play_previous": "이전 곡을 재생합니다!",
+    "resume": "현재 곡 재생을 재개합니다!",
     "pause": "현재 곡을 일시정지합니다!",
     "play_next": "다음 곡을 재생합니다!",
     "adjust_music_volume": "음량이 설정되었습니다!",
@@ -183,6 +184,15 @@ def speaker_play_previous(request, device_id):
         request,
         device_id=device_id,
         motion="play_previous",
+    )
+
+
+@csrf_exempt
+def speaker_resume(request, device_id):
+    return speaker_entry(
+        request,
+        device_id=device_id,
+        motion="resume",
     )
 
 

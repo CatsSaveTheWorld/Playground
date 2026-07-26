@@ -203,6 +203,9 @@ class DeviceService:
         elif motion == "play_previous":
             return MusicAssistantClient.play_previous(player_id)
 
+        elif motion == "resume":
+            return MusicAssistantClient.resume(player_id)
+
         elif motion == "pause":
             return MusicAssistantClient.pause(player_id)
 

@@ -72,6 +72,7 @@ urlpatterns = [
     path("speaker/<int:device_id>/playlists/<str:playlist_id>/play/", speaker.speaker_play_playlist, name="speaker_play_playlist"),
     path("speaker/<int:device_id>/music/<str:music_id>/play/", speaker.speaker_play_music, name="speaker_play_music"),
     path("speaker/<int:device_id>/previous/", speaker.speaker_play_previous, name="speaker_play_previous"),
+    path("speaker/<int:device_id>/resume/", speaker.speaker_resume, name="speaker_resume"),
     path("speaker/<int:device_id>/pause/", speaker.speaker_pause, name="speaker_pause"),
     path("speaker/<int:device_id>/next/", speaker.speaker_play_next, name="speaker_play_next"),
     path("speaker/<int:device_id>/volume/", speaker.speaker_adjust_music_volume, name="speaker_adjust_music_volume"),
