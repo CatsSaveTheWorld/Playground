@@ -1,6 +1,6 @@
 from django.urls import path
 from iotcore.api.views import base, sequence, detail
-from iotcore.api.views import aircon, pc, electric_fan, ai, main_led
+from iotcore.api.views import aircon, pc, electric_fan, ai, main_led, speaker
 
 app_name = "iotcore"
 
@@ -66,4 +66,16 @@ urlpatterns = [
     path("sequence/<int:sequence_id>/edit/", sequence.sequence_edit, name="sequence_edit"),
     path("sequence/step/delete/", sequence.sequence_step_delete, name="sequence_step_delete"),
 
+    # ────────────────────────────────
+    # 스피커 제어
+    # ────────────────────────────────
+    path("speaker/<int:device_id>/playlists/<str:playlist_id>/play/", speaker.speaker_play_playlist, name="speaker_play_playlist"),
+    path("speaker/<int:device_id>/music/<str:music_id>/play/", speaker.speaker_play_music, name="speaker_play_music"),
+    path("speaker/<int:device_id>/previous/", speaker.speaker_play_previous, name="speaker_play_previous"),
+    path("speaker/<int:device_id>/pause/", speaker.speaker_pause, name="speaker_pause"),
+    path("speaker/<int:device_id>/next/", speaker.speaker_play_next, name="speaker_play_next"),
+    path("speaker/<int:device_id>/volume/", speaker.speaker_adjust_music_volume, name="speaker_adjust_music_volume"),
+    path("speaker/<int:device_id>/shuffle/activate/", speaker.speaker_shuffle_activate, name="speaker_shuffle_activate"),
+    path("speaker/<int:device_id>/shuffle/deactivate/", speaker.speaker_shuffle_deactivate, name="speaker_shuffle_deactivate"),
+    path("speaker/<int:device_id>/repeat/<str:repeat_mode>/", speaker.speaker_set_repeat, name="speaker_set_repeat"),
 ]

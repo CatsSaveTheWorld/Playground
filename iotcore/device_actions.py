@@ -78,6 +78,33 @@ class DeviceActionRegistry:
                 display_name="끄기",
             ),
         ],
+
+        "speaker": [
+            DeviceAction(
+                code="play_playlists",
+                display_name="플레이 리스트 재생",
+            ),
+            DeviceAction(
+                code="pause_music",
+                display_name="현재 곡 일시정지",
+            ),
+            DeviceAction(
+                code="play_next_music",
+                display_name="다음 곡 재생",
+            ),
+            DeviceAction(
+                code="adjust_music_volume",
+                display_name="음량 설정",
+            ),
+            DeviceAction(
+                code="activate_shuffle",
+                display_name="셔플 활성화",
+            ),
+            DeviceAction(
+                code="deactivate_shuffle",
+                display_name="셔플 비활성화",
+            ),
+        ],
     }
 
     @classmethod

@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from ...models import Controller, Device
 from django.conf import settings
 from ...device.repositories.device_repository import DeviceRepository
+from ...infrastructure.music_assistant.client import MusicAssistantClient
 
 import pandas as pd 
 import os
@@ -11,10 +12,47 @@ import os
 DATA_DIR = os.path.join(settings.BASE_DIR, 'iotcore', 'management', 'data')
 pc_path = os.path.join(DATA_DIR, 'Computers.csv').replace('\\', '/')
 
+VISIBLE_PLAYLIST_NAMES = (
+    "광활",
+    "판타지",
+    "평온",
+    "슬픔",
+    "따뜻함",
+    "쓸쓸함",
+    "활기참",
+    "몽환",
+    "SF",
+    "운전",
+)
+
+
+def get_visible_playlists(playlists):
+    """음악 카드에 허용된 재생목록만 지정된 순서로 반환한다."""
+    playlist_order = {
+        name: index
+        for index, name in enumerate(VISIBLE_PLAYLIST_NAMES)
+    }
+    visible_playlists = [
+        playlist
+        for playlist in playlists
+        if playlist.get("name") in playlist_order
+    ]
+    return sorted(
+        visible_playlists,
+        key=lambda playlist: playlist_order[playlist["name"]],
+    )
+
 
 def detail_list(request):
-    devices = DeviceRepository.get_all()
+    devices = list(DeviceRepository.get_all())
     controllers = Controller.objects.all()  # 모든 컨트롤러 조회
+    playlists = []
+    playlists_error = None
+
+    if any(device.device_type == "speaker" for device in devices):
+        playlists, playlists_error = MusicAssistantClient.get_playlists()
+        playlists = get_visible_playlists(playlists)
+
     pcs_df = pd.read_csv(pc_path, encoding='cp949')
     pcs = [
         {
@@ -41,6 +79,7 @@ def detail_list(request):
         "devices": devices,
         "controllers": controllers,
         "pcs": pcs,
+        "playlists": playlists,
+        "playlists_error": playlists_error,
     }
     return render(request, "iotcore/detail_list.html", context)
-

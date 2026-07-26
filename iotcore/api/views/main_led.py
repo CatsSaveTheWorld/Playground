@@ -97,51 +97,6 @@ def main_led_entry(request):
 
 
 # ────────────────────────────────
-#  전등 제어 함수 (AI 요청용, 미구현)
-# ────────────────────────────────
-def main_led_command(device_id, function):
-    """
-    function 값에 따라 에어컨 제어 수행
-    """
-    mapping = {
-        "power_on": ("power_on", motion_messages["power_on"]),
-        "power_off": ("power_off", motion_messages["power_off"]),
-    }
-
-    if function.startswith("set_temp_"):
-        temp = function.split("_")[-1]
-        motion = f"set_temp_{temp}"
-
-        return DeviceService.control(
-            device_id,
-            motion,
-            f"에어컨 온도가 {temp}°C로 설정되었습니다."
-        )
-
-    if function not in mapping:
-        print("[DEBUG] 제어 함수가 제어 사전(맵)에 없음.")
-        print(f"[DEBUG] function : {function}")
-        return JsonResponse(
-            {
-                "status": "fail",
-                "message": f"지원되지 않는 기능: {function}"
-            },
-            status=400
-        )
-
-    motion, message = mapping[function]
-
-    print("[DEBUG] Main LED 제어 실행.")
-
-    return DeviceService.control(
-        device_id,
-        motion,
-        message
-    )
-
-
-
-# ────────────────────────────────
 #  전등 호환용 뷰 (기존 웹 요청 URL 유지)
 # ────────────────────────────────
 @csrf_exempt

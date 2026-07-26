@@ -4,7 +4,6 @@ from ...infrastructure.ir.client import IRClient
 from ...device.repositories.device_repository import DeviceRepository
 from django.http import JsonResponse
 from ...infrastructure.zigbee.client import ZigbeeClient
-from ...infrastructure.music_assistant.client import MusicAssistantClient
 
 
 class DeviceService:
@@ -35,16 +34,7 @@ class DeviceService:
         # return True, f"{step}을 성공적으로 수행했습니다."
 
     @staticmethod
-    def control(
-        device_id,
-        motion,
-        success_message=None,
-        bits=None,
-        playlist_id=None,
-        music_id=None,
-        volume=None,
-        repeat_mode=None,
-    ) -> tuple:
+    def control(device_id, motion, success_message=None, bits=None) -> tuple:
 
         device = DeviceRepository.get_by_id(device_id)
         # print(f"[DEBUG] control device : {device}")
@@ -52,44 +42,37 @@ class DeviceService:
         if not device:
             return False, "기기를 찾을 수 없습니다."
 
-        if device.device_type == 'aircon':
-            if device.protocol == 'ir':
-                controller = ControllerRepository.get_controller_by_device(device_id)
-                # print(f"[DEBUG] control controller : {controller}")
+        if device.protocol == 'ir':
+            controller = ControllerRepository.get_controller_by_device(device_id)
+            # print(f"[DEBUG] control controller : {controller}")
 
-                if not controller:
-                    return False, "연결된 컨트롤러를 찾을 수 없습니다."
+            if not controller:
+                return False, "연결된 컨트롤러를 찾을 수 없습니다."
 
-                success, error_message = DeviceService.execute_ir(
-                    controller_id=controller.id,
-                    motion=motion,
-                    bits=bits,
-                )
-                # print(f"[DEBUG] control success : {success}")
-                # print(f"[DEBUG] control error_message : {error_message}")
+            success, error_message = DeviceService.execute_ir(
+                controller_id=controller.id,
+                motion=motion,
+                bits=bits,
+            )            
+            # print(f"[DEBUG] control success : {success}")
+            # print(f"[DEBUG] control error_message : {error_message}")
 
-        elif device.device_type == 'light':
-            if device.protocol == 'zigbee':
-                # print(f"[DEBUG] device.protocol : zigbee")
-                success, error_message = DeviceService.execute_light(
-                    device_id=device_id,
-                    motion=motion,
-                )
+        elif device.protocol == 'tuya':
+            pass
 
-        elif device.device_type == 'speaker':
-            if device.protocol == 'tcpip':
-                # print(f"[DEBUG] device.protocol : tcpip")
-                success, error_message = DeviceService.execute_speaker(
-                    device_id=device_id,
-                    motion=motion,
-                    playlist_id=playlist_id,
-                    music_id=music_id,
-                    volume=volume,
-                    repeat_mode=repeat_mode,
-                )
+        elif device.protocol == 'zigbee':
+            # print(f"[DEBUG] device.protocol : zigbee")
+            success, error_message = DeviceService.execute_light(
+                device_id=device_id,
+                motion=motion,
+            )
 
-        else:
-            return False, f"지원하지 않는 기기 종류입니다. ({device.device_type})"
+        elif device.protocol == 'tcpip':
+            # print(f"[DEBUG] device.protocol : tcpip")
+            success, error_message = DeviceService.execute_speaker(
+                device_id=device_id,
+                motion=motion,
+            )
 
         if success:
             return True, success_message or f"{device.name} 제어를 완료했습니다."
@@ -168,69 +151,21 @@ class DeviceService:
 
 
     @staticmethod
-    def execute_speaker(
-        device_id,
-        motion,
-        playlist_id=None,
-        music_id=None,
-        volume=None,
-        repeat_mode=None,
-    ):
+    def execute_speaker(device_id, motion):
         device = DeviceRepository.get_by_id(device_id)
 
         if not device:
             return False, "기기를 찾을 수 없습니다."
 
-        player_id, error_message = MusicAssistantClient.resolve_player_id(
-            player_id=device.device_uid,
-            player_name=device.name,
+
+        # print(f"[DEBUG] state : {state}")
+
+
+        if state is None:
+            return False, f"지원하지 않는 동작입니다. ({motion})"
+
+        return ZigbeeClient.send_zigbee_request(
+            device.device_uid,
+            state
         )
-        if not player_id:
-            return False, error_message
 
-        if motion == "play_playlist":
-            return MusicAssistantClient.play_playlist(
-                player_id,
-                playlist_id,
-            )
-
-        elif motion == "play_music":
-            return MusicAssistantClient.play_music(
-                player_id,
-                music_id,
-            )
-
-        elif motion == "play_previous":
-            return MusicAssistantClient.play_previous(player_id)
-
-        elif motion == "pause":
-            return MusicAssistantClient.pause(player_id)
-
-        elif motion == "play_next":
-            return MusicAssistantClient.play_next(player_id)
-
-        elif motion == "adjust_music_volume":
-            return MusicAssistantClient.set_volume(
-                player_id,
-                volume,
-            )
-
-        elif motion == "activate_shuffle":
-            return MusicAssistantClient.set_shuffle(
-                player_id,
-                True,
-            )
-
-        elif motion == "deactivate_shuffle":
-            return MusicAssistantClient.set_shuffle(
-                player_id,
-                False,
-            )
-
-        elif motion == "set_repeat":
-            return MusicAssistantClient.set_repeat(
-                player_id,
-                repeat_mode,
-            )
-
-        return False, f"지원하지 않는 스피커 동작입니다. ({motion})"

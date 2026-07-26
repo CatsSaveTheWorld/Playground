@@ -219,6 +219,225 @@
             margin: 100px 0 30px;
         }
 
+        .room-section {
+            flex-basis: 720px;
+        }
+
+        .room-card-box {
+            width: 100%;
+            align-items: flex-start;
+        }
+
+        .speaker-card {
+            box-sizing: border-box;
+            width: 360px;
+            flex: 0 1 360px;
+            padding: 0;
+            cursor: default;
+            text-align: left;
+        }
+
+        .speaker-card:hover {
+            background-color: #000000;
+        }
+
+        .speaker-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            min-height: 68px;
+            padding: 18px;
+            border: 0;
+            background: transparent;
+            color: #FFFFFF;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .speaker-card-header:hover,
+        .speaker-card-header:focus-visible {
+            background-color: #2A2A2A;
+            outline: none;
+        }
+
+        .speaker-card-summary {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .speaker-card-chevron {
+            color: #00FFC8;
+            font-size: 16px;
+            transition: transform 0.2s ease;
+        }
+
+        .speaker-card-header[aria-expanded="true"] .speaker-card-chevron {
+            transform: rotate(180deg);
+        }
+
+        .speaker-dropdown {
+            margin: 0 18px 18px;
+            padding: 0;
+            border: 0;
+            text-align: left;
+            cursor: default;
+        }
+
+        .speaker-card-title {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .speaker-card-device {
+            color: #8A8A8A;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .speaker-section-label {
+            display: block;
+            margin: 14px 0 8px;
+            color: #AFAFAF;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+        }
+
+        .playlist-list {
+            max-height: 230px;
+            overflow-y: auto;
+            border-top: 1px solid #245D52;
+            border-bottom: 1px solid #245D52;
+        }
+
+        .playlist-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 11px 8px;
+            border: 0;
+            border-bottom: 1px solid #173B34;
+            background: transparent;
+            color: #FFFFFF;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .playlist-option:last-child {
+            border-bottom: 0;
+        }
+
+        .playlist-option:hover,
+        .playlist-option:focus-visible {
+            background-color: #112A25;
+            color: #00FFC8;
+            outline: none;
+        }
+
+        .playlist-option-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .playlist-option-action {
+            flex-shrink: 0;
+            color: #00FFC8;
+            font-size: 12px;
+        }
+
+        .playlist-empty {
+            margin: 0;
+            padding: 22px 10px;
+            color: #8A8A8A;
+            font-size: 13px;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .speaker-control-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .speaker-control-row.transport-controls,
+        .speaker-control-row.repeat-controls {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .speaker-dropdown .speaker-control-button,
+        .speaker-dropdown .volume-apply-button {
+            display: block;
+            width: 100%;
+            min-height: 40px;
+            border: 1px solid #00FFC8;
+            background-color: transparent;
+            color: #FFFFFF;
+            cursor: pointer;
+            margin: 0;
+            padding: 8px 6px;
+            text-align: center;
+        }
+
+        .speaker-dropdown .speaker-control-button:hover,
+        .speaker-dropdown .speaker-control-button:focus-visible,
+        .speaker-dropdown .volume-apply-button:hover,
+        .speaker-dropdown .volume-apply-button:focus-visible,
+        .speaker-dropdown .speaker-control-button.is-active {
+            background-color: #00FFC8;
+            color: #001A15;
+            outline: none;
+        }
+
+        .speaker-dropdown .speaker-control-button:disabled,
+        .speaker-dropdown .volume-apply-button:disabled,
+        .playlist-option:disabled {
+            cursor: wait;
+            opacity: 0.55;
+        }
+
+        .volume-control {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) 36px auto;
+            align-items: center;
+            gap: 9px;
+        }
+
+        .volume-range {
+            width: 100%;
+            accent-color: #00FFC8;
+        }
+
+        .volume-value {
+            color: #00FFC8;
+            font-size: 13px;
+            text-align: right;
+        }
+
+        .volume-apply-button {
+            min-height: 34px;
+            padding: 0 10px;
+        }
+
+        .speaker-status {
+            min-height: 18px;
+            margin: 12px 0 0;
+            color: #9B9B9B;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .speaker-status.is-error {
+            color: #FF8A8A;
+        }
+
         @media (max-width: 768px) {
             .detail-row{
                 flex-direction: column;
@@ -226,6 +445,14 @@
             }
             .detail-section{
                 flex: 1 1 auto;
+                width: 100%;
+            }
+            .room-card-box {
+                align-items: center;
+            }
+            .speaker-card {
+                width: 90%;
+                flex-basis: auto;
             }
         }
 
@@ -265,9 +492,9 @@
             </div>
         </div>
 
-        <div class="detail-section">
+        <div class="detail-section room-section">
             <div class="title">내 방 제어</div>
-            <div class="card-box">
+            <div class="card-box room-card-box">
                 {% for controller in controllers %}
                     {% if controller.device.device_type == "aircon" %}
                         <div class="card"
@@ -331,6 +558,140 @@
                         </div>
                     {% endif %}
                 {% endfor %}
+                {% for device in devices %}
+                    {% if device.device_type == "speaker" %}
+                        <section class="card speaker-card"
+                            data-device-id="{{ device.id }}"
+                            data-device-type="{{ device.device_type }}"
+                            aria-label="{{ device.name }} 음악 제어">
+                            <button type="button"
+                                class="speaker-card-header"
+                                aria-expanded="false"
+                                onclick="toggleDropdown(this.closest('.speaker-card'))">
+                                <h2 class="speaker-card-title">음악 조작</h2>
+                                <span class="speaker-card-summary">
+                                    <span class="speaker-card-device">{{ device.name }}</span>
+                                    <span class="speaker-card-chevron" aria-hidden="true">⌄</span>
+                                </span>
+                            </button>
+                            <div class="dropdown-content speaker-dropdown"
+                                onclick="event.stopPropagation()">
+
+                            <span class="speaker-section-label">재생목록</span>
+                            <div class="playlist-list">
+                                {% if playlists %}
+                                    {% for playlist in playlists %}
+                                        <button type="button"
+                                            class="playlist-option"
+                                            data-playlist-id="{{ playlist.item_id }}"
+                                            data-playlist-name="{{ playlist.name }}"
+                                            onclick="sendPlaylistAction(event)">
+                                            <span class="playlist-option-name">
+                                                {{ playlist.name|default:"이름 없는 재생목록" }}
+                                            </span>
+                                            <span class="playlist-option-action">재생</span>
+                                        </button>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="playlist-empty">
+                                        {% if playlists_error %}
+                                            {{ playlists_error }}
+                                        {% else %}
+                                            등록된 재생목록이 없습니다.
+                                        {% endif %}
+                                    </p>
+                                {% endif %}
+                            </div>
+
+                            <span class="speaker-section-label">재생 제어</span>
+                            <div class="speaker-control-row transport-controls">
+                                <button type="button"
+                                    class="speaker-control-button"
+                                    aria-label="이전 곡"
+                                    title="이전 곡"
+                                    onclick="sendSpeakerTransportAction(event, 'previous')">
+                                    <span aria-hidden="true">◀</span>
+                                </button>
+                                <button type="button"
+                                    class="speaker-control-button"
+                                    aria-label="일시정지"
+                                    title="일시정지"
+                                    onclick="sendSpeakerTransportAction(event, 'pause')">
+                                    <span aria-hidden="true">Ⅱ</span>
+                                </button>
+                                <button type="button"
+                                    class="speaker-control-button"
+                                    aria-label="다음 곡"
+                                    title="다음 곡"
+                                    onclick="sendSpeakerTransportAction(event, 'next')">
+                                    <span aria-hidden="true">▶</span>
+                                </button>
+                            </div>
+
+                            <span class="speaker-section-label">음량</span>
+                            <div class="volume-control">
+                                <span aria-hidden="true">−</span>
+                                <input type="range"
+                                    class="volume-range"
+                                    min="0"
+                                    max="100"
+                                    step="1"
+                                    value="{{ speaker_volume|default:30 }}"
+                                    aria-label="음량"
+                                    oninput="updateVolumeLabel(event)">
+                                <output class="volume-value">
+                                    {{ speaker_volume|default:30 }}
+                                </output>
+                                <button type="button"
+                                    class="volume-apply-button"
+                                    onclick="sendSpeakerVolume(event)">
+                                    적용
+                                </button>
+                            </div>
+
+                            <span class="speaker-section-label">셔플</span>
+                            <div class="speaker-control-row">
+                                <button type="button"
+                                    class="speaker-control-button shuffle-on"
+                                    onclick="sendSpeakerShuffle(event, true)">
+                                    활성화
+                                </button>
+                                <button type="button"
+                                    class="speaker-control-button shuffle-off"
+                                    onclick="sendSpeakerShuffle(event, false)">
+                                    비활성화
+                                </button>
+                            </div>
+
+                            <span class="speaker-section-label">반복 재생</span>
+                            <div class="speaker-control-row repeat-controls">
+                                <button type="button"
+                                    class="speaker-control-button repeat-button"
+                                    data-repeat-mode="off"
+                                    onclick="sendSpeakerRepeat(event, 'off')">
+                                    반복 재생 없음
+                                </button>
+                                <button type="button"
+                                    class="speaker-control-button repeat-button"
+                                    data-repeat-mode="all"
+                                    onclick="sendSpeakerRepeat(event, 'all')">
+                                    전체 반복 재생
+                                </button>
+                                <button type="button"
+                                    class="speaker-control-button repeat-button"
+                                    data-repeat-mode="one"
+                                    onclick="sendSpeakerRepeat(event, 'one')">
+                                    현재 곡 반복
+                                </button>
+                            </div>
+
+                            <p class="speaker-status" aria-live="polite">
+                                재생할 목록을 선택하세요.
+                            </p>
+                            </div>
+                        </section>
+                    {% endif %}
+                {% endfor %}
             </div>
         </div>
 
@@ -372,10 +733,26 @@
         if (!dropdown) return;
 
         document.querySelectorAll('.dropdown-content.active').forEach(el => {
-            if (el !== dropdown) el.classList.remove('active');
+            if (el !== dropdown) {
+                el.classList.remove('active');
+                const ownerCard = el.closest('.speaker-card');
+                const ownerToggle = ownerCard
+                    ? ownerCard.querySelector('.speaker-card-header')
+                    : null;
+                if (ownerToggle) {
+                    ownerToggle.setAttribute('aria-expanded', 'false');
+                }
+            }
         });
 
-        dropdown.classList.toggle('active');
+        const isActive = dropdown.classList.toggle('active');
+        const speakerToggle = cardEl.querySelector('.speaker-card-header');
+        if (speakerToggle) {
+            speakerToggle.setAttribute(
+                'aria-expanded',
+                isActive ? 'true' : 'false',
+            );
+        }
     }
 
     // ✅ 공통 action (컨트롤러/PC 둘 다 처리)
@@ -463,6 +840,226 @@
         return false;
     }
 
+    function updateVolumeLabel(event) {
+        const volumeControl = event.currentTarget.closest('.volume-control');
+        const output = volumeControl
+            ? volumeControl.querySelector('.volume-value')
+            : null;
+
+        if (output) {
+            output.value = event.currentTarget.value;
+            output.textContent = event.currentTarget.value;
+        }
+    }
+
+    function setSpeakerStatus(card, message, isError = false) {
+        const status = card.querySelector('.speaker-status');
+        if (!status) return;
+
+        status.textContent = message;
+        status.classList.toggle('is-error', isError);
+    }
+
+    async function postSpeakerAction(card, url, params, trigger) {
+        const deviceId = card ? card.dataset.deviceId : null;
+
+        if (!deviceId) {
+            showToast('스피커의 device_id가 없습니다.');
+            return false;
+        }
+
+        const requestParams = new URLSearchParams({
+            device_id: deviceId,
+            ...params,
+        });
+
+        if (trigger) {
+            trigger.disabled = true;
+        }
+        setSpeakerStatus(card, '요청을 처리하고 있습니다.');
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: requestParams,
+            });
+
+            let data = {};
+            try {
+                data = await response.json();
+            } catch (error) {
+                throw new Error('서버 응답을 확인할 수 없습니다.');
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || '스피커 제어에 실패했습니다.');
+            }
+
+            const message = data.message || '요청을 완료했습니다.';
+            setSpeakerStatus(card, message);
+            showToast(message);
+            return true;
+        } catch (error) {
+            const message = error.message || '스피커 제어 요청에 실패했습니다.';
+            setSpeakerStatus(card, message, true);
+            showToast(message);
+            return false;
+        } finally {
+            if (trigger) {
+                trigger.disabled = false;
+            }
+        }
+    }
+
+    async function sendPlaylistAction(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const card = button.closest('.speaker-card');
+        const deviceId = card ? card.dataset.deviceId : null;
+        const playlistId = button.dataset.playlistId;
+
+        if (!deviceId || !playlistId) {
+            showToast('재생목록 정보가 올바르지 않습니다.');
+            return false;
+        }
+
+        const playlistName = button.dataset.playlistName || '선택한 재생목록';
+        const url = (
+            `/iotcore/speaker/${encodeURIComponent(deviceId)}`
+            + `/playlists/${encodeURIComponent(playlistId)}/play/`
+        );
+
+        const success = await postSpeakerAction(
+            card,
+            url,
+            { playlist_id: playlistId },
+            button,
+        );
+
+        if (success) {
+            setSpeakerStatus(card, `${playlistName} 재생을 시작했습니다.`);
+        }
+        return false;
+    }
+
+    async function sendSpeakerTransportAction(event, action) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const card = button.closest('.speaker-card');
+        const deviceId = card ? card.dataset.deviceId : null;
+
+        if (!deviceId) {
+            showToast('스피커의 device_id가 없습니다.');
+            return false;
+        }
+
+        const paths = {
+            previous: 'previous',
+            pause: 'pause',
+            next: 'next',
+        };
+        const path = paths[action];
+        if (!path) {
+            showToast('지원하지 않는 재생 제어입니다.');
+            return false;
+        }
+        const url = `/iotcore/speaker/${encodeURIComponent(deviceId)}/${path}/`;
+
+        await postSpeakerAction(card, url, {}, button);
+        return false;
+    }
+
+    async function sendSpeakerVolume(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const card = button.closest('.speaker-card');
+        const deviceId = card ? card.dataset.deviceId : null;
+        const input = card ? card.querySelector('.volume-range') : null;
+        const volume = input ? input.value : null;
+
+        if (!deviceId || volume === null) {
+            showToast('음량 정보를 확인할 수 없습니다.');
+            return false;
+        }
+
+        const url = `/iotcore/speaker/${encodeURIComponent(deviceId)}/volume/`;
+        await postSpeakerAction(card, url, { volume }, button);
+        return false;
+    }
+
+    async function sendSpeakerShuffle(event, enabled) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const card = button.closest('.speaker-card');
+        const deviceId = card ? card.dataset.deviceId : null;
+
+        if (!deviceId) {
+            showToast('스피커의 device_id가 없습니다.');
+            return false;
+        }
+
+        const mode = enabled ? 'activate' : 'deactivate';
+        const url = (
+            `/iotcore/speaker/${encodeURIComponent(deviceId)}`
+            + `/shuffle/${mode}/`
+        );
+        const success = await postSpeakerAction(card, url, {}, button);
+
+        if (success) {
+            card.querySelector('.shuffle-on').classList.toggle(
+                'is-active',
+                enabled,
+            );
+            card.querySelector('.shuffle-off').classList.toggle(
+                'is-active',
+                !enabled,
+            );
+        }
+        return false;
+    }
+
+    async function sendSpeakerRepeat(event, repeatMode) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const card = button.closest('.speaker-card');
+        const deviceId = card ? card.dataset.deviceId : null;
+        const validModes = ['off', 'all', 'one'];
+
+        if (!deviceId || !validModes.includes(repeatMode)) {
+            showToast('반복 재생 정보를 확인할 수 없습니다.');
+            return false;
+        }
+
+        const url = (
+            `/iotcore/speaker/${encodeURIComponent(deviceId)}`
+            + `/repeat/${encodeURIComponent(repeatMode)}/`
+        );
+        const success = await postSpeakerAction(card, url, {}, button);
+
+        if (success) {
+            card.querySelectorAll('.repeat-button').forEach(repeatButton => {
+                repeatButton.classList.toggle(
+                    'is-active',
+                    repeatButton.dataset.repeatMode === repeatMode,
+                );
+            });
+        }
+        return false;
+    }
+
     // 사이드바 토글
     const toggleSidebar = document.getElementById('toggleSidebar');
     const sidebar = document.getElementById('sidebar');
@@ -498,6 +1095,10 @@
             const card = dropdown.closest('.card');
             if (card && !card.contains(event.target)) {
                 dropdown.classList.remove('active');
+                const speakerToggle = card.querySelector('.speaker-card-header');
+                if (speakerToggle) {
+                    speakerToggle.setAttribute('aria-expanded', 'false');
+                }
             }
         });
     });

@@ -31,6 +31,14 @@ DEBUG = True
 MQTT_HOST = "127.0.0.1"   # IoT 서버 IP
 MQTT_PORT = 1883
 
+# Music Assistant 로컬 API
+MUSIC_ASSISTANT_URL = os.environ.get(
+    "MUSIC_ASSISTANT_URL",
+    "http://192.168.0.18:8095",
+)
+MUSIC_ASSISTANT_TOKEN = os.environ.get("MUSIC_ASSISTANT_TOKEN", "")
+MUSIC_ASSISTANT_TIMEOUT = os.environ.get("MUSIC_ASSISTANT_TIMEOUT", "5")
+
 ALLOWED_HOSTS = [
     "211.209.134.102",
     "192.168.0.8",
