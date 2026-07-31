@@ -34,7 +34,7 @@ MQTT_PORT = 1883
 # Music Assistant 로컬 API
 MUSIC_ASSISTANT_URL = os.environ.get(
     "MUSIC_ASSISTANT_URL",
-    "http://192.168.0.18:8095",
+    "http://192.168.0.14:8095",
 )
 MUSIC_ASSISTANT_TOKEN = os.environ.get("MUSIC_ASSISTANT_TOKEN", "")
 MUSIC_ASSISTANT_TIMEOUT = os.environ.get("MUSIC_ASSISTANT_TIMEOUT", "30")
