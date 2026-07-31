@@ -38,7 +38,7 @@ MUSIC_ASSISTANT_URL = os.environ.get(
 )
 MUSIC_ASSISTANT_TOKEN = os.environ.get(
     "MUSIC_ASSISTANT_TOKEN", 
-    my_settings.SECRET_KEY("secret")
+    SECRET_KEY
 )
 MUSIC_ASSISTANT_TIMEOUT = os.environ.get("MUSIC_ASSISTANT_TIMEOUT", "30")
 
