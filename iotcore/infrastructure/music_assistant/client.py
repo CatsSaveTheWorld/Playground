@@ -21,6 +21,7 @@ class MusicAssistantClient:
                 "limit": limit,
                 "offset": 0,
                 "order_by": "sort_name",
+                "favorite": True,
             },
             action_name="재생목록 조회",
             return_result=True,
