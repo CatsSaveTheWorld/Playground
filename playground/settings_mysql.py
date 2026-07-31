@@ -36,7 +36,10 @@ MUSIC_ASSISTANT_URL = os.environ.get(
     "MUSIC_ASSISTANT_URL",
     "http://192.168.0.14:8095",
 )
-MUSIC_ASSISTANT_TOKEN = os.environ.get("MUSIC_ASSISTANT_TOKEN", "")
+MUSIC_ASSISTANT_TOKEN = os.environ.get(
+    "MUSIC_ASSISTANT_TOKEN", 
+    my_settings.SECRET_KEY("secret")
+)
 MUSIC_ASSISTANT_TIMEOUT = os.environ.get("MUSIC_ASSISTANT_TIMEOUT", "30")
 
 ALLOWED_HOSTS = [
