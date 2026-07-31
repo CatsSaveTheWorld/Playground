@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import requests
 from django.conf import settings
 
@@ -327,6 +329,7 @@ class MusicAssistantClient:
                     "Content-Type": "application/json",
                 },
                 json={
+                    "message_id": uuid4().hex,
                     "command": command,
                     "args": args,
                 },

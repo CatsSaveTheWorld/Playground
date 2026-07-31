@@ -5,31 +5,42 @@ from django.test import SimpleTestCase
 from django.template.loader import render_to_string
 from django.urls import reverse
 
-from .api.views.detail import get_visible_playlists
 from .device.services.device_service import DeviceService
 from .infrastructure.music_assistant.client import MusicAssistantClient
 
 
-class PlaylistVisibilityTests(SimpleTestCase):
-    def test_only_configured_playlists_are_returned_in_ui_order(self):
-        playlists = [
-            {"item_id": "ignored", "name": "Recently played tracks"},
-            {"item_id": "drive", "name": "운전"},
-            {"item_id": "sf", "name": "SF"},
-            {"item_id": "sad", "name": "슬픔"},
-            {"item_id": "ignored-2", "name": "노래1"},
-            {"item_id": "vast", "name": "광활"},
-        ]
+class MusicAssistantClientTests(SimpleTestCase):
+    @patch.object(
+        MusicAssistantClient,
+        "_send_command",
+        return_value=(
+            True,
+            [
+                {"item_id": "23", "name": "광활"},
+                {"item_id": "19", "name": "따뜻함"},
+            ],
+        ),
+    )
+    def test_get_playlists_requests_favorites(self, send_command):
+        playlists, error = MusicAssistantClient.get_playlists()
 
-        visible = get_visible_playlists(playlists)
-
+        self.assertIsNone(error)
         self.assertEqual(
-            [playlist["name"] for playlist in visible],
-            ["광활", "슬픔", "SF", "운전"],
+            [playlist["name"] for playlist in playlists],
+            ["광활", "따뜻함"],
+        )
+        send_command.assert_called_once_with(
+            command="music/playlists/library_items",
+            args={
+                "limit": 100,
+                "offset": 0,
+                "order_by": "sort_name",
+                "favorite": True,
+            },
+            action_name="재생목록 조회",
+            return_result=True,
         )
 
-
-class MusicAssistantClientTests(SimpleTestCase):
     @patch.object(
         MusicAssistantClient,
         "_send_command",
