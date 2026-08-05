@@ -258,11 +258,16 @@ class AutomationTriggerForm(forms.ModelForm):
         ("changed", "값이 변경됨"),
         ("changed_to", "지정한 값으로 변경됨"),
     ]
+    TIME_SCHEDULE_CHOICES = [
+        (AutomationTrigger.ScheduleType.ONCE, "한 번 실행"),
+        (AutomationTrigger.ScheduleType.WEEKLY, "요일 선택 반복"),
+        (AutomationTrigger.ScheduleType.INTERVAL, "일정 간격"),
+    ]
 
     schedule_type = forms.ChoiceField(
         required=False,
         label="반복 방식",
-        choices=AutomationTrigger.ScheduleType.choices,
+        choices=TIME_SCHEDULE_CHOICES,
     )
 
     run_at = forms.DateTimeField(
@@ -317,6 +322,11 @@ class AutomationTriggerForm(forms.ModelForm):
         label="비교 값",
         help_text='true, false, 숫자는 JSON 값으로 저장됩니다.',
     )
+    trigger_type = forms.ChoiceField(
+        required=False,
+        label="실행 계기",
+        choices=AutomationTrigger.TriggerType.choices,
+    )
 
     class Meta:
         model = AutomationTrigger
@@ -332,6 +342,8 @@ class AutomationTriggerForm(forms.ModelForm):
         trigger_type = self.instance.trigger_type if self.instance.pk else None
         if trigger_type == AutomationTrigger.TriggerType.TIME:
             schedule_type = config.get("schedule_type")
+            if schedule_type == AutomationTrigger.ScheduleType.DAILY:
+                schedule_type = AutomationTrigger.ScheduleType.WEEKLY
             self.fields["schedule_type"].initial = schedule_type
         else:
             schedule_type = None
@@ -348,7 +360,7 @@ class AutomationTriggerForm(forms.ModelForm):
             self.fields["time_of_day"].initial = config.get("time")
             self.fields["weekdays"].initial = [
                 str(day) for day in config.get("weekdays", [])
-            ]
+            ] or [str(day) for day in range(7)]
         elif schedule_type == AutomationTrigger.ScheduleType.INTERVAL:
             self.fields["interval_every"].initial = config.get("every")
             self.fields["interval_unit"].initial = config.get("unit")
@@ -368,11 +380,11 @@ class AutomationTriggerForm(forms.ModelForm):
         if trigger_type == AutomationTrigger.TriggerType.TIME:
             schedule_type = cleaned.get("schedule_type")
             if not schedule_type:
-                self.add_error("schedule_type", "반복 방식을 선택하세요.")
+                self._ignore_incomplete(cleaned)
             elif schedule_type == AutomationTrigger.ScheduleType.ONCE:
                 run_at = cleaned.get("run_at")
                 if run_at is None:
-                    self.add_error("run_at", "실행 시각을 입력하세요.")
+                    self._ignore_incomplete(cleaned)
                 elif cleaned.get("enabled") and run_at <= timezone.now():
                     self.add_error("run_at", "실행 시각은 현재보다 뒤여야 합니다.")
                 else:
@@ -380,21 +392,14 @@ class AutomationTriggerForm(forms.ModelForm):
                         "schedule_type": schedule_type,
                         "run_at": run_at.isoformat(),
                     }
-            elif schedule_type == AutomationTrigger.ScheduleType.DAILY:
-                run_time = cleaned.get("time_of_day")
-                if run_time is None:
-                    self.add_error("time_of_day", "실행 시간을 입력하세요.")
-                else:
-                    cleaned["config"] = {
-                        "schedule_type": schedule_type,
-                        "time": run_time.strftime("%H:%M"),
-                    }
             elif schedule_type == AutomationTrigger.ScheduleType.WEEKLY:
                 run_time = cleaned.get("time_of_day")
                 weekdays = cleaned.get("weekdays") or []
-                if run_time is None:
+                if run_time is None and not weekdays:
+                    self._ignore_incomplete(cleaned)
+                elif run_time is None:
                     self.add_error("time_of_day", "실행 시간을 입력하세요.")
-                if not weekdays:
+                elif not weekdays:
                     self.add_error("weekdays", "요일을 하나 이상 선택하세요.")
                 if run_time is not None and weekdays:
                     cleaned["config"] = {
@@ -405,9 +410,11 @@ class AutomationTriggerForm(forms.ModelForm):
             elif schedule_type == AutomationTrigger.ScheduleType.INTERVAL:
                 every = cleaned.get("interval_every")
                 unit = cleaned.get("interval_unit")
-                if every is None:
+                if every is None and not unit:
+                    self._ignore_incomplete(cleaned)
+                elif every is None:
                     self.add_error("interval_every", "실행 간격을 입력하세요.")
-                if not unit:
+                elif not unit:
                     self.add_error("interval_unit", "간격 단위를 선택하세요.")
                 if every is not None and unit:
                     cleaned["config"] = {
@@ -421,8 +428,11 @@ class AutomationTriggerForm(forms.ModelForm):
             operator = cleaned.get("event_operator") or "eq"
             raw_value = str(cleaned.get("event_value") or "").strip()
             if not topic:
-                self.add_error("event_topic", "MQTT 토픽을 입력하세요.")
-            if not field:
+                if not field and raw_value == "":
+                    self._ignore_incomplete(cleaned)
+                else:
+                    self.add_error("event_topic", "MQTT 토픽을 입력하세요.")
+            elif not field:
                 self.add_error("event_field", "데이터 필드를 입력하세요.")
             if operator != "changed" and raw_value == "":
                 self.add_error("event_value", "비교 값을 입력하세요.")
@@ -439,6 +449,16 @@ class AutomationTriggerForm(forms.ModelForm):
                 }
 
         return cleaned
+
+    def _post_clean(self):
+        if getattr(self, "_skip_model_validation", False):
+            return
+        super()._post_clean()
+
+    def _ignore_incomplete(self, cleaned):
+        self._skip_model_validation = True
+        cleaned["trigger_type"] = None
+        cleaned["config"] = {}
 
     def save(self, commit=True):
         trigger = super().save(commit=False)
@@ -463,6 +483,7 @@ class BaseAutomationTriggerFormSet(BaseInlineFormSet):
             for form in self.forms
             if form.cleaned_data
             and not form.cleaned_data.get("DELETE")
+            and form.cleaned_data.get("trigger_type")
         ]
 
         if not active_forms:
@@ -524,9 +545,11 @@ class AutomationConditionForm(forms.ModelForm):
         if condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
             start = cleaned.get("time_start")
             end = cleaned.get("time_end")
-            if start is None:
+            if start is None and end is None:
+                self._ignore_incomplete(cleaned)
+            elif start is None:
                 self.add_error("time_start", "시작 시간을 입력하세요.")
-            if end is None:
+            elif end is None:
                 self.add_error("time_end", "종료 시간을 입력하세요.")
             if start is not None and end is not None:
                 cleaned["config"] = {
@@ -537,11 +560,13 @@ class AutomationConditionForm(forms.ModelForm):
             topic = str(cleaned.get("state_topic") or "").strip()
             key = str(cleaned.get("state_key") or "").strip()
             raw_value = str(cleaned.get("state_value") or "").strip()
-            if not topic:
+            if not topic and not key and raw_value == "":
+                self._ignore_incomplete(cleaned)
+            elif not topic:
                 self.add_error("state_topic", "상태 토픽을 입력하세요.")
-            if not key:
+            elif not key:
                 self.add_error("state_key", "상태 필드를 입력하세요.")
-            if raw_value == "":
+            elif raw_value == "":
                 self.add_error("state_value", "비교 값을 입력하세요.")
             if topic and key and raw_value != "":
                 try:
@@ -555,6 +580,16 @@ class AutomationConditionForm(forms.ModelForm):
                     "value": value,
                 }
         return cleaned
+
+    def _post_clean(self):
+        if getattr(self, "_skip_model_validation", False):
+            return
+        super()._post_clean()
+
+    def _ignore_incomplete(self, cleaned):
+        self._skip_model_validation = True
+        cleaned["condition_type"] = None
+        cleaned["config"] = {}
 
     def save(self, commit=True):
         condition = super().save(commit=False)

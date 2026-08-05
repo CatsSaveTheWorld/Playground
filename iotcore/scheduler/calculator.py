@@ -15,6 +15,14 @@ INTERVAL_UNITS = {
 }
 
 
+def format_korean_time(value):
+    """Format a time as Korean 12-hour clock text."""
+    hour = value.hour
+    period = "오전" if hour < 12 else "오후"
+    display_hour = hour % 12 or 12
+    return f"{period} {display_hour}:{value.minute:02d}"
+
+
 def calculate_next_run(trigger, after=None):
     if trigger.trigger_type != AutomationTrigger.TriggerType.TIME:
         return None
@@ -93,17 +101,36 @@ def describe_trigger(trigger):
 
     schedule_type = config.get("schedule_type")
     if schedule_type == AutomationTrigger.ScheduleType.ONCE:
-        return f"{config.get('run_at', '-')} 한 번"
+        run_at = parse_datetime(str(config.get("run_at", "")))
+        if run_at is None:
+            return f"{config.get('run_at', '-')} 한 번"
+        if timezone.is_naive(run_at):
+            run_at = timezone.make_aware(run_at)
+        local_run_at = timezone.localtime(run_at)
+        return (
+            f"{local_run_at:%Y-%m-%d} "
+            f"{format_korean_time(local_run_at)} 한 번"
+        )
     if schedule_type == AutomationTrigger.ScheduleType.DAILY:
-        return f"매일 {config.get('time', '-')}"
+        run_time = parse_time(str(config.get("time", "")))
+        return (
+            f"매일 {format_korean_time(run_time)}"
+            if run_time is not None
+            else "매일 -"
+        )
     if schedule_type == AutomationTrigger.ScheduleType.WEEKLY:
         labels = ["월", "화", "수", "목", "금", "토", "일"]
-        days = ", ".join(
-            labels[int(day)]
+        weekday_numbers = {
+            int(day)
             for day in config.get("weekdays", [])
             if str(day).isdigit() and 0 <= int(day) <= 6
+        }
+        days = "매일" if weekday_numbers == set(range(7)) else (
+            "매주 " + ", ".join(labels[day] for day in sorted(weekday_numbers))
         )
-        return f"매주 {days} {config.get('time', '-')}"
+        run_time = parse_time(str(config.get("time", "")))
+        time_label = format_korean_time(run_time) if run_time else "-"
+        return f"{days} {time_label}"
     if schedule_type == AutomationTrigger.ScheduleType.INTERVAL:
         unit = INTERVAL_UNITS.get(config.get("unit"), config.get("unit", ""))
         return f"{config.get('every', '-')} {unit}마다"

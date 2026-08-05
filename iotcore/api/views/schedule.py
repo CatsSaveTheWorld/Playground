@@ -38,7 +38,7 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
     automation.triggers.all().delete()
     for form in trigger_formset.forms:
         cleaned = form.cleaned_data
-        if not cleaned or cleaned.get("DELETE"):
+        if not cleaned or cleaned.get("DELETE") or not cleaned.get("trigger_type"):
             continue
         enabled = cleaned.get("enabled", True)
         # Dynamically added checkbox controls can be omitted by the browser.
@@ -134,7 +134,7 @@ def schedule_list(request):
         action_summaries = []
         for action in automation.actions.all():
             if action.action_type == AutomationAction.ActionType.SEQUENCE:
-                label = f"시퀀스: {action.sequence.name if action.sequence else '-'}"
+                label = action.sequence.name if action.sequence else "-"
             else:
                 device_name = action.device.name if action.device else "-"
                 device_type = action.device.device_type if action.device else ""

@@ -12,7 +12,9 @@ from .device.services.sequence_executor import SequenceExecutor
 from .forms import (
     AutomationActionForm,
     AutomationConditionForm,
+    AutomationConditionFormSet,
     AutomationTriggerForm,
+    AutomationTriggerFormSet,
 )
 from .models import (
     Automation,
@@ -27,7 +29,7 @@ from .models import (
     SequenceStep,
     SequenceStepRun,
 )
-from .scheduler.calculator import calculate_next_run
+from .scheduler.calculator import calculate_next_run, describe_trigger
 from .scheduler.executor import AutomationExecutor
 from .scheduler.service import AutomationService
 
@@ -83,6 +85,36 @@ class AutomationCalculatorTests(TestCase):
         self.assertGreater(next_run, after)
         self.assertLessEqual(next_run, after + timedelta(minutes=5))
 
+    def test_trigger_summary_uses_korean_12_hour_clock(self):
+        morning = self.make_trigger({
+            "schedule_type": AutomationTrigger.ScheduleType.DAILY,
+            "time": "08:00",
+        })
+        evening = self.make_trigger({
+            "schedule_type": AutomationTrigger.ScheduleType.DAILY,
+            "time": "18:30",
+        })
+        once = self.make_trigger({
+            "schedule_type": AutomationTrigger.ScheduleType.ONCE,
+            "run_at": "2026-08-05T22:15:00+09:00",
+        })
+
+        self.assertEqual(describe_trigger(morning), "매일 오전 8:00")
+        self.assertEqual(describe_trigger(evening), "매일 오후 6:30")
+        self.assertEqual(
+            describe_trigger(once),
+            "2026-08-05 오후 10:15 한 번",
+        )
+
+    def test_all_weekdays_are_displayed_as_daily(self):
+        trigger = self.make_trigger({
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
+            "time": "08:00",
+            "weekdays": list(range(7)),
+        })
+
+        self.assertEqual(describe_trigger(trigger), "매일 오전 8:00")
+
 
 class AutomationTriggerFormTests(TestCase):
     def test_mqtt_value_is_parsed_as_json_type(self):
@@ -102,8 +134,9 @@ class AutomationTriggerFormTests(TestCase):
         form = AutomationTriggerForm(data={
             "trigger_type": AutomationTrigger.TriggerType.MQTT_EVENT,
             "enabled": "on",
-            "schedule_type": AutomationTrigger.ScheduleType.DAILY,
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
             "time_of_day": "08:30",
+            "weekdays": ["0", "1", "2", "3", "4", "5", "6"],
             "event_topic": "zigbee2mqtt/front_door",
             "event_field": "contact",
             "event_operator": "eq",
@@ -142,6 +175,35 @@ class AutomationConditionFormTests(TestCase):
         form = AutomationConditionForm(data={"condition_type": ""})
 
         self.assertTrue(form.is_valid(), form.errors)
+
+    def test_empty_time_window_condition_is_ignored(self):
+        form = AutomationConditionForm(data={"condition_type": "time_window"})
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["condition_type"])
+
+
+class AutomationOptionalFormSetTests(TestCase):
+    def test_incomplete_extra_trigger_does_not_count_as_active(self):
+        data = {
+            "triggers-TOTAL_FORMS": "2",
+            "triggers-INITIAL_FORMS": "0",
+            "triggers-MIN_NUM_FORMS": "0",
+            "triggers-MAX_NUM_FORMS": "1000",
+            "triggers-0-trigger_type": "time",
+            "triggers-0-schedule_type": "weekly",
+            "triggers-0-time_of_day": "08:00",
+            "triggers-0-weekdays": ["0", "1", "2", "3", "4", "5", "6"],
+            "triggers-1-trigger_type": "time",
+        }
+        formset = AutomationTriggerFormSet(
+            data,
+            instance=Automation(),
+            prefix="triggers",
+        )
+
+        self.assertTrue(formset.is_valid(), formset.errors)
+        self.assertIsNone(formset.forms[1].cleaned_data["trigger_type"])
 
 
 class AutomationServiceTests(TestCase):
@@ -526,6 +588,7 @@ class AutomationViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "예약 실행 목록")
         self.assertContains(response, f'data-edit-url="{edit_url}"')
         self.assertNotContains(response, ">편집<")
 

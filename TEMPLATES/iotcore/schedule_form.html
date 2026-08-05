@@ -72,7 +72,7 @@
                         <div class="field"><label>{{ tf.schedule_type.label }}</label>{{ tf.schedule_type }}{{ tf.schedule_type.errors }}</div>
                         <div class="field schedule-once"><label>{{ tf.run_at.label }}</label>{{ tf.run_at }}{{ tf.run_at.errors }}</div>
                         <div class="field schedule-clock"><label>{{ tf.time_of_day.label }}</label>{{ tf.time_of_day }}{{ tf.time_of_day.errors }}</div>
-                        <div class="field schedule-weekly weekdays"><label>{{ tf.weekdays.label }}</label>{{ tf.weekdays }}{{ tf.weekdays.errors }}</div>
+                        <div class="field schedule-weekly weekdays"><label>반복 요일</label>{{ tf.weekdays }}{{ tf.weekdays.errors }}</div>
                         <div class="field schedule-interval"><label>{{ tf.interval_every.label }}</label>{{ tf.interval_every }}{{ tf.interval_every.errors }}</div>
                         <div class="field schedule-interval"><label>{{ tf.interval_unit.label }}</label>{{ tf.interval_unit }}{{ tf.interval_unit.errors }}</div>
                     </div>
@@ -151,7 +151,7 @@
 </main>
 
 <template id="trigger-empty-form">
-    <div class="child-card trigger-card">
+    <div class="child-card trigger-card" data-new-form="true">
         {{ trigger_formset.empty_form.id }}<span class="hidden">{{ trigger_formset.empty_form.DELETE }}</span>
         <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
         <div class="field"><label>{{ trigger_formset.empty_form.trigger_type.label }}</label>{{ trigger_formset.empty_form.trigger_type }}</div>
@@ -160,7 +160,7 @@
             <div class="field"><label>{{ trigger_formset.empty_form.schedule_type.label }}</label>{{ trigger_formset.empty_form.schedule_type }}</div>
             <div class="field schedule-once"><label>{{ trigger_formset.empty_form.run_at.label }}</label>{{ trigger_formset.empty_form.run_at }}</div>
             <div class="field schedule-clock"><label>{{ trigger_formset.empty_form.time_of_day.label }}</label>{{ trigger_formset.empty_form.time_of_day }}</div>
-            <div class="field schedule-weekly weekdays"><label>{{ trigger_formset.empty_form.weekdays.label }}</label>{{ trigger_formset.empty_form.weekdays }}</div>
+            <div class="field schedule-weekly weekdays"><label>반복 요일</label>{{ trigger_formset.empty_form.weekdays }}</div>
             <div class="field schedule-interval"><label>{{ trigger_formset.empty_form.interval_every.label }}</label>{{ trigger_formset.empty_form.interval_every }}</div>
             <div class="field schedule-interval"><label>{{ trigger_formset.empty_form.interval_unit.label }}</label>{{ trigger_formset.empty_form.interval_unit }}</div>
         </div>
@@ -174,7 +174,7 @@
 </template>
 
 <template id="condition-empty-form">
-    <div class="child-card condition-card">
+    <div class="child-card condition-card" data-new-form="true">
         {{ condition_formset.empty_form.id }}<span class="hidden">{{ condition_formset.empty_form.DELETE }}</span>
         <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
         <div class="field"><label>{{ condition_formset.empty_form.condition_type.label }}</label>{{ condition_formset.empty_form.condition_type }}</div>
@@ -192,7 +192,7 @@
 </template>
 
 <template id="action-empty-form">
-    <div class="child-card action-card">
+    <div class="child-card action-card" data-new-form="true">
         {{ action_formset.empty_form.id }}<span class="hidden">{{ action_formset.empty_form.DELETE }}</span>
         <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
         <div class="field"><label>{{ action_formset.empty_form.action_type.label }}</label>{{ action_formset.empty_form.action_type }}</div>
@@ -219,7 +219,7 @@ function updateTrigger(card) {
     card.querySelector('.time-fields').style.display = type === 'time' ? 'block' : 'none';
     card.querySelector('.event-fields').style.display = type === 'mqtt_event' ? 'block' : 'none';
     card.querySelectorAll('.schedule-once').forEach(el => el.style.display = scheduleType === 'once' ? 'block' : 'none');
-    card.querySelectorAll('.schedule-clock').forEach(el => el.style.display = ['daily', 'weekly'].includes(scheduleType) ? 'block' : 'none');
+    card.querySelectorAll('.schedule-clock').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
     card.querySelectorAll('.schedule-weekly').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
     card.querySelectorAll('.schedule-interval').forEach(el => el.style.display = scheduleType === 'interval' ? 'block' : 'none');
 }
@@ -281,10 +281,56 @@ function addForm(kind) {
     bindCard(list.lastElementChild, kind);
 }
 
+function renumberNewForms(kind) {
+    const prefixes = {trigger: 'triggers', condition: 'conditions', action: 'actions'};
+    const prefix = prefixes[kind];
+    const list = document.getElementById(`${kind}-list`);
+    const initial = Number(document.getElementById(`id_${prefix}-INITIAL_FORMS`).value);
+    const total = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    const newCards = [...list.querySelectorAll('.child-card')]
+        .filter(card => !card.querySelector('input[name$="-id"]')?.value);
+
+    newCards.forEach((card, offset) => {
+        const oldIndex = card.querySelector('[name]')?.name.match(
+            new RegExp(`^${prefix}-(\\d+)-`)
+        )?.[1];
+        const newIndex = initial + offset;
+        if (oldIndex === undefined) return;
+        card.querySelectorAll('[name]').forEach(field => {
+            field.name = field.name.replace(
+                `${prefix}-${oldIndex}-`,
+                `${prefix}-${newIndex}-`,
+            );
+            if (field.id) {
+                field.id = field.id.replace(
+                    `${prefix}-${oldIndex}-`,
+                    `${prefix}-${newIndex}-`,
+                );
+            }
+        });
+        card.querySelectorAll('label[for]').forEach(label => {
+            label.htmlFor = label.htmlFor.replace(
+                `${prefix}-${oldIndex}-`,
+                `${prefix}-${newIndex}-`,
+            );
+        });
+    });
+    total.value = initial + newCards.length;
+}
+
 function removeChild(button) {
     const card = button.closest('.child-card');
     const deleteBox = card.querySelector('input[name$="-DELETE"]');
     if (!deleteBox) return;
+
+    const kind = card.classList.contains('trigger-card') ? 'trigger'
+        : card.classList.contains('condition-card') ? 'condition'
+        : 'action';
+    if (!card.querySelector('input[name$="-id"]')?.value) {
+        card.remove();
+        renumberNewForms(kind);
+        return;
+    }
     deleteBox.checked = true;
     card.querySelectorAll('input, select, textarea').forEach(field => {
         if (field !== deleteBox) {
