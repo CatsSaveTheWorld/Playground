@@ -1,0 +1,18 @@
+[Unit]
+Description=IoTCore MQTT automation listener
+After=apache2.service network-online.target mysql.service mosquitto.service
+Wants=network-online.target
+BindsTo=apache2.service
+PartOf=apache2.service
+
+[Service]
+Type=simple
+User=leedowon
+Group=leedowon
+WorkingDirectory=/home/leedowon/Playground
+ExecStart=/home/leedowon/Playground/venv/bin/python manage.py run_automation_listener
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=apache2.service

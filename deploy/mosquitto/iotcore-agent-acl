@@ -1,0 +1,3 @@
+user iotcore-pi5
+topic read iotcore/agents/pi5/commands
+topic write iotcore/agents/pi5/results/#
