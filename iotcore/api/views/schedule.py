@@ -40,11 +40,17 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
         cleaned = form.cleaned_data
         if not cleaned or cleaned.get("DELETE"):
             continue
+        enabled = cleaned.get("enabled", True)
+        # Dynamically added checkbox controls can be omitted by the browser.
+        # A new trigger must be active by default; the automation-level toggle
+        # remains the user-facing way to pause execution.
+        if not form.instance.pk and form.add_prefix("enabled") not in form.data:
+            enabled = True
         trigger = AutomationTrigger.objects.create(
             automation=automation,
             trigger_type=cleaned["trigger_type"],
             config=cleaned["config"],
-            enabled=cleaned.get("enabled", True),
+            enabled=enabled,
         )
         AutomationService.recalculate_trigger(trigger)
 

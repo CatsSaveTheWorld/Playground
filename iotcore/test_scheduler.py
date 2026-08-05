@@ -472,6 +472,50 @@ class AutomationViewTests(TestCase):
         self.assertEqual(action.device, device)
         self.assertEqual(action.function, "power_on")
 
+    def test_new_trigger_defaults_to_enabled_when_checkbox_is_omitted(self):
+        device = Device.objects.create(
+            device_uid="default-trigger-light",
+            name="기본 활성화 전등",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="거실",
+        )
+        run_at = timezone.localtime(timezone.now() + timedelta(minutes=10))
+        response = self.client.post(
+            reverse("iotcore:schedule_create"),
+            {
+                "name": "기본 활성화 테스트",
+                "enabled": "on",
+                "cooldown_seconds": "0",
+                "triggers-TOTAL_FORMS": "1",
+                "triggers-INITIAL_FORMS": "0",
+                "triggers-MIN_NUM_FORMS": "0",
+                "triggers-MAX_NUM_FORMS": "1000",
+                "triggers-0-trigger_type": AutomationTrigger.TriggerType.TIME,
+                "triggers-0-schedule_type": AutomationTrigger.ScheduleType.ONCE,
+                "triggers-0-run_at": run_at.strftime("%Y-%m-%dT%H:%M"),
+                "conditions-TOTAL_FORMS": "0",
+                "conditions-INITIAL_FORMS": "0",
+                "conditions-MIN_NUM_FORMS": "0",
+                "conditions-MAX_NUM_FORMS": "1000",
+                "actions-TOTAL_FORMS": "1",
+                "actions-INITIAL_FORMS": "0",
+                "actions-MIN_NUM_FORMS": "0",
+                "actions-MAX_NUM_FORMS": "1000",
+                "actions-0-action_type": AutomationAction.ActionType.DEVICE,
+                "actions-0-device": str(device.pk),
+                "actions-0-function": "power_on",
+                "actions-0-delay": "0",
+            },
+        )
+
+        self.assertRedirects(response, reverse("iotcore:schedule_list"))
+        trigger = AutomationTrigger.objects.get(
+            automation__name="기본 활성화 테스트"
+        )
+        self.assertTrue(trigger.enabled)
+        self.assertIsNotNone(trigger.next_run_at)
+
     def test_list_card_opens_edit_without_edit_button(self):
         automation = Automation.objects.create(name="카드 자동화")
 
