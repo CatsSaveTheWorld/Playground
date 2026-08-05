@@ -41,10 +41,30 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
         if not cleaned or cleaned.get("DELETE") or not cleaned.get("trigger_type"):
             continue
         enabled = cleaned.get("enabled", True)
+        previous_schedule_type = (form.instance.config or {}).get(
+            "schedule_type"
+        )
+        current_schedule_type = (cleaned.get("config") or {}).get(
+            "schedule_type"
+        )
         # Dynamically added checkbox controls can be omitted by the browser.
         # A new trigger must be active by default; the automation-level toggle
         # remains the user-facing way to pause execution.
         if not form.instance.pk and form.add_prefix("enabled") not in form.data:
+            enabled = True
+        # A one-time trigger turns itself off after it runs.  If the user
+        # changes that completed trigger into a repeating schedule, make the
+        # new schedule runnable without requiring them to notice this
+        # per-trigger checkbox.
+        if (
+            previous_schedule_type == AutomationTrigger.ScheduleType.ONCE
+            and current_schedule_type
+            in {
+                AutomationTrigger.ScheduleType.DAILY,
+                AutomationTrigger.ScheduleType.WEEKLY,
+                AutomationTrigger.ScheduleType.INTERVAL,
+            }
+        ):
             enabled = True
         trigger = AutomationTrigger.objects.create(
             automation=automation,
