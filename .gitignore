@@ -284,6 +284,7 @@ db_items.py
 
 
 ### Sensitive Information
-management
+iotcore/management/data/
+iotcore_backup/management/
 
 # End of https://www.toptal.com/developers/gitignore/api/python,venv,django
