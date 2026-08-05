@@ -1,0 +1,11 @@
+<h2>시퀀스 생성</h2>
+
+<form method="post">
+    {% csrf_token %}
+
+    {{ form.as_p }}
+
+    <button type="submit">
+        저장
+    </button>
+</form>

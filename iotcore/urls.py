@@ -1,5 +1,5 @@
 from django.urls import path
-from iotcore.api.views import base, sequence, detail
+from iotcore.api.views import base, sequence, detail, schedule
 from iotcore.api.views import aircon, pc, electric_fan, ai, main_led, speaker
 
 app_name = "iotcore"
@@ -17,6 +17,7 @@ urlpatterns = [
     #  페이지별 View
     # ────────────────────────────────
     path("sequence/", sequence.sequence_list, name="sequence_list"),
+    path("schedule/", schedule.schedule_list, name="schedule_list"),
     path("detail/", detail.detail_list, name="detail_list"),
 
     # ────────────────────────────────
@@ -65,6 +66,14 @@ urlpatterns = [
     path("sequence/<int:sequence_id>/update/", sequence.sequence_update, name="sequence_update"),
     path("sequence/<int:sequence_id>/edit/", sequence.sequence_edit, name="sequence_edit"),
     path("sequence/step/delete/", sequence.sequence_step_delete, name="sequence_step_delete"),
+
+    # ────────────────────────────────
+    # 스케줄 제어
+    # ────────────────────────────────
+    path("schedule/create/", schedule.schedule_create, name="schedule_create"),
+    path("schedule/<int:schedule_id>/update/", schedule.schedule_update, name="schedule_update"),
+    path("schedule/<int:schedule_id>/toggle/", schedule.schedule_toggle, name="schedule_toggle"),
+    path("schedule/<int:schedule_id>/delete/", schedule.schedule_delete, name="schedule_delete"),
 
     # ────────────────────────────────
     # 스피커 제어
