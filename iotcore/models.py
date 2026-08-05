@@ -241,7 +241,7 @@ class AutomationCondition(models.Model):
 
 class DeviceState(models.Model):
     topic = models.CharField(max_length=255)
-    key = models.CharField(max_length=100)
+    key = models.CharField(max_length=255)
     value = models.JSONField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 

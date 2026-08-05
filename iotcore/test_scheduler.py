@@ -279,6 +279,24 @@ class AutomationServiceTests(TestCase):
             AutomationService._conditions_match(self.automation, now)
         )
 
+    def test_long_nested_mqtt_state_key_is_stored(self):
+        long_key = ".".join(["bridge"] * 24)
+        payload = current = {}
+        for segment in long_key.split("."):
+            current[segment] = {}
+            current = current[segment]
+        current["value"] = "ok"
+
+        AutomationService.update_device_state("zigbee2mqtt/bridge/info", payload)
+
+        self.assertTrue(
+            DeviceState.objects.filter(
+                topic="zigbee2mqtt/bridge/info",
+                key=f"{long_key}.value",
+                value="ok",
+            ).exists()
+        )
+
 
 class SequenceWorkerTests(TestCase):
     def setUp(self):
