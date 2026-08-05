@@ -1,0 +1,2 @@
+class TuyaClient:
+    pass

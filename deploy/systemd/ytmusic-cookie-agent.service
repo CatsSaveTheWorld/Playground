@@ -1,0 +1,16 @@
+[Unit]
+Description=IoTCore YouTube Music cookie agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=leedowon
+Group=leedowon
+EnvironmentFile=/home/leedowon/.config/ytmusic-cookie-agent/agent.env
+ExecStart=/usr/bin/python3 /home/leedowon/ytmusic-cookie-collector/agent.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

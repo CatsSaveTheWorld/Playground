@@ -5,6 +5,7 @@ from ...device.repositories.device_repository import DeviceRepository
 from django.http import JsonResponse
 from ...infrastructure.zigbee.client import ZigbeeClient
 from ...infrastructure.music_assistant.client import MusicAssistantClient
+from ...infrastructure.remote_tasks.client import RemoteTaskClient
 
 
 class DeviceService:
@@ -16,23 +17,42 @@ class DeviceService:
         모든 실행의 공통 진입점.
         """
         device = step.device
-        dispatch = {
-            "aircon": DeviceService.execute_aircon,
-            "fan": DeviceService.execute_fan,
-            "light": DeviceService.execute_light,
-            "execute_speaker": DeviceService.execute_speaker,
-        }
-        executor = dispatch.get(device.device_type)
-        
-        # print(f"[DEBUG] DeviceService.executor 내부 dispatch : {dispatch}")
-        # print(f"[DEBUG] DeviceService.executor 결과 executor : {executor}")
-        # print(f"[DEBUG] DeviceService.executor 결과 device_type : {device.device_type}")
+        if device is None:
+            return False, "시퀀스에 연결된 장치가 없습니다."
 
-        if executor is None:
-            return False, f"지원하지 않는 장치 타입입니다. ({device.device_type})"
+        parameters = step.parameter or {}
+        if device.device_type == "aircon":
+            return DeviceService.execute_aircon(step)
+        if device.device_type == "fan":
+            return DeviceService.execute_fan(step)
+        if device.device_type == "light":
+            return DeviceService.execute_light(device.id, step.function)
+        if device.device_type == "media_server":
+            return DeviceService.execute_media_server(step)
+        if device.device_type == "speaker":
+            return DeviceService.execute_speaker(
+                device.id,
+                step.function,
+                playlist_id=parameters.get("playlist_id"),
+                music_id=parameters.get("music_id"),
+                volume=parameters.get("volume"),
+                repeat_mode=parameters.get("repeat_mode"),
+            )
 
-        return executor(step)
-        # return True, f"{step}을 성공적으로 수행했습니다."
+        return False, f"지원하지 않는 장치 타입입니다. ({device.device_type})"
+
+    @staticmethod
+    def execute_media_server(step):
+        if step.device.protocol != "mqtt":
+            return False, (
+                "미디어 서버는 MQTT 프로토콜로 등록되어야 합니다. "
+                f"(현재 {step.device.protocol})"
+            )
+        return RemoteTaskClient.execute(
+            action=step.function,
+            parameters=step.parameter or {},
+            agent_id=step.device.device_uid,
+        )
 
     @staticmethod
     def control(
@@ -51,6 +71,9 @@ class DeviceService:
 
         if not device:
             return False, "기기를 찾을 수 없습니다."
+
+        success = False
+        error_message = f"지원하지 않는 프로토콜입니다. ({device.protocol})"
 
         if device.device_type == 'aircon':
             if device.protocol == 'ir':
@@ -107,14 +130,16 @@ class DeviceService:
         return DeviceService.control(
             device_id=step.device.id,
             motion=step.function,
+            bits=(step.parameter or {}).get("bits")
+            or (step.parameter or {}).get("temperature"),
         )
 
     @staticmethod
     def execute_fan(step):
-        return DeviceService.control(
-            device_id=step.device.id,
-            motion=step.function,
-        )
+        controller = ControllerRepository.get_controller_by_device(step.device.id)
+        if not controller:
+            return False, "연결된 컨트롤러를 찾을 수 없습니다."
+        return IRClient.send_ir_request(controller.ip_address, step.function)
 
     @staticmethod
     def execute_light(device_id, motion):
@@ -155,16 +180,16 @@ class DeviceService:
         if not code:
             return False, f"'{motion}'에 대한 IR 코드가 없습니다."
 
-        success = IRClient.send_ir_request(
+        success, message = IRClient.send_ir_request(
             controller.ip_address,
             code,
         )
-        print(f"[DEBUG] execute_ir success : {success}")
+        print(f"[DEBUG] execute_ir success : {(success, message)}")
 
         if not success:
-            return False, "ESP32와 통신에 실패했습니다."
+            return False, message or "ESP32와 통신에 실패했습니다."
 
-        return True, "정상적으로 제어되었습니다."
+        return True, message or "정상적으로 제어되었습니다."
 
 
     @staticmethod
