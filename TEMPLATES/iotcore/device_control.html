@@ -400,7 +400,66 @@
   .device-control-content .card { width: 100%; flex-basis: 100%; }
 }
 
+/* Speaker control: keep every inner control inside the card boundary. */
+.device-control-content .speaker-card,
+.device-control-content .speaker-card *,
+.device-control-content .speaker-card *::before,
+.device-control-content .speaker-card *::after {
+    box-sizing: border-box;
+}
 
+.device-control-content .speaker-card-header,
+.device-control-content .speaker-dropdown,
+.device-control-content .playlist-list,
+.device-control-content .playlist-option,
+.device-control-content .speaker-control-row,
+.device-control-content .volume-control {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.device-control-content .speaker-dropdown,
+.device-control-content .speaker-control-row,
+.device-control-content .volume-control {
+    width: auto;
+}
+
+.device-control-content .speaker-control-row {
+    width: 100%;
+}
+
+.device-control-content .speaker-dropdown .speaker-control-button,
+.device-control-content .speaker-dropdown .volume-apply-button {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.device-control-content .volume-range {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.device-control-content .speaker-dropdown .volume-apply-button {
+    width: auto;
+}
+
+/* Keep controls visually separated from the dropdown border.
+   The previous layout let 100%-wide control rows sit directly on the
+   parent border, which made their borders look as if they protruded. */
+.device-control-content .speaker-dropdown {
+    padding: 12px;
+}
+
+.device-control-content .speaker-dropdown > .speaker-section-label:first-child {
+    margin-top: 0;
+}
+
+.device-control-content .playlist-list,
+.device-control-content .speaker-control-row,
+.device-control-content .volume-control,
+.device-control-content .speaker-status {
+    width: 100%;
+}
 
 /* Device Control: mobile-only layout */
 @media (max-width: 720px) {
