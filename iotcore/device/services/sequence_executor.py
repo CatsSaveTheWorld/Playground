@@ -15,6 +15,7 @@ class SequenceExecutor:
         """Execute immediately while recording the same history as a worker run."""
         sequence_run = SequenceRun.objects.create(
             sequence=sequence,
+            sequence_name=sequence.name,
             trigger=SequenceRun.Trigger.MANUAL,
         )
         return cls.execute_run(sequence_run)
@@ -25,6 +26,18 @@ class SequenceExecutor:
             sequence_run = SequenceRun.objects.select_related("sequence").get(
                 pk=sequence_run
             )
+
+        if sequence_run.sequence is None:
+            sequence_name = sequence_run.sequence_name or "삭제된 시퀀스"
+            return cls._finish_run(
+                sequence_run,
+                False,
+                f'"{sequence_name}" 원본 시퀀스가 삭제되어 실행할 수 없습니다.',
+            )
+
+        if not sequence_run.sequence_name:
+            sequence_run.sequence_name = sequence_run.sequence.name
+            sequence_run.save(update_fields=["sequence_name"])
 
         if sequence_run.status != SequenceRun.Status.RUNNING:
             sequence_run.status = SequenceRun.Status.RUNNING

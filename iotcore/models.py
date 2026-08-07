@@ -346,9 +346,17 @@ class SequenceRun(models.Model):
 
     sequence = models.ForeignKey(
         Sequence,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="runs",
     )
+    sequence_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+    )
+
     automation = models.ForeignKey(
         Automation,
         on_delete=models.SET_NULL,
@@ -385,7 +393,10 @@ class SequenceRun(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.sequence} ({self.get_status_display()})"
+        name = self.sequence_name
+        if not name and self.sequence_id:
+            name = self.sequence.name
+        return f"{name or '삭제된 시퀀스'} ({self.get_status_display()})"
 
 
 class SequenceStepRun(models.Model):

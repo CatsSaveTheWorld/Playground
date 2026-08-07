@@ -1,42 +1,55 @@
-# Pi 5 cookie agent
+# Pi 5 YouTube Music cookie agent
 
-The agent receives `ytmusic.refresh_cookie` over MQTT, runs the dedicated
-Chromium collector, updates the existing YouTube Music provider through the
-Music Assistant API, and publishes only a safe status result.
+The Django server publishes `ytmusic.refresh_cookie` to MQTT. The Pi agent
+runs `collector.py`, then `applier.py`, and publishes a correlated final result.
+Cookie and access-token contents never leave the Pi.
 
-Secrets stay on the Pi. The cookie file and Music Assistant token must both be
-mode `600`; neither belongs in Git or in the IoTCore database.
+## MQTT broker on the IoTCore server
 
-## Install
+Create the Pi account. Enter a new password when prompted and use the same
+password later on the Pi.
 
 ```bash
-sudo apt install python3-paho-mqtt python3-requests
-mkdir -p ~/.config/ytmusic-cookie-agent
-chmod 700 ~/.config/ytmusic-cookie-agent
-cp deploy/pi5/ytmusic-cookie-agent.env.example ~/.config/ytmusic-cookie-agent/agent.env
-chmod 600 ~/.config/ytmusic-cookie-agent/agent.env
-cp deploy/pi5/ytmusic_cookie_agent.py ~/ytmusic-cookie-collector/agent.py
-chmod 700 ~/ytmusic-cookie-collector/agent.py
+sudo mosquitto_passwd -c /etc/mosquitto/iotcore-agent-passwords iotcore-pi5
+sudo chown mosquitto:mosquitto /etc/mosquitto/iotcore-agent-passwords
+sudo chmod 600 /etc/mosquitto/iotcore-agent-passwords
+sudo cp deploy/mosquitto/iotcore-agent-listeners.conf /etc/mosquitto/conf.d/
+sudo systemctl restart mosquitto
+sudo systemctl status mosquitto --no-pager
+sudo ss -ltnp | grep -E ':1883|:1884'
 ```
 
-Create the MQTT password file using the password configured for the
-`iotcore-pi5` Mosquitto account on the IoTCore server:
+Port 1883 remains loopback-only for Django. Port 1884 accepts authenticated Pi
+connections over the LAN.
+
+## Pi configuration
+
+The code uses an isolated environment containing only `paho-mqtt`:
 
 ```bash
+python3 -m venv ~/ytmusic-cookie-collector/.agent-venv
+~/ytmusic-cookie-collector/.agent-venv/bin/pip install paho-mqtt==2.1.0
+```
+
+Create the configuration and password file:
+
+```bash
+mkdir -p ~/.config/ytmusic-cookie-agent
+chmod 700 ~/.config/ytmusic-cookie-agent
+cp deploy/pi5/ytmusic-cookie-agent.env.example \
+  ~/.config/ytmusic-cookie-agent/agent.env
+chmod 600 ~/.config/ytmusic-cookie-agent/agent.env
 read -rsp "MQTT password: " MQTT_PASSWORD
-printf '%s' "$MQTT_PASSWORD" > ~/.config/ytmusic-cookie-agent/mqtt-password
+printf '%s' "$MQTT_PASSWORD" > \
+  ~/.config/ytmusic-cookie-agent/mqtt-password
 unset MQTT_PASSWORD
 chmod 600 ~/.config/ytmusic-cookie-agent/mqtt-password
 ```
 
-Create a dedicated Music Assistant long-lived access token with administrator
-permission, then write it without displaying it in shell history:
+The Music Assistant token used by `applier.py` stays at:
 
-```bash
-read -rsp "Music Assistant token: " TOKEN
-printf '%s' "$TOKEN" > ~/.config/ytmusic-cookie-agent/music-assistant-token
-unset TOKEN
-chmod 600 ~/.config/ytmusic-cookie-agent/music-assistant-token
+```text
+~/.config/iotcore/music_assistant.token
 ```
 
 Install and start the service:
@@ -48,5 +61,34 @@ sudo systemctl enable --now ytmusic-cookie-agent
 sudo systemctl status ytmusic-cookie-agent --no-pager
 ```
 
-The interactive Chromium login must have been completed once with
-`collector.py --login` before unattended refreshes can succeed.
+## Direct pipeline test
+
+This bypasses MQTT but exercises the exact collector-to-applier pipeline:
+
+```bash
+~/ytmusic-cookie-collector/.agent-venv/bin/python \
+  ~/ytmusic-cookie-collector/agent.py --run-once
+```
+
+## MQTT contract
+
+Command topic:
+
+```text
+iotcore/agents/pi5/commands
+```
+
+Command payload:
+
+```json
+{"request_id":"unique-id","action":"ytmusic.refresh_cookie","parameters":{}}
+```
+
+Result topic:
+
+```text
+iotcore/agents/pi5/results/<request_id>
+```
+
+The result contains only status, timestamps, provider id, and a cookie
+fingerprint. It never contains the cookie or access token.

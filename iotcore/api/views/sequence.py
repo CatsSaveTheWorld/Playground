@@ -1,6 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import render, get_object_or_404, redirect
+from django.utils import timezone
 from ...models import Device, Sequence, SequenceRun, SequenceStep
 from ...forms import SequenceForm, SequenceStepForm
 from ...device_actions import DeviceActionRegistry
@@ -57,7 +60,9 @@ def sequence_run(request, sequence_id):
     )
     sequence_run = SequenceRun.objects.create(
         sequence=sequence,
+        sequence_name=sequence.name,
         trigger=SequenceRun.Trigger.MANUAL,
+        status=SequenceRun.Status.PENDING,
     )
     messages.success(
         request,
@@ -112,8 +117,51 @@ def sequence_delete(request, sequence_id:int):
         return redirect("iotcore:sequence_list")
 
     sequence = get_object_or_404(Sequence, pk=sequence_id)
-    sequence.delete()
-    messages.success(request, f'"{sequence.name}" 시퀀스를 삭제했습니다.')
+    sequence_name = sequence.name
+
+    blocking_actions = sequence.automation_actions.select_related("automation")
+    blocking_action_count = blocking_actions.count()
+    if blocking_action_count:
+        automation_names = list(
+            blocking_actions
+            .order_by("automation__name")
+            .values_list("automation__name", flat=True)
+            .distinct()[:3]
+        )
+        names = ", ".join(automation_names)
+        messages.error(
+            request,
+            f'"{sequence_name}" 시퀀스를 사용하는 자동화 동작이 있어 삭제할 수 없습니다. '
+            f"먼저 자동화에서 해당 동작을 제거하세요. "
+            f"({names}, 총 {blocking_action_count}개 동작)",
+        )
+        return redirect("iotcore:sequence_list")
+
+    try:
+        with transaction.atomic():
+            sequence.runs.filter(
+                status=SequenceRun.Status.PENDING,
+            ).update(
+                status=SequenceRun.Status.CANCELLED,
+                finished_at=timezone.now(),
+                message="원본 시퀀스가 삭제되어 대기 중 실행을 취소했습니다.",
+            )
+            sequence.delete()
+    except ProtectedError:
+        messages.error(
+            request,
+            f'"{sequence_name}" 시퀀스를 참조하는 설정이 있어 삭제할 수 없습니다.',
+        )
+        return redirect("iotcore:sequence_list")
+    except IntegrityError:
+        messages.error(
+            request,
+            "시퀀스 실행 이력 연결을 해제하지 못했습니다. "
+            "최신 데이터베이스 마이그레이션 적용 여부를 확인하세요.",
+        )
+        return redirect("iotcore:sequence_list")
+
+    messages.success(request, f'"{sequence_name}" 시퀀스를 삭제했습니다.')
     return redirect("iotcore:sequence_list")
 
 

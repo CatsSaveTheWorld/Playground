@@ -8,9 +8,11 @@ Type=simple
 User=leedowon
 Group=leedowon
 EnvironmentFile=/home/leedowon/.config/ytmusic-cookie-agent/agent.env
-ExecStart=/usr/bin/python3 /home/leedowon/ytmusic-cookie-collector/agent.py
+ExecStart=/home/leedowon/ytmusic-cookie-collector/.agent-venv/bin/python /home/leedowon/ytmusic-cookie-collector/agent.py
 Restart=always
 RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

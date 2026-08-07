@@ -63,14 +63,19 @@ class AutomationExecutor:
                 )
 
                 if action.action_type == AutomationAction.ActionType.SEQUENCE:
-                    sequence_run = SequenceRun.objects.create(
-                        sequence=action.sequence,
-                        automation=automation,
-                        trigger=SequenceRun.Trigger.AUTOMATION,
-                        trigger_payload=automation_run.trigger_payload,
-                    )
-                    action_run.sequence_run = sequence_run
-                    success, message = SequenceExecutor.execute_run(sequence_run)
+                    if action.sequence is None:
+                        success = False
+                        message = "자동화 동작에 실행할 시퀀스가 지정되지 않았습니다."
+                    else:
+                        sequence_run = SequenceRun.objects.create(
+                            sequence=action.sequence,
+                            sequence_name=action.sequence.name,
+                            automation=automation,
+                            trigger=SequenceRun.Trigger.AUTOMATION,
+                            trigger_payload=automation_run.trigger_payload,
+                        )
+                        action_run.sequence_run = sequence_run
+                        success, message = SequenceExecutor.execute_run(sequence_run)
                 else:
                     step_like = SimpleNamespace(
                         device=action.device,
