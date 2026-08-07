@@ -1,0 +1,56 @@
+<aside class="iot-execution-panel" id="iotExecutionPanel" aria-label="실행 현황">
+    <div class="iot-execution-panel__header">
+        <div>
+            <p class="iot-eyebrow">EXECUTION QUEUE</p>
+            <h2>실행 현황</h2>
+        </div>
+        <button
+            type="button"
+            class="iot-panel-close"
+            id="iotExecutionClose"
+            aria-label="실행 현황 닫기">×</button>
+    </div>
+
+    {# 정적 프론트 UI만 제공한다. 실제 큐 조회와 polling은 후속 구현 범위다. #}
+    <section class="iot-execution-section" data-execution-section="pending">
+        <div class="iot-execution-section__title">
+            <h3>실행 대기</h3>
+            <span class="iot-count">0</span>
+        </div>
+        <div class="iot-execution-columns">
+            <span>작업 내용</span>
+            <span>실행 방식</span>
+        </div>
+        <div class="iot-execution-empty">대기 중인 작업이 없습니다.</div>
+    </section>
+
+    <section class="iot-execution-section" data-execution-section="running">
+        <div class="iot-execution-section__title">
+            <h3>실행 중</h3>
+            <span class="iot-count">0</span>
+        </div>
+        <div class="iot-execution-columns">
+            <span>작업 내용</span>
+            <span>실행 방식</span>
+        </div>
+        <div class="iot-execution-empty">현재 실행 중인 작업이 없습니다.</div>
+    </section>
+
+    <section class="iot-execution-section" data-execution-section="completed">
+        <div class="iot-execution-section__title">
+            <h3>실행 완료</h3>
+            <span class="iot-count">0</span>
+        </div>
+        <div class="iot-execution-columns">
+            <span>작업 내용</span>
+            <span>실행 정보</span>
+        </div>
+        <div class="iot-execution-empty">최근 실행 결과가 여기에 표시됩니다.</div>
+    </section>
+
+    <a
+        class="iot-execution-history-link"
+        href="{% url 'iotcore:execution_history' %}">
+        전체 실행 기록 보기 <span aria-hidden="true">→</span>
+    </a>
+</aside>

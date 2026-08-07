@@ -39,7 +39,7 @@ class AutomationExecutor:
     def execute_run(cls, automation_run):
         automation = automation_run.automation
         if automation is None:
-            return cls._finish(automation_run, False, "삭제된 자동화입니다.")
+            return cls._finish(automation_run, False, "삭제된 예약 실행입니다.")
 
         actions = list(
             automation.actions
@@ -65,7 +65,7 @@ class AutomationExecutor:
                 if action.action_type == AutomationAction.ActionType.SEQUENCE:
                     if action.sequence is None:
                         success = False
-                        message = "자동화 동작에 실행할 시퀀스가 지정되지 않았습니다."
+                        message = "예약 실행 동작에 실행할 시퀀스가 지정되지 않았습니다."
                     else:
                         sequence_run = SequenceRun.objects.create(
                             sequence=action.sequence,
@@ -104,10 +104,10 @@ class AutomationExecutor:
             return cls._finish(
                 automation_run,
                 False,
-                f"자동화 실행 중 예외가 발생했습니다. ({exc})",
+                f"예약 실행 중 예외가 발생했습니다. ({exc})",
             )
 
-        return cls._finish(automation_run, True, "자동화 실행 완료")
+        return cls._finish(automation_run, True, "예약 실행 완료")
 
     @staticmethod
     def _finish(automation_run, success, message):

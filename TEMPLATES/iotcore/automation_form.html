@@ -1,0 +1,379 @@
+{% extends "iotcore/base_iotcore.html" %}
+{% block title %}{% if is_update %}예약 실행 수정{% else %}새 예약 실행{% endif %}{% endblock %}
+{% block extra_css %}
+<style>
+
+        * { box-sizing: border-box; }
+.automation-form-content { width: 100%; }
+        
+        
+        
+        .section { border: 1px solid var(--iot-border); border-radius: 0; background: #000000; padding: 22px; margin-bottom: 14px; }
+        .section h2 { margin-top: 0; color: var(--iot-text); font-size: 16px; }
+        .child-card { border: 1px solid var(--iot-border); border-radius: 0; background: #000000; padding: 18px; margin: 12px 0; }
+        .child-card__header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: -2px 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--iot-border-soft); }
+        .child-card__heading { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .child-card__heading span { color: var(--iot-accent); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+        .child-card__heading strong { color: var(--iot-text); font-size: 14px; line-height: 1.35; }
+        .field { margin-bottom: 18px; }
+        .field > label { display: block; color: var(--iot-muted); margin-bottom: 8px; font-size: 11px; font-weight: 650; }
+        input[type=text], input[type=number], input[type=datetime-local], input[type=time], select, textarea { width: 100%; padding: 10px; color: #fff; background: #000000; border: 1px solid var(--iot-border); }
+        input[type=checkbox] { margin-right: 8px; }
+        .weekdays ul, ul[id$="weekdays"] { display: flex; list-style: none; padding: 0; gap: 14px; flex-wrap: wrap; }
+        .errorlist, .form-errors { color: #ff6666; }
+        .helptext { display: block; color: #888; margin-top: 5px; font-size: 13px; }
+        .button { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding: 0 15px; border: 1px solid var(--iot-border); border-radius:0; background: #000000; color: var(--iot-text); cursor: pointer; text-decoration: none; }
+        .button:hover { border-color: var(--iot-accent); color: var(--iot-accent); }
+        .remove-button { position: static; flex: 0 0 auto; min-height: 34px; padding: 0 13px; border-color: #ff6666; color: #ff6666; background: #000000; }
+        .remove-button:hover { border-color: #ff6666; background: #180000; color: #ff8b8b; }
+        .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
+        .hidden, .pending-delete { display: none; }
+    
+.automation-form-content .helptext { color: var(--iot-muted); }
+.automation-form-content .section > p { color: var(--iot-muted); font-size: 12px; }
+.automation-form-content .form-actions button[type="submit"] {
+    border-color: var(--iot-accent);
+    background: var(--iot-accent);
+    color: #06251f;
+    font-weight: 750;
+}
+.automation-form-content .form-actions button[type="submit"]:hover {
+    color: #031612;
+    filter: brightness(1.08);
+}
+
+</style>
+{% endblock %}
+{% block content %}
+<div class="iot-page iot-form-shell automation-form-content">
+    <header class="iot-page-header">
+        <div>
+            <p class="iot-eyebrow">SCHEDULE EDITOR</p>
+            <h1>{% if is_update %}예약 실행 수정{% else %}새 예약 실행{% endif %}</h1>
+            <p>예약 또는 이벤트 트리거, 추가 조건, 실행 동작을 순서대로 구성합니다.</p>
+        </div>
+        <div class="iot-page-actions"><a class="iot-button" href="{% url 'iotcore:automation_list' %}">예약 실행 목록으로</a></div>
+    </header>
+
+<form method="post" id="automation-form">
+        {% csrf_token %}
+        <section class="section">
+            <h2>기본 설정</h2>
+            {{ form.non_field_errors }}
+            <div class="field"><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}{{ form.name.errors }}</div>
+                        <div class="field"><label>{{ form.enabled }} {{ form.enabled.label }}</label>{{ form.enabled.errors }}</div>
+            <div class="field"><label for="{{ form.cooldown_seconds.id_for_label }}">{{ form.cooldown_seconds.label }}</label>{{ form.cooldown_seconds }}{{ form.cooldown_seconds.errors }}</div>
+        </section>
+
+        <section class="section">
+            <h2>실행 트리거</h2>
+            <p>여러 트리거 중 하나라도 발생하면 조건을 검사합니다.</p>
+            {{ trigger_formset.management_form }}
+            <div class="form-errors">{{ trigger_formset.non_form_errors }}</div>
+            <div id="trigger-list">
+                {% for tf in trigger_formset %}
+                <div class="child-card trigger-card">
+                    {{ tf.id }}<span class="hidden">{{ tf.DELETE }}</span>
+                    <div class="child-card__header">
+                        <div class="child-card__heading"><span>TRIGGER</span><strong>실행 트리거 {{ forloop.counter }}</strong></div>
+                        <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
+                    </div>
+                    {{ tf.non_field_errors }}
+                    <div class="field"><label>{{ tf.trigger_type.label }}</label>{{ tf.trigger_type }}{{ tf.trigger_type.errors }}</div>
+                    <div class="field"><label>{{ tf.enabled }} {{ tf.enabled.label }}</label></div>
+                    <div class="time-fields">
+                        <div class="field"><label>{{ tf.schedule_type.label }}</label>{{ tf.schedule_type }}{{ tf.schedule_type.errors }}</div>
+                        <div class="field schedule-once"><label>{{ tf.run_at.label }}</label>{{ tf.run_at }}{{ tf.run_at.errors }}</div>
+                        <div class="field schedule-clock"><label>{{ tf.time_of_day.label }}</label>{{ tf.time_of_day }}{{ tf.time_of_day.errors }}</div>
+                        <div class="field schedule-weekly weekdays"><label>반복 요일</label>{{ tf.weekdays }}{{ tf.weekdays.errors }}</div>
+                        <div class="field schedule-interval"><label>{{ tf.interval_every.label }}</label>{{ tf.interval_every }}{{ tf.interval_every.errors }}</div>
+                        <div class="field schedule-interval"><label>{{ tf.interval_unit.label }}</label>{{ tf.interval_unit }}{{ tf.interval_unit.errors }}</div>
+                    </div>
+                    <div class="event-fields">
+                        <div class="field"><label>{{ tf.event_topic.label }}</label>{{ tf.event_topic }}<span class="helptext">{{ tf.event_topic.help_text }}</span>{{ tf.event_topic.errors }}</div>
+                        <div class="field"><label>{{ tf.event_field.label }}</label>{{ tf.event_field }}<span class="helptext">{{ tf.event_field.help_text }}</span>{{ tf.event_field.errors }}</div>
+                        <div class="field"><label>{{ tf.event_operator.label }}</label>{{ tf.event_operator }}{{ tf.event_operator.errors }}</div>
+                        <div class="field"><label>{{ tf.event_value.label }}</label>{{ tf.event_value }}<span class="helptext">{{ tf.event_value.help_text }}</span>{{ tf.event_value.errors }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="button" onclick="addForm('trigger')">+ 실행 트리거 추가</button>
+        </section>
+
+        <section class="section">
+            <h2>추가 조건</h2>
+            <p>등록된 조건은 모두 만족해야 실행됩니다. 조건이 없으면 트리거 발생 즉시 실행됩니다.</p>
+            {{ condition_formset.management_form }}
+            <div class="form-errors">{{ condition_formset.non_form_errors }}</div>
+            <div id="condition-list">
+                {% for cf in condition_formset %}
+                <div class="child-card condition-card">
+                    {{ cf.id }}<span class="hidden">{{ cf.DELETE }}</span>
+                    <div class="child-card__header">
+                        <div class="child-card__heading"><span>CONDITION</span><strong>추가 조건 {{ forloop.counter }}</strong></div>
+                        <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
+                    </div>
+                    {{ cf.non_field_errors }}
+                    <div class="field"><label>{{ cf.condition_type.label }}</label>{{ cf.condition_type }}{{ cf.condition_type.errors }}</div>
+                    <div class="condition-time">
+                        <div class="field"><label>{{ cf.time_start.label }}</label>{{ cf.time_start }}{{ cf.time_start.errors }}</div>
+                        <div class="field"><label>{{ cf.time_end.label }}</label>{{ cf.time_end }}{{ cf.time_end.errors }}</div>
+                    </div>
+                    <div class="condition-state">
+                        <div class="field"><label>{{ cf.state_topic.label }}</label>{{ cf.state_topic }}{{ cf.state_topic.errors }}</div>
+                        <div class="field"><label>{{ cf.state_key.label }}</label>{{ cf.state_key }}{{ cf.state_key.errors }}</div>
+                        <div class="field"><label>{{ cf.state_operator.label }}</label>{{ cf.state_operator }}{{ cf.state_operator.errors }}</div>
+                        <div class="field"><label>{{ cf.state_value.label }}</label>{{ cf.state_value }}{{ cf.state_value.errors }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="button" onclick="addForm('condition')">+ 조건 추가</button>
+        </section>
+
+        <section class="section">
+            <h2>실행 동작</h2>
+            <p>개별 기기 동작과 시퀀스를 필요한 순서대로 추가할 수 있습니다.</p>
+            {{ action_formset.management_form }}
+            <div class="form-errors">{{ action_formset.non_form_errors }}</div>
+            <div id="action-list">
+                {% for af in action_formset %}
+                <div class="child-card action-card">
+                    {{ af.id }}<span class="hidden">{{ af.DELETE }}</span>
+                    <div class="child-card__header">
+                        <div class="child-card__heading"><span>ACTION</span><strong>실행 동작 {{ forloop.counter }}</strong></div>
+                        <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
+                    </div>
+                    {{ af.non_field_errors }}
+                    <div class="field"><label>{{ af.action_type.label }}</label>{{ af.action_type }}{{ af.action_type.errors }}</div>
+                    <div class="device-action-fields">
+                        <div class="field"><label>{{ af.device.label }}</label>{{ af.device }}{{ af.device.errors }}</div>
+                        <div class="field"><label>{{ af.function.label }}</label>{{ af.function }}{{ af.function.errors }}</div>
+                        <div class="field"><label>{{ af.parameter_json.label }}</label>{{ af.parameter_json }}<span class="helptext">{{ af.parameter_json.help_text }}</span>{{ af.parameter_json.errors }}</div>
+                    </div>
+                    <div class="sequence-action-fields">
+                        <div class="field"><label>{{ af.sequence.label }}</label>{{ af.sequence }}{{ af.sequence.errors }}</div>
+                    </div>
+                    <div class="field"><label>{{ af.delay.label }}</label>{{ af.delay }}{{ af.delay.errors }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="button" onclick="addForm('action')">+ 실행 동작 추가</button>
+        </section>
+
+        <div class="form-actions">
+            <a class="button" href="{% url 'iotcore:automation_list' %}">취소</a>
+            <button class="button" type="submit">저장</button>
+        </div>
+    </form>
+<template id="trigger-empty-form">
+    <div class="child-card trigger-card" data-new-form="true">
+        {{ trigger_formset.empty_form.id }}<span class="hidden">{{ trigger_formset.empty_form.DELETE }}</span>
+        <div class="child-card__header">
+            <div class="child-card__heading"><span>TRIGGER</span><strong>새 실행 트리거</strong></div>
+            <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
+        </div>
+        <div class="field"><label>{{ trigger_formset.empty_form.trigger_type.label }}</label>{{ trigger_formset.empty_form.trigger_type }}</div>
+        <div class="field"><label>{{ trigger_formset.empty_form.enabled }} {{ trigger_formset.empty_form.enabled.label }}</label></div>
+        <div class="time-fields">
+            <div class="field"><label>{{ trigger_formset.empty_form.schedule_type.label }}</label>{{ trigger_formset.empty_form.schedule_type }}</div>
+            <div class="field schedule-once"><label>{{ trigger_formset.empty_form.run_at.label }}</label>{{ trigger_formset.empty_form.run_at }}</div>
+            <div class="field schedule-clock"><label>{{ trigger_formset.empty_form.time_of_day.label }}</label>{{ trigger_formset.empty_form.time_of_day }}</div>
+            <div class="field schedule-weekly weekdays"><label>반복 요일</label>{{ trigger_formset.empty_form.weekdays }}</div>
+            <div class="field schedule-interval"><label>{{ trigger_formset.empty_form.interval_every.label }}</label>{{ trigger_formset.empty_form.interval_every }}</div>
+            <div class="field schedule-interval"><label>{{ trigger_formset.empty_form.interval_unit.label }}</label>{{ trigger_formset.empty_form.interval_unit }}</div>
+        </div>
+        <div class="event-fields">
+            <div class="field"><label>{{ trigger_formset.empty_form.event_topic.label }}</label>{{ trigger_formset.empty_form.event_topic }}</div>
+            <div class="field"><label>{{ trigger_formset.empty_form.event_field.label }}</label>{{ trigger_formset.empty_form.event_field }}</div>
+            <div class="field"><label>{{ trigger_formset.empty_form.event_operator.label }}</label>{{ trigger_formset.empty_form.event_operator }}</div>
+            <div class="field"><label>{{ trigger_formset.empty_form.event_value.label }}</label>{{ trigger_formset.empty_form.event_value }}</div>
+        </div>
+    </div>
+</template>
+
+<template id="condition-empty-form">
+    <div class="child-card condition-card" data-new-form="true">
+        {{ condition_formset.empty_form.id }}<span class="hidden">{{ condition_formset.empty_form.DELETE }}</span>
+        <div class="child-card__header">
+            <div class="child-card__heading"><span>CONDITION</span><strong>새 추가 조건</strong></div>
+            <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
+        </div>
+        <div class="field"><label>{{ condition_formset.empty_form.condition_type.label }}</label>{{ condition_formset.empty_form.condition_type }}</div>
+        <div class="condition-time">
+            <div class="field"><label>{{ condition_formset.empty_form.time_start.label }}</label>{{ condition_formset.empty_form.time_start }}</div>
+            <div class="field"><label>{{ condition_formset.empty_form.time_end.label }}</label>{{ condition_formset.empty_form.time_end }}</div>
+        </div>
+        <div class="condition-state">
+            <div class="field"><label>{{ condition_formset.empty_form.state_topic.label }}</label>{{ condition_formset.empty_form.state_topic }}</div>
+            <div class="field"><label>{{ condition_formset.empty_form.state_key.label }}</label>{{ condition_formset.empty_form.state_key }}</div>
+            <div class="field"><label>{{ condition_formset.empty_form.state_operator.label }}</label>{{ condition_formset.empty_form.state_operator }}</div>
+            <div class="field"><label>{{ condition_formset.empty_form.state_value.label }}</label>{{ condition_formset.empty_form.state_value }}</div>
+        </div>
+    </div>
+</template>
+
+<template id="action-empty-form">
+    <div class="child-card action-card" data-new-form="true">
+        {{ action_formset.empty_form.id }}<span class="hidden">{{ action_formset.empty_form.DELETE }}</span>
+        <div class="child-card__header">
+            <div class="child-card__heading"><span>ACTION</span><strong>새 실행 동작</strong></div>
+            <button type="button" class="button remove-button" onclick="removeChild(this)">삭제</button>
+        </div>
+        <div class="field"><label>{{ action_formset.empty_form.action_type.label }}</label>{{ action_formset.empty_form.action_type }}</div>
+        <div class="device-action-fields">
+            <div class="field"><label>{{ action_formset.empty_form.device.label }}</label>{{ action_formset.empty_form.device }}</div>
+            <div class="field"><label>{{ action_formset.empty_form.function.label }}</label>{{ action_formset.empty_form.function }}</div>
+            <div class="field"><label>{{ action_formset.empty_form.parameter_json.label }}</label>{{ action_formset.empty_form.parameter_json }}<span class="helptext">{{ action_formset.empty_form.parameter_json.help_text }}</span></div>
+        </div>
+        <div class="sequence-action-fields">
+            <div class="field"><label>{{ action_formset.empty_form.sequence.label }}</label>{{ action_formset.empty_form.sequence }}</div>
+        </div>
+        <div class="field"><label>{{ action_formset.empty_form.delay.label }}</label>{{ action_formset.empty_form.delay }}</div>
+    </div>
+</template>
+
+
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+
+const actionRegistry = JSON.parse('{{ action_registry_json|escapejs }}');
+const deviceTypes = JSON.parse('{{ device_types_json|escapejs }}');
+
+function updateTrigger(card) {
+    const type = card.querySelector('select[name$="-trigger_type"]')?.value;
+    const scheduleType = card.querySelector('select[name$="-schedule_type"]')?.value;
+    card.querySelector('.time-fields').style.display = type === 'time' ? 'block' : 'none';
+    card.querySelector('.event-fields').style.display = type === 'mqtt_event' ? 'block' : 'none';
+    card.querySelectorAll('.schedule-once').forEach(el => el.style.display = scheduleType === 'once' ? 'block' : 'none');
+    card.querySelectorAll('.schedule-clock').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
+    card.querySelectorAll('.schedule-weekly').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
+    card.querySelectorAll('.schedule-interval').forEach(el => el.style.display = scheduleType === 'interval' ? 'block' : 'none');
+}
+
+function updateCondition(card) {
+    const type = card.querySelector('select[name$="-condition_type"]')?.value;
+    card.querySelector('.condition-time').style.display = type === 'time_window' ? 'block' : 'none';
+    card.querySelector('.condition-state').style.display = type === 'device_state' ? 'block' : 'none';
+}
+
+function refreshFunctionChoices(card) {
+    const deviceSelect = card.querySelector('select[name$="-device"]');
+    const functionSelect = card.querySelector('select[name$="-function"]');
+    if (!deviceSelect || !functionSelect) return;
+
+    const selectedFunction = functionSelect.value;
+    const deviceType = deviceTypes[deviceSelect.value];
+    const actions = actionRegistry[deviceType] || [];
+    functionSelect.innerHTML = '<option value="">---------</option>';
+    actions.forEach(action => {
+        const option = document.createElement('option');
+        option.value = action.code;
+        option.textContent = action.name;
+        if (action.code === selectedFunction) option.selected = true;
+        functionSelect.appendChild(option);
+    });
+}
+
+function updateAction(card) {
+    const type = card.querySelector('select[name$="-action_type"]')?.value;
+    card.querySelector('.device-action-fields').style.display = type === 'device' ? 'block' : 'none';
+    card.querySelector('.sequence-action-fields').style.display = type === 'sequence' ? 'block' : 'none';
+    if (type === 'device') refreshFunctionChoices(card);
+}
+
+function bindCard(card, kind) {
+    if (kind === 'trigger') {
+        card.querySelectorAll('select[name$="-trigger_type"], select[name$="-schedule_type"]').forEach(select => select.addEventListener('change', () => updateTrigger(card)));
+        updateTrigger(card);
+    } else if (kind === 'condition') {
+        card.querySelectorAll('select[name$="-condition_type"]').forEach(select => select.addEventListener('change', () => updateCondition(card)));
+        updateCondition(card);
+    } else {
+        card.querySelectorAll('select[name$="-action_type"]').forEach(select => select.addEventListener('change', () => updateAction(card)));
+        card.querySelectorAll('select[name$="-device"]').forEach(select => select.addEventListener('change', () => refreshFunctionChoices(card)));
+        updateAction(card);
+    }
+}
+
+function addForm(kind) {
+    const prefixes = {trigger: 'triggers', condition: 'conditions', action: 'actions'};
+    const prefix = prefixes[kind];
+    const total = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    const index = Number(total.value);
+    const template = document.getElementById(`${kind}-empty-form`).innerHTML.replaceAll('__prefix__', index);
+    const list = document.getElementById(`${kind}-list`);
+    list.insertAdjacentHTML('beforeend', template);
+    total.value = index + 1;
+    bindCard(list.lastElementChild, kind);
+}
+
+function renumberNewForms(kind) {
+    const prefixes = {trigger: 'triggers', condition: 'conditions', action: 'actions'};
+    const prefix = prefixes[kind];
+    const list = document.getElementById(`${kind}-list`);
+    const initial = Number(document.getElementById(`id_${prefix}-INITIAL_FORMS`).value);
+    const total = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    const newCards = [...list.querySelectorAll('.child-card')]
+        .filter(card => !card.querySelector('input[name$="-id"]')?.value);
+
+    newCards.forEach((card, offset) => {
+        const oldIndex = card.querySelector('[name]')?.name.match(
+            new RegExp(`^${prefix}-(\\d+)-`)
+        )?.[1];
+        const newIndex = initial + offset;
+        if (oldIndex === undefined) return;
+        card.querySelectorAll('[name]').forEach(field => {
+            field.name = field.name.replace(
+                `${prefix}-${oldIndex}-`,
+                `${prefix}-${newIndex}-`,
+            );
+            if (field.id) {
+                field.id = field.id.replace(
+                    `${prefix}-${oldIndex}-`,
+                    `${prefix}-${newIndex}-`,
+                );
+            }
+        });
+        card.querySelectorAll('label[for]').forEach(label => {
+            label.htmlFor = label.htmlFor.replace(
+                `${prefix}-${oldIndex}-`,
+                `${prefix}-${newIndex}-`,
+            );
+        });
+    });
+    total.value = initial + newCards.length;
+}
+
+function removeChild(button) {
+    const card = button.closest('.child-card');
+    const deleteBox = card.querySelector('input[name$="-DELETE"]');
+    if (!deleteBox) return;
+
+    const kind = card.classList.contains('trigger-card') ? 'trigger'
+        : card.classList.contains('condition-card') ? 'condition'
+        : 'action';
+    if (!card.querySelector('input[name$="-id"]')?.value) {
+        card.remove();
+        renumberNewForms(kind);
+        return;
+    }
+    // Keep the original form fields (especially the hidden model id) enabled.
+    // Django's formset needs them in the POST to identify the existing row.
+    deleteBox.checked = true;
+    card.querySelectorAll('input, select, textarea').forEach(field => {
+        if (field !== deleteBox) field.required = false;
+    });
+    card.classList.add('pending-delete');
+}
+
+document.querySelectorAll('.trigger-card').forEach(card => bindCard(card, 'trigger'));
+document.querySelectorAll('.condition-card').forEach(card => bindCard(card, 'condition'));
+document.querySelectorAll('.action-card').forEach(card => bindCard(card, 'action'));
+
+
+</script>
+{% endblock %}

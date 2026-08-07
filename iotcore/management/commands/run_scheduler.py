@@ -22,7 +22,7 @@ class Command(BaseCommand):
                     self.stdout.write(f"{len(runs)}개 실행 요청을 등록했습니다.")
             except Exception as exc:
                 self.stderr.write(
-                    f"시간 자동화 처리 실패: {type(exc).__name__}: {exc}"
+                    f"시간 예약 실행 처리 실패: {type(exc).__name__}: {exc}"
                 )
                 if options["once"]:
                     raise

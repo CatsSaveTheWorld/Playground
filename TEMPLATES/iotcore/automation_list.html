@@ -1,0 +1,65 @@
+{% extends "iotcore/base_iotcore.html" %}
+{% block title %}예약 실행{% endblock %}
+{% block content %}
+<div class="iot-page">
+    <header class="iot-page-header">
+        <div>
+            <p class="iot-eyebrow">SCHEDULES</p>
+            <h1>예약 실행</h1>
+            <p>예약 시간 또는 MQTT 이벤트를 트리거로 기기 동작과 시퀀스를 실행합니다.</p>
+        </div>
+        <div class="iot-page-actions">
+            <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}">+ 새 예약 실행</a>
+        </div>
+    </header>
+
+    {% if automations %}
+    <section class="iot-card-grid">
+        {% for automation in automations %}
+        <article class="iot-panel iot-entity-card automation-card" data-edit-url="{% url 'iotcore:automation_update' automation.id %}">
+            <div class="iot-entity-card__top">
+                <div>
+                    <span class="iot-entity-card__type">SCHEDULE</span>
+                    <h2>{{ automation.name }}</h2>
+                </div>
+                <span class="iot-status-toggle {% if automation.enabled %}is-enabled{% endif %}"><i></i>{% if automation.enabled %}활성{% else %}비활성{% endif %}</span>
+            </div>
+            <p class="iot-entity-card__description">
+                <strong>트리거</strong> {{ automation.summary }}<br>
+                <strong>동작</strong> {{ automation.action_summary }}
+            </p>
+            <div class="iot-entity-card__meta">
+                {% if automation.next_run_at %}다음 실행 {{ automation.next_run_at|date:"Y.m.d H:i" }}{% else %}예정된 실행 없음{% endif %}
+            </div>
+            <div class="iot-entity-card__actions">
+                <form method="post" action="{% url 'iotcore:automation_toggle' automation.id %}">
+                    {% csrf_token %}
+                    <button class="iot-button" type="submit">{% if automation.enabled %}중지{% else %}활성화{% endif %}</button>
+                </form>
+                <form method="post" action="{% url 'iotcore:automation_delete' automation.id %}" onsubmit="return confirm('이 예약 실행을 삭제할까요?');">
+                    {% csrf_token %}
+                    <button class="iot-button iot-button--danger" type="submit">삭제</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+    {% else %}
+    <section class="iot-panel iot-empty-panel">
+        <h2>등록된 예약 실행이 없습니다.</h2>
+        <p>예약 또는 이벤트 트리거와 실행 동작을 구성하세요.</p>
+        <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}">첫 예약 실행 만들기</a>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('[data-edit-url]').forEach(card => {
+    card.addEventListener('click', event => {
+        if (event.target.closest('a, button, form, input, select, textarea')) return;
+        window.location.href = card.dataset.editUrl;
+    });
+});
+</script>
+{% endblock %}

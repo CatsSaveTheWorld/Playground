@@ -1,198 +1,52 @@
+{% extends "iotcore/base_iotcore.html" %}
+{% block title %}대시보드{% endblock %}
+{% block content %}
+<div class="iot-page">
+    <header class="iot-page-header">
+        <div>
+            <p class="iot-eyebrow">DASHBOARD</p>
+            <h1>IoTCore 대시보드</h1>
+            <p>기기 제어, 시퀀스, 예약 실행 관리 화면으로 이동할 수 있는 통합 시작 화면입니다.</p>
+        </div>
+    </header>
 
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <title>Either One’s IoTCore</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      background-color: #000000;
-      color: #FFFFFF;
-    }
+    <section class="iot-dashboard-grid" aria-label="IoTCore 요약">
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">REGISTERED DEVICES</span>
+            <strong class="iot-stat-card__value">{{ device_count }}</strong>
+            <p class="iot-stat-card__meta">등록된 제어 대상</p>
+        </article>
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">SEQUENCES</span>
+            <strong class="iot-stat-card__value">{{ sequence_count }}</strong>
+            <p class="iot-stat-card__meta">저장된 시퀀스</p>
+        </article>
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">SCHEDULES</span>
+            <strong class="iot-stat-card__value">{{ enabled_automation_count }} / {{ automation_count }}</strong>
+            <p class="iot-stat-card__meta">활성 / 전체 예약 실행</p>
+        </article>
+    </section>
 
-    .navbar {
-      background-color: #000000;
-      padding: 10px 20px;
-      font-size: 18px;
-      border-bottom: 1px solid #00FFC8;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: relative;
-      z-index: 1100;
-    }
-
-    .navbar a {
-      color: #00FFC8;
-      text-decoration: none;
-    }
-
-    .title {
-      background-color: #000000;
-      color: #FFFFFF;
-      padding: 20px;
-      margin: 100px auto 30px;
-      width: 400px;
-      border: 2px solid #00FFC8;
-      font-size: 22px;
-      text-align: center;
-    }
-
-    .button-box {
-      display: flex;
-      justify-content: center;
-      gap: 30px;
-      text-align: center;
-      flex-wrap: wrap; /* 버튼이 너무 크면 아래로 줄바꿈 */
-    }
-
-    .button {
-      background-color: #000000;
-      color: #FFFFFF;
-      padding: 30px;
-      width: 200px;
-      border: 2px solid #00FFC8;
-      font-size: 20px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-
-    /* ✅ 모바일 최적화: 768px 이하 화면 크기일 때 */
-    @media (max-width: 768px) {
-      .title {
-        width: 90%;
-        font-size: 24px;
-        padding: 30px;
-      }
-
-      .button-box {
-        flex-direction: column;
-        gap: 20px;
-      }
-
-      .button {
-        width: 80%;
-        padding: 20px;
-        font-size: 20px;
-      }
-    }
-
-    .button:hover {
-      background-color: #2A2A2A;
-    }
-
-    #toggleSidebar {
-      font-size: 28px;
-      background: none;
-      border: none;
-      color: #00FFC8;
-      cursor: pointer;
-      z-index: 1101;
-    }
-
-    /* In your <style> section */
-    #sidebar {
-      position: fixed;
-      top: 0;
-      right: -300px;
-      width: 250px;
-      height: 100%;
-      background-color: #000000;
-      color: #FFFFFF;
-      padding: 20px;
-      border-left: 1px solid #00FFC8;
-      transition: right 0.3s ease;
-      z-index: 1105; /* navbar의 1100보다 높게 설정 */
-    }
-
-    #sidebar h5 {
-      color: #00FFC8;
-      font-size: 20px;
-      margin-top: 0;
-      margin-bottom: 20px;
-    }
-
-    #sidebar ul {
-      list-style: none;
-      padding-left: 0;
-    }
-
-    #sidebar a {
-      color: #00FFC8;
-      text-decoration: none;
-    }
-
-    #sidebar a:hover {
-      text-decoration: underline;
-    }
-
-    #overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 1049;
-    }
-  </style>
-</head>
-<body>
-  <div class="navbar">
-  <div>
-    <a href="{% url 'iotcore:dashboard' %}">Either One’s IoTCore</a>
-    {{ request.user.username }} (<a href="{% url 'iotcore:logout_view' %}">로그아웃</a>)
-  </div>
-  <button id="toggleSidebar">&#9776;</button>
-  </div>
-
-  <div class="title">작업을 선택해주세요</div>
-  <div class="button-box">
-    <form action="{% url 'iotcore:sequence_list' %}">
-      <button class="button">시퀀스 조작</button>
-    </form>
-    <form action="{% url 'iotcore:detail_list' %}">
-      <button class="button">세부 기기 조작</button>
-    </form>
-    <form action="{% url 'iotcore:schedule_list' %}">
-      <button class="button">예약 실행 관리</button>
-    </form>
-  </div>
-
-  {% include "sidebar.html" %}
-
-  <script>
-    const toggleSidebar = document.getElementById('toggleSidebar');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('overlay');
-    let isOpen = false;
-
-    function openSidebar() {
-      sidebar.style.right = '0';
-      overlay.style.display = 'block';
-      isOpen = true;
-      console.log('버튼 클릭됨')
-    }
-
-    function closeSidebar() {
-      sidebar.style.right = '-250px';
-      overlay.style.display = 'none';
-      isOpen = false;
-    }
-
-    toggleSidebar.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (isOpen) {
-        closeSidebar();
-      } else {
-        openSidebar();
-      }
-    });
-
-    overlay.addEventListener('click', closeSidebar);
-    // window.addEventListener('load', closeSidebar);
-  </script>
-</body>
-</html>
+    <section class="iot-dashboard-actions" aria-label="주요 기능">
+        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:device_control' %}">
+            <span class="iot-dashboard-action__icon">⌁</span>
+            <h2>기기 제어</h2>
+            <p>PC, 에어컨, 선풍기, 조명, 스피커 등 등록된 기기를 직접 조작합니다.</p>
+            <span>기기 제어 열기 →</span>
+        </a>
+        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:sequence_list' %}">
+            <span class="iot-dashboard-action__icon">▶</span>
+            <h2>시퀀스</h2>
+            <p>여러 기기 동작과 지연 시간을 하나의 순차 작업으로 구성하고 실행합니다.</p>
+            <span>시퀀스 관리 열기 →</span>
+        </a>
+        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:automation_list' %}">
+            <span class="iot-dashboard-action__icon">◴</span>
+            <h2>예약 실행</h2>
+            <p>예약 시간과 이벤트 트리거를 기반으로 기기 동작 또는 시퀀스를 실행합니다.</p>
+            <span>예약 실행 관리 열기 →</span>
+        </a>
+    </section>
+</div>
+{% endblock %}

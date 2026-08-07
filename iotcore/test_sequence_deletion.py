@@ -66,7 +66,7 @@ class SequenceDeletionTests(TestCase):
         self.assertEqual(pending_run.status, SequenceRun.Status.CANCELLED)
 
     def test_delete_referenced_by_automation_is_rejected_cleanly(self):
-        automation = Automation.objects.create(name="시퀀스 참조 자동화")
+        automation = Automation.objects.create(name="시퀀스 참조 예약 실행")
         AutomationAction.objects.create(
             automation=automation,
             order=1,

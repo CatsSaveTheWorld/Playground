@@ -1,0 +1,54 @@
+<aside class="iot-primary-nav" id="iotPrimaryNav" aria-label="IoTCore 주 메뉴">
+    <nav>
+        <p class="iot-nav-label">CONTROL</p>
+        <a
+            class="iot-nav-link {% if request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}"
+            href="{% url 'iotcore:dashboard' %}">
+            <span class="iot-nav-icon" aria-hidden="true">▦</span>
+            <span>대시보드</span>
+        </a>
+        <a
+            class="iot-nav-link {% if request.resolver_match.url_name == 'device_control' %}is-active{% endif %}"
+            href="{% url 'iotcore:device_control' %}">
+            <span class="iot-nav-icon" aria-hidden="true">⌁</span>
+            <span>기기 제어</span>
+        </a>
+        <a
+            class="iot-nav-link {% if request.resolver_match.url_name and 'sequence' in request.resolver_match.url_name %}is-active{% endif %}"
+            href="{% url 'iotcore:sequence_list' %}">
+            <span class="iot-nav-icon" aria-hidden="true">▶</span>
+            <span>시퀀스</span>
+        </a>
+        <a
+            class="iot-nav-link {% if request.resolver_match.url_name and 'automation' in request.resolver_match.url_name %}is-active{% endif %}"
+            href="{% url 'iotcore:automation_list' %}">
+            <span class="iot-nav-icon" aria-hidden="true">◴</span>
+            <span>예약 실행</span>
+        </a>
+
+        <p class="iot-nav-label">SYSTEM</p>
+        <a
+            class="iot-nav-link {% if request.resolver_match.url_name == 'execution_history' %}is-active{% endif %}"
+            href="{% url 'iotcore:execution_history' %}">
+            <span class="iot-nav-icon" aria-hidden="true">≡</span>
+            <span>실행 기록</span>
+        </a>
+        <a
+            class="iot-nav-link {% if request.resolver_match.url_name == 'settings' %}is-active{% endif %}"
+            href="{% url 'iotcore:settings' %}">
+            <span class="iot-nav-icon" aria-hidden="true">⚙</span>
+            <span>설정</span>
+        </a>
+        {% if request.user.is_staff %}
+        <a class="iot-nav-link" href="{% url 'admin:index' %}">
+            <span class="iot-nav-icon" aria-hidden="true">A</span>
+            <span>관리자</span>
+        </a>
+        {% endif %}
+    </nav>
+
+    <div class="iot-nav-footer">
+        <span>IoTCore Central Control</span>
+        <small>Ubuntu · Django · MQTT</small>
+    </div>
+</aside>

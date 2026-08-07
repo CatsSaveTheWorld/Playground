@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 # Create your views here.
 @login_required(login_url="common:login")
 def sequence_list(request):
-    sequences = sequences = (
+    sequences = (
         Sequence.objects
         .annotate(step_count=Count("steps"))
         .order_by("name")
@@ -131,8 +131,8 @@ def sequence_delete(request, sequence_id:int):
         names = ", ".join(automation_names)
         messages.error(
             request,
-            f'"{sequence_name}" 시퀀스를 사용하는 자동화 동작이 있어 삭제할 수 없습니다. '
-            f"먼저 자동화에서 해당 동작을 제거하세요. "
+            f'"{sequence_name}" 시퀀스를 사용하는 예약 실행 동작이 있어 삭제할 수 없습니다. '
+            f"먼저 예약 실행에서 해당 동작을 제거하세요. "
             f"({names}, 총 {blocking_action_count}개 동작)",
         )
         return redirect("iotcore:sequence_list")

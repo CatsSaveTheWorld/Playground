@@ -1,4 +1,5 @@
-from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
 from ...models import Controller, Device
 from django.conf import settings
 from ...device.repositories.device_repository import DeviceRepository
@@ -43,7 +44,8 @@ pc_path = os.path.join(DATA_DIR, 'Computers.csv').replace('\\', '/')
 #     )
 
 
-def detail_list(request):
+@login_required(login_url="common:login")
+def device_control(request):
     devices = list(DeviceRepository.get_all())
     controllers = Controller.objects.all()  # 모든 컨트롤러 조회
     playlists = []
@@ -85,4 +87,8 @@ def detail_list(request):
         "playlists": playlists,
         "playlists_error": playlists_error,
     }
-    return render(request, "iotcore/detail_list.html", context)
+    return render(request, "iotcore/device_control.html", context)
+
+
+# Legacy import compatibility. New code should use device_control.
+detail_list = device_control

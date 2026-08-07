@@ -54,7 +54,7 @@ class Command(BaseCommand):
                 )
                 if runs:
                     self.stdout.write(
-                        f"{message.topic}: {len(runs)}개 자동화 실행 요청 등록"
+                        f"{message.topic}: {len(runs)}개 예약 실행 요청 등록"
                     )
             except Exception as exc:
                 self.stderr.write(

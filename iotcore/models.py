@@ -129,8 +129,8 @@ class Automation(models.Model):
 
     class Meta:
         ordering = ["name"]
-        verbose_name = "자동화"
-        verbose_name_plural = "자동화"
+        verbose_name = "예약 실행"
+        verbose_name_plural = "예약 실행"
 
     def __str__(self):
         return self.name
@@ -335,7 +335,7 @@ class AutomationActionRun(models.Model):
 class SequenceRun(models.Model):
     class Trigger(models.TextChoices):
         MANUAL = "manual", "수동"
-        AUTOMATION = "automation", "자동화"
+        AUTOMATION = "automation", "예약 실행"
 
     class Status(models.TextChoices):
         PENDING = "pending", "대기"

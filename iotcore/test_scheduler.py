@@ -209,7 +209,7 @@ class AutomationOptionalFormSetTests(TestCase):
 class AutomationServiceTests(TestCase):
     def setUp(self):
         self.sequence = Sequence.objects.create(name="예약 시퀀스")
-        self.automation = Automation.objects.create(name="자동화")
+        self.automation = Automation.objects.create(name="예약 실행")
 
     def test_due_once_trigger_is_enqueued_and_disabled(self):
         now = timezone.now()
@@ -448,7 +448,7 @@ class AutomationExecutorTests(TestCase):
             protocol=Device.Protocol.ZIGBEE,
             location="방",
         )
-        self.automation = Automation.objects.create(name="개별 동작 자동화")
+        self.automation = Automation.objects.create(name="개별 동작 예약 실행")
         AutomationAction.objects.create(
             automation=self.automation,
             order=1,
@@ -490,7 +490,7 @@ class AutomationViewTests(TestCase):
     def test_create_saves_dynamically_added_trigger_and_action(self):
         device = Device.objects.create(
             device_uid="automation-light",
-            name="자동화 전등",
+            name="예약 실행 전등",
             device_type="light",
             protocol=Device.Protocol.ZIGBEE,
             location="거실",
@@ -498,7 +498,7 @@ class AutomationViewTests(TestCase):
         response = self.client.post(
             reverse("iotcore:schedule_create"),
             {
-                "name": "퇴근 자동화",
+                "name": "퇴근 예약 실행",
                 "enabled": "on",
                 "cooldown_seconds": "30",
                 "triggers-TOTAL_FORMS": "1",
@@ -527,7 +527,7 @@ class AutomationViewTests(TestCase):
         )
 
         self.assertRedirects(response, reverse("iotcore:schedule_list"))
-        automation = Automation.objects.get(name="퇴근 자동화")
+        automation = Automation.objects.get(name="퇴근 예약 실행")
         self.assertEqual(automation.triggers.count(), 1)
         self.assertEqual(automation.conditions.count(), 0)
         action = automation.actions.get()
@@ -579,7 +579,7 @@ class AutomationViewTests(TestCase):
         self.assertIsNotNone(trigger.next_run_at)
 
     def test_list_card_opens_edit_without_edit_button(self):
-        automation = Automation.objects.create(name="카드 자동화")
+        automation = Automation.objects.create(name="카드 예약 실행")
 
         response = self.client.get(reverse("iotcore:schedule_list"))
         edit_url = reverse(
@@ -594,7 +594,7 @@ class AutomationViewTests(TestCase):
 
     def test_toggle_recalculates_time_trigger(self):
         automation = Automation.objects.create(
-            name="아침 자동화",
+            name="아침 예약 실행",
             enabled=False,
         )
         trigger = AutomationTrigger.objects.create(

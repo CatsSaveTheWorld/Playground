@@ -1,0 +1,10 @@
+{% if messages %}
+<div class="iot-message-stack" aria-live="polite">
+    {% for message in messages %}
+    <div class="iot-message iot-message--{{ message.tags|default:'info' }}">
+        <span>{{ message }}</span>
+        <button type="button" aria-label="알림 닫기" onclick="this.parentElement.remove()">×</button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

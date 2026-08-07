@@ -1,0 +1,69 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>{% block title %}IoTCore{% endblock %} · Either One</title>
+    <link rel="stylesheet" href="{% static 'bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/iotcore-shell.css' %}">
+    <link rel="stylesheet" href="{% static 'css/iotcore-pages.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="iot-shell-body">
+    <header class="iot-topbar">
+        <div class="iot-topbar__left">
+            <button
+                type="button"
+                class="iot-icon-button iot-nav-toggle"
+                id="iotNavToggle"
+                aria-label="주 메뉴 열기"
+                aria-controls="iotPrimaryNav"
+                aria-expanded="false">☰</button>
+            <a class="iot-brand" href="{% url 'iotcore:dashboard' %}">
+                <span class="iot-brand__mark" aria-hidden="true">I</span>
+                <span>
+                    <strong>Either One’s IoTCore</strong>
+                    <small>Central Control System</small>
+                </span>
+            </a>
+        </div>
+
+        <div class="iot-topbar__right">
+            <span class="iot-system-indicator">
+                <i aria-hidden="true"></i> CONTROL PANEL
+            </span>
+            <button
+                type="button"
+                class="iot-icon-button iot-execution-toggle"
+                id="iotExecutionToggle"
+                aria-label="실행 현황 열기"
+                aria-controls="iotExecutionPanel"
+                aria-expanded="false">⇥</button>
+            {% if request.user.is_authenticated %}
+                <div class="iot-user-menu">
+                    <span>{{ request.user.username }}</span>
+                    <a href="{% url 'iotcore:logout_view' %}">로그아웃</a>
+                </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="iot-shell-layout">
+        {% include "iotcore/partials/left_navigation.html" %}
+
+        <main class="iot-main" id="iotMainContent">
+            {% include "iotcore/partials/messages.html" %}
+            {% block content %}{% endblock %}
+        </main>
+
+        {% include "iotcore/partials/execution_status_panel.html" %}
+    </div>
+
+    <div class="iot-shell-overlay" id="iotShellOverlay" hidden></div>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/iotcore-shell.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

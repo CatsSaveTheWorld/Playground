@@ -1,400 +1,391 @@
+{% extends "iotcore/base_iotcore.html" %}
 {% load duration %}
-
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>Either One's IoTCore</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚡%3C/text%3E%3C/svg%3E">
-    <style>
-        body {
-            font-family: sans-serif;
-            margin: 0;
-            background-color: #000000;
-            color: #FFFFFF;
-        }
-        .navbar {
-            background-color: #000000;
-            padding: 10px 20px;
-            font-size: 18px;
-            border-bottom: 1px solid #00FFC8;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: relative;
-            z-index: 1000;
-        }
-        .navbar a {
-            color: #00FFC8;
-            text-decoration: none;
-        }
-        .sequence-container{
-            width:900px;
-            margin:60px auto;
-        }
-        #toggleSidebar {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            width: 36px;
-            height: 36px;
-
-            font-size: 26px;
-            line-height: 1;
-
-            background: transparent;
-            border: none;
-
-            color: #00FFC8;
-            cursor: pointer;
-
-            padding: 0;
-        }
-        /* ===========================
-        Sequence Header
-        =========================== */
-
-        .sequence-header{
-            position: relative;
-
-            border:2px solid #00FFC8;
-            padding:20px;
-            margin-bottom:20px;
-
-            display:flex;
-            justify-content:space-between;
-            align-items:flex-end;
-        }
-        
-        .sequence-back-link{
-            position:absolute;
-            top:20px;
-            right:20px;
-
-            color:#00FFC8;
-            font-size:15px;
-
-            text-decoration:underline;
-            text-underline-offset:4px;
-
-            cursor:pointer;
-        }
-
-        .sequence-back-link:hover{
-            color:#FFFFFF;
-        }
-
-        .sequence-info{
-            flex:1;
-        }
-
-        .sequence-info h1{
-            margin:0;
-            font-size:48px;
-        }
-
-        .sequence-info p{
-            margin-top:20px;
-            margin-bottom:0;
-        }
-
-        .sequence-actions{
-            display:flex;
-            gap:10px;
-            align-items:center;
-        }
-
-        .sequence-actions form{
-            margin:0;
-        }
-
-        .sequence-actions button{
-            padding:8px 16px;
-            cursor:pointer;
-        }
-
-        .btn-run{
-            background:#198754;
-            color:white;
-            border:none;
-        }
-
-        .btn-run:hover{
-            background:#157347;
-        }
-
-        .btn-edit{
-            background:#495057;
-            color:white;
-            border:none;
-        }
-
-        .btn-edit:hover{
-            background:#495057;
-        }
-
-        .btn-delete{
-            background:#dc3545;
-            color:white;
-            border:none;
-        }
-
-        .btn-delete:hover{
-            background:#bb2d3b;
-        }
-
-        /* ===========================
-        Toolbar
-        =========================== */
-
-        .step-toolbar{
-
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-
-            margin-bottom:20px;
-        }
-
-        .step-toolbar-right{
-
-            display:flex;
-            gap:10px;
-        }
-
-        .step-toolbar button{
-
-            padding:8px 14px;
-            cursor:pointer;
-        }
-
-        /* ===========================
-        Step List
-        =========================== */
-
-        .step-list{
-
-            display:flex;
-            flex-direction:column;
-            gap:15px;
-        }
-
-        .step-card{
-
-            border:2px solid #00FFC8;
-            padding:20px;
-        }
-
-        .step-header{
-
-            display:flex;
-            align-items:center;
-            gap:10px;
-
-            margin-bottom:20px;
-        }
-
-        .step-order{
-
-            font-weight:bold;
-            font-size:20px;
-        }
-
-        .step-body{
-
-            display:flex;
-            gap:80px;
-        }
-
-        .step-body > div{
-
-            min-width:120px;
-        }
-
-        /* ===========================
-        Step Form
-        =========================== */
-
-        .step-form{
-
-            border:2px solid #00FFC8;
-            padding:20px;
-
-            margin-bottom:20px;
-        }
-
-        .form-row{
-
-            display:flex;
-            align-items:center;
-
-            margin-bottom:15px;
-        }
-
-        .form-row label{
-
-            width:120px;
-        }
-
-        .form-row select,
-        .form-row input{
-
-            flex:1;
-
-            padding:8px;
-
-            background:#111;
-
-            color:white;
-
-            border:1px solid #00FFC8;
-        }
-
-        .form-buttons{
-
-            display:flex;
-            justify-content:flex-end;
-            gap:10px;
-
-            margin-top:20px;
-        }
-
-        .delay-container {
-            display:flex;
-            align-items:center;
-            gap:8px;
-            flex:1;
-        }
-
-        .delay-container input {
-            flex:none;
-            width:60px;
-            text-align:center;
-        }
-
-        .delay-position{
-            display:flex;
-            align-items:center;
-            gap:20px;
-            margin-left:auto;
-        }
-
-        .form-row .delay-position > label{
-            width:fit-content;
-            display:flex;
-            align-items:center;
-            gap:4px;
-            margin:0;
-        }
-
-        .delay-position input[type="radio"]{
-            margin:0;
-        }
-
-        /* ===========================
-        Legacy
-        =========================== */
-
-        .bottom-toolbar{
-
-            display:none;
-        }
-    </style>
-</head>
-<body>
-    <div class="navbar">
+{% block title %}{{ sequence.name }}{% endblock %}
+{% block extra_css %}
+<style>
+.sequence-edit-content .iot-page-header {
+    align-items: flex-start;
+}
+
+.sequence-editor-header__tools {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    flex: 0 0 auto;
+}
+
+.sequence-back-link {
+    color: var(--iot-accent);
+    font-size: 12px;
+    text-decoration: none;
+}
+
+.sequence-back-link:hover {
+    color: #ffffff;
+}
+
+.sequence-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sequence-actions form {
+    margin: 0;
+}
+
+.sequence-actions .iot-button {
+    min-width: 76px;
+    min-height: 38px;
+}
+
+.sequence-container {
+    width: 100%;
+    margin: 0;
+}
+
+.step-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px 0;
+}
+
+.step-toolbar > label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--iot-text);
+    font-size: 12px;
+}
+
+.step-toolbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.step-toolbar button,
+.step-form button {
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--iot-accent);
+    border-radius: 0;
+    background: #000000;
+    color: var(--iot-accent);
+    cursor: pointer;
+}
+
+.step-toolbar button:hover,
+.step-form button:hover {
+    background: var(--iot-accent);
+    color: #000000;
+}
+
+.step-form {
+    margin-bottom: 18px;
+    padding: 20px;
+    border: 1px solid var(--iot-accent);
+    background: #000000;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.form-row > label {
+    width: 92px;
+    flex: 0 0 92px;
+    color: var(--iot-accent);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.form-row select,
+.form-row input {
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid var(--iot-border-soft);
+    border-radius: 0;
+    background: #000000;
+    color: var(--iot-text);
+}
+
+.form-row select {
+    flex: 1;
+}
+
+.form-row select:focus,
+.form-row input:focus {
+    outline: none;
+    border-color: var(--iot-accent);
+}
+
+.delay-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.delay-container input {
+    width: 58px;
+    flex: 0 0 58px;
+    text-align: center;
+}
+
+.delay-position {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-left: auto;
+}
+
+.form-row .delay-position > label {
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    color: var(--iot-muted);
+    font-size: 12px;
+}
+
+.delay-position input[type="radio"] {
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.form-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.step-card {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    min-height: 116px;
+    border: 1px solid var(--iot-accent);
+    background: #000000;
+}
+
+.step-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 12px;
+    border-right: 1px solid var(--iot-border-soft);
+}
+
+.step-order-label {
+    color: var(--iot-muted-2);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .15em;
+}
+
+.step-order {
+    color: var(--iot-accent);
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.step-body {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    min-width: 0;
+}
+
+.step-data {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 18px 24px;
+}
+
+.step-data + .step-data {
+    border-left: 1px solid var(--iot-border-soft);
+}
+
+.step-data__label {
+    color: var(--iot-accent);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .1em;
+}
+
+.step-data strong {
+    overflow-wrap: anywhere;
+    color: var(--iot-text);
+    font-size: 15px;
+    font-weight: 650;
+    line-height: 1.45;
+}
+
+.step-data__sub {
+    color: var(--iot-muted-2);
+    font-size: 10px;
+}
+
+.step-card--empty {
+    display: block;
+    min-height: 0;
+    padding: 28px;
+    color: var(--iot-muted);
+    text-align: center;
+}
+
+.bottom-toolbar {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .step-card {
+        grid-template-columns: 74px minmax(0, 1fr);
+    }
+
+    .step-body {
+        grid-template-columns: 1fr;
+    }
+
+    .step-data + .step-data {
+        border-left: 0;
+        border-top: 1px solid var(--iot-border-soft);
+    }
+}
+
+@media (max-width: 720px) {
+    .sequence-edit-content .iot-page-header {
+        align-items: stretch;
+    }
+
+    .sequence-editor-header__tools {
+        width: 100%;
+        align-items: stretch;
+    }
+
+    .sequence-back-link {
+        align-self: flex-end;
+    }
+
+    .sequence-actions {
+        width: 100%;
+    }
+
+    .sequence-actions form {
+        flex: 1;
+    }
+
+    .sequence-actions .iot-button {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .step-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .step-toolbar-right {
+        width: 100%;
+    }
+
+    .step-toolbar-right button {
+        flex: 1;
+    }
+
+    .form-row {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .form-row > label {
+        width: auto;
+        flex: none;
+    }
+
+    .delay-container {
+        flex-wrap: wrap;
+    }
+
+    .delay-position {
+        width: 100%;
+        margin: 4px 0 0;
+    }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="iot-page sequence-edit-content">
+    <header class="iot-page-header">
         <div>
-            <a href="{% url 'iotcore:dashboard' %}">Either One's IoTCore</a>
-            {{ request.user.username }} (<a href="{% url 'iotcore:logout_view' %}">로그아웃</a>)
+            <p class="iot-eyebrow">SEQUENCE EDITOR</p>
+            <h1>{{ sequence.name }}</h1>
+            <p>{{ sequence.description|default:"시퀀스 설명이 없습니다." }}</p>
         </div>
-        <button id="toggleSidebar">&#9776;</button>
-    </div>
-    <div class="sequence-container">
 
-        <!-- =========================
-            Sequence Header
-        ========================== -->
-        <div class="sequence-header">
-            <a
-                href="{% url 'iotcore:sequence_list' %}"
-                class="sequence-back-link"
-            >
-                ← 시퀀스 목록으로
-            </a>
-
-            <div class="sequence-info">
-
-                <h1>{{ sequence.name }}</h1>
-
-                <p>{{ sequence.description }}</p>
-
-            </div>
+        <div class="sequence-editor-header__tools">
+            <a href="{% url 'iotcore:sequence_list' %}" class="sequence-back-link">← 시퀀스 목록으로</a>
 
             <div class="sequence-actions">
-
-                <form method="post"
-                    action="{% url 'iotcore:sequence_run' sequence.id %}">
+                <form method="post" action="{% url 'iotcore:sequence_run' sequence.id %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn-run">
-                        실행
-                    </button>
+                    <button type="submit" class="iot-button iot-button--primary">실행</button>
                 </form>
 
-                <form method="get"
-                    action="{% url 'iotcore:sequence_update' sequence.id %}">
-                    <!-- {% csrf_token %} -->
-                    <button type="submit" class="btn-edit">
-                        시퀀스 편집
-                    </button>
+                <form method="get" action="{% url 'iotcore:sequence_update' sequence.id %}">
+                    <button type="submit" class="iot-button">편집</button>
                 </form>
 
-                <form method="post"
-                    action="{% url 'iotcore:sequence_delete' sequence.id %}">
+                <form method="post" action="{% url 'iotcore:sequence_delete' sequence.id %}">
                     {% csrf_token %}
                     <button
                         type="submit"
-                        class="btn-delete"
+                        class="iot-button iot-button--danger"
                         onclick="return confirm('정말 삭제하시겠습니까?');">
                         삭제
                     </button>
                 </form>
-
             </div>
-
         </div>
+    </header>
 
-        <!-- =========================
-            Toolbar
-        ========================== -->
-
+    <div class="sequence-container">
         <div class="step-toolbar">
-
             <label>
                 <input type="checkbox" id="checkAll">
                 전체 선택
             </label>
 
             <div class="step-toolbar-right">
-
-                <button type="button" id="btnAddStep">
-                    + Step 추가
-                </button>
-
-                <button type="button" id="btnDeleteStep">
-                    - Step 삭제
-                </button>
-
-                <button type="button">
-                    순서 편집
-                </button>
-
+                <button type="button" id="btnAddStep">+ Step 추가</button>
+                <button type="button" id="btnDeleteStep">- Step 삭제</button>
+                <button type="button">순서 편집</button>
             </div>
         </div>
-
-        <!-- =========================
-            Step Form
-        ========================== -->
 
         <form
             id="stepForm"
@@ -402,150 +393,83 @@
             action="{% url 'iotcore:sequence_step_create' sequence.id %}"
             method="post"
             style="display:none;">
-
             {% csrf_token %}
 
             <div class="form-row">
-
                 <label>장치</label>
-
-                <select
-                    id="device-select"
-                    name="device">
-
-                    <option value="">
-                        장치를 선택하세요.
-                    </option>
-
+                <select id="device-select" name="device">
+                    <option value="">장치를 선택하세요.</option>
                     {% for device in devices %}
-
-                    <option
-                        value="{{ device.id }}"
-                        data-device-type="{{ device.device_type }}">
-
-                        {{ device.name }}
-
-                    </option>
-
+                    <option value="{{ device.id }}" data-device-type="{{ device.device_type }}">{{ device.name }}</option>
                     {% endfor %}
-
                 </select>
-
             </div>
 
             <div class="form-row">
-
                 <label>동작</label>
-                <select
-                    id="function-select"
-                    name="function">
-
-                    <option value="">
-                        장치를 먼저 선택하세요.
-                    </option>
+                <select id="function-select" name="function">
+                    <option value="">장치를 먼저 선택하세요.</option>
                 </select>
-
             </div>
 
             <div class="form-row">
                 <label>지연 시간</label>
-
                 <div class="delay-container">
-                    {{ step_form.hour }}
-                    <span>시</span>
-
-                    {{ step_form.minute }}
-                    <span>분</span>
-
-                    {{ step_form.second }}
-                    <span>초</span>
+                    {{ step_form.hour }}<span>시</span>
+                    {{ step_form.minute }}<span>분</span>
+                    {{ step_form.second }}<span>초</span>
 
                     <div class="delay-position">
-                        <label>
-                            {{ step_form.delay_position.0.tag }} 동작 전
-                        </label>
-
-                        <label>
-                            {{ step_form.delay_position.1.tag }} 동작 후
-                        </label>
+                        <label>{{ step_form.delay_position.0.tag }} 동작 전</label>
+                        <label>{{ step_form.delay_position.1.tag }} 동작 후</label>
                     </div>
                 </div>
             </div>
 
             <div class="form-buttons">
-
-                <button type="button">
-
-                    취소
-
-                </button>
-
-                <button type="submit">
-
-                    추가
-
-                </button>
-
+                <button type="button">취소</button>
+                <button type="submit">추가</button>
             </div>
-
         </form>
 
         {{ device_actions|json_script:"device-actions" }}
 
-        <!-- =========================
-            Step List
-        ========================== -->
-
         <div class="step-list">
-
             {% for step in steps %}
-
             <div class="step-card">
-
                 <div class="step-header">
-
                     <input type="checkbox" class="step-checkbox" value="{{ step.id }}">
-
-                    <span class="step-order">
-
-                        {{ step.order }}
-
-                    </span>
-
+                    <span class="step-order-label">STEP</span>
+                    <span class="step-order">{{ step.order }}</span>
                 </div>
 
                 <div class="step-body">
-                    <div>
-                        <strong>장치</strong><br>
-                        {{ step.device.name }}
+                    <div class="step-data">
+                        <span class="step-data__label">장치</span>
+                        <strong>{{ step.device.name }}</strong>
                     </div>
 
-                    <div>
-                        <strong>동작</strong><br>
-                        {{ step.function_display }}
+                    <div class="step-data">
+                        <span class="step-data__label">동작</span>
+                        <strong>{{ step.function_display }}</strong>
                     </div>
 
-                    <div>
-                        <strong>지연</strong><br>
-                        {{ step.delay|duration }}
+                    <div class="step-data">
+                        <span class="step-data__label">지연</span>
+                        <strong>{{ step.delay|duration }}</strong>
+                        <span class="step-data__sub">
+                            {% if step.delay %}{{ step.get_delay_position_display }}{% else %}지연 없음{% endif %}
+                        </span>
                     </div>
                 </div>
             </div>
-
             {% empty %}
-
-            <div class="step-card">
-
-                등록된 Step이 없습니다.
-
-            </div>
-
+            <div class="step-card step-card--empty">등록된 Step이 없습니다.</div>
             {% endfor %}
-
         </div>
-
     </div>
-<div id="toast" style="
+
+    <div id="toast" style="
         display:none;
         position:fixed;
         top:30px;
@@ -554,17 +478,17 @@
         background-color:rgba(0,0,0,0.85);
         color:#fff;
         padding:10px 24px;
-        border-radius:8px;
+        border:1px solid #00FFC8;
+        border-radius:0;
         font-size:15px;
         z-index:2000;
         opacity:0;
         transition:opacity 0.3s ease;
     "></div>
+</div>
+{% endblock %}
+{% block extra_js %}<script>
 
-    {% include "sidebar.html" %}
-
-    
-<script>
     const btnAddStep = document.getElementById("btnAddStep");
     const btnDeleteStep = document.getElementById("btnDeleteStep");
     const stepForm = document.getElementById("stepForm");
@@ -665,7 +589,7 @@
             return;
         }
 
-        const actions = deviceActions[deviceType];
+        const actions = deviceActions[deviceType] || [];
 
         actions.forEach(function(action){
 
@@ -679,25 +603,6 @@
         });
 
     });
-    
-    // 사이드바 토글
-    const toggleSidebar = document.getElementById('toggleSidebar');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('overlay');
-    let isOpen = false;
-
-    function openSidebar() {
-        sidebar.style.right = '0';
-        overlay.style.display = 'block';
-        isOpen = true;
-    }
-
-    function closeSidebar() {
-        sidebar.style.right = '-250px';
-        overlay.style.display = 'none';
-        isOpen = false;
-    }
-
     function showToast(message) {
         const toast = document.getElementById("toast");
         toast.textContent = message;
@@ -714,17 +619,5 @@
         }, 1500);
     }
 
-    toggleSidebar.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (isOpen) {
-            closeSidebar();
-        } else {
-            openSidebar();
-        }
-    });
 
-    overlay.addEventListener('click', closeSidebar);
-</script>
-
-</body>
-</html>
+</script>{% endblock %}

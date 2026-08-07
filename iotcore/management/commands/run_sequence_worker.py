@@ -22,7 +22,7 @@ class Command(BaseCommand):
                 processed = AutomationExecutor.run_next_pending()
                 if processed is not None:
                     self.stdout.write(
-                        f"자동화 실행 #{processed.pk}: "
+                        f"예약 실행 #{processed.pk}: "
                         f"{processed.get_status_display()}"
                     )
                 else:
