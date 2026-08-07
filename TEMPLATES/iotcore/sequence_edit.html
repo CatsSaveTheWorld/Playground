@@ -336,6 +336,124 @@
         margin: 4px 0 0;
     }
 }
+
+
+/* Sequence Editor: mobile-only layout */
+@media (max-width: 720px) {
+    .sequence-edit-content,
+    .sequence-container,
+    .sequence-editor-header__tools,
+    .sequence-actions,
+    .step-toolbar,
+    .step-toolbar-right,
+    .step-form,
+    .form-row,
+    .delay-container,
+    .delay-position,
+    .step-list,
+    .step-card,
+    .step-body,
+    .step-data {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .sequence-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    .sequence-actions form,
+    .sequence-actions .iot-button {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .step-toolbar-right {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    .step-toolbar-right button {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .step-form {
+        padding: 14px;
+    }
+
+    .form-row select,
+    .form-row input {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .delay-container {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .delay-container input {
+        width: 100%;
+        min-width: 0;
+        flex: none;
+    }
+
+    .delay-position {
+        flex-wrap: wrap;
+        gap: 10px 16px;
+    }
+
+    .step-card {
+        display: block;
+        width: 100%;
+    }
+
+    .step-header {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+        border-right: 0;
+        border-bottom: 1px solid var(--iot-border-soft);
+    }
+
+    .step-order {
+        font-size: 19px;
+    }
+
+    .step-body {
+        display: block;
+        width: 100%;
+    }
+
+    .step-data {
+        width: 100%;
+        padding: 14px;
+    }
+
+    .step-data + .step-data {
+        border-left: 0;
+        border-top: 1px solid var(--iot-border-soft);
+    }
+}
+
+@media (max-width: 390px) {
+    .sequence-actions,
+    .step-toolbar-right,
+    .delay-container {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sequence-back-link {
+        align-self: flex-start;
+    }
+}
+
 </style>
 {% endblock %}
 {% block content %}

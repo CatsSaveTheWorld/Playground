@@ -59,3 +59,136 @@
     .iot-dashboard-grid, .iot-dashboard-actions { grid-template-columns: 1fr; }
     .iot-dashboard-action { min-height: 145px; }
 }
+
+
+/* IoTCore common mobile page layout */
+@media (max-width: 720px) {
+    .iot-dashboard-grid,
+    .iot-dashboard-actions,
+    .iot-card-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .iot-dashboard-grid,
+    .iot-dashboard-actions,
+    .iot-card-grid,
+    .iot-entity-card,
+    .iot-entity-card__top,
+    .iot-entity-card__top > *,
+    .iot-form-shell,
+    .iot-form-section,
+    .iot-child-card {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .iot-stat-card,
+    .iot-dashboard-action,
+    .iot-entity-card,
+    .iot-form-section,
+    .iot-child-card {
+        width: 100%;
+    }
+
+    .iot-stat-card,
+    .iot-dashboard-action {
+        padding: 16px;
+    }
+
+    .iot-dashboard-action {
+        min-height: 0;
+    }
+
+    .iot-dashboard-action h2 {
+        margin-top: 20px;
+    }
+
+    .iot-entity-card {
+        min-height: 0;
+        padding: 15px;
+    }
+
+    .iot-entity-card__top {
+        gap: 9px;
+    }
+
+    .iot-entity-card h2,
+    .iot-entity-card__description,
+    .iot-entity-card__meta,
+    .iot-status-toggle {
+        overflow-wrap: anywhere;
+    }
+
+    .iot-entity-card__description {
+        min-height: 0;
+    }
+
+    .iot-entity-card__actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    .iot-entity-card__actions form,
+    .iot-entity-card__actions .iot-button {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .iot-form-shell {
+        width: 100%;
+    }
+
+    .iot-form-section {
+        padding: 15px;
+    }
+
+    .iot-form-field,
+    .iot-form-field input,
+    .iot-form-field select,
+    .iot-form-field textarea,
+    .iot-form-shell input,
+    .iot-form-shell select,
+    .iot-form-shell textarea {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .iot-form-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .iot-form-actions .iot-button {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .iot-empty-panel {
+        padding: 36px 16px;
+    }
+
+    .iot-page-table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (max-width: 390px) {
+    .iot-entity-card__top {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .iot-status-toggle {
+        align-self: flex-start;
+    }
+
+    .iot-entity-card__actions,
+    .iot-form-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

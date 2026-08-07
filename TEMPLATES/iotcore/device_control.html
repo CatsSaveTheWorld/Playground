@@ -400,6 +400,133 @@
   .device-control-content .card { width: 100%; flex-basis: 100%; }
 }
 
+
+
+/* Device Control: mobile-only layout */
+@media (max-width: 720px) {
+    .device-control-content,
+    .device-control-content .detail-row,
+    .device-control-content .detail-section,
+    .device-control-content .card-box,
+    .device-control-content .room-card-box,
+    .device-control-content .card,
+    .device-control-content .speaker-card,
+    .device-control-content .dropdown-content,
+    .device-control-content .speaker-dropdown {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .device-control-content .detail-row {
+        display: block;
+        width: 100%;
+        padding: 0;
+    }
+
+    .device-control-content .detail-section {
+        width: 100%;
+        margin: 0 0 14px;
+        padding: 14px;
+    }
+
+    .device-control-content .card-box,
+    .device-control-content .room-card-box {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        width: 100%;
+        gap: 10px;
+    }
+
+    .device-control-content .card,
+    .device-control-content .speaker-card {
+        width: 100%;
+        flex: none;
+        margin: 0;
+    }
+
+    .device-control-content .dropdown-content {
+        width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .device-control-content .temp-setting-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        width: 100%;
+        gap: 7px;
+    }
+
+    .device-control-content .temp-setting-row input[type="number"] {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .device-control-content .temp-setting-row button {
+        min-width: 0;
+        padding-inline: 10px;
+    }
+
+    .device-control-content .speaker-card-header,
+    .device-control-content .speaker-card-summary,
+    .device-control-content .playlist-option,
+    .device-control-content .volume-control {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .device-control-content .speaker-card-header {
+        padding: 14px;
+    }
+
+    .device-control-content .speaker-dropdown {
+        margin: 0 14px 14px;
+    }
+
+    .device-control-content .speaker-card-device,
+    .device-control-content .playlist-option-name {
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .device-control-content .speaker-control-row,
+    .device-control-content .speaker-control-row.transport-controls,
+    .device-control-content .speaker-control-row.repeat-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .device-control-content .volume-control {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .device-control-content .volume-value {
+        display: none;
+    }
+}
+
+@media (max-width: 390px) {
+    .device-control-content .detail-section {
+        padding: 12px;
+    }
+
+    .device-control-content .temp-setting-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .device-control-content .temp-setting-row .temp-label {
+        grid-column: 1 / -1;
+    }
+
+    .device-control-content .speaker-control-row,
+    .device-control-content .speaker-control-row.repeat-controls {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .device-control-content .speaker-control-row.transport-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 </style>
 {% endblock %}
 {% block content %}

@@ -42,6 +42,106 @@
     filter: brightness(1.08);
 }
 
+
+
+/* Schedule Editor: mobile-only layout */
+@media (max-width: 720px) {
+    .automation-form-content,
+    .automation-form-content form,
+    .automation-form-content .section,
+    .automation-form-content .child-card,
+    .automation-form-content .child-card__header,
+    .automation-form-content .child-card__heading,
+    .automation-form-content .field,
+    .automation-form-content .time-fields,
+    .automation-form-content .event-fields,
+    .automation-form-content .condition-time,
+    .automation-form-content .condition-state,
+    .automation-form-content .device-action-fields,
+    .automation-form-content .sequence-action-fields {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .automation-form-content .section {
+        width: 100%;
+        padding: 14px;
+    }
+
+    .automation-form-content .child-card {
+        width: 100%;
+        padding: 14px;
+    }
+
+    .automation-form-content .child-card__header {
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .automation-form-content .child-card__heading strong,
+    .automation-form-content .section > p,
+    .automation-form-content .helptext,
+    .automation-form-content .errorlist {
+        overflow-wrap: anywhere;
+    }
+
+    .automation-form-content input[type=text],
+    .automation-form-content input[type=number],
+    .automation-form-content input[type=datetime-local],
+    .automation-form-content input[type=time],
+    .automation-form-content select,
+    .automation-form-content textarea {
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .automation-form-content .weekdays ul,
+    .automation-form-content ul[id$="weekdays"] {
+        gap: 8px 12px;
+        max-width: 100%;
+    }
+
+    .automation-form-content .remove-button {
+        min-width: 0;
+        max-width: 88px;
+        padding-inline: 11px;
+    }
+
+    .automation-form-content .form-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+    }
+
+    .automation-form-content .form-actions .button,
+    .automation-form-content > form > .section > .button {
+        min-width: 0;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 390px) {
+    .automation-form-content .child-card__header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .automation-form-content .remove-button {
+        width: 100%;
+        max-width: none;
+    }
+
+    .automation-form-content .form-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .automation-form-content > form > .section > .button {
+        width: 100%;
+    }
+}
+
 </style>
 {% endblock %}
 {% block content %}
