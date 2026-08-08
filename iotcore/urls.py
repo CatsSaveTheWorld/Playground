@@ -10,6 +10,7 @@ from iotcore.api.views import (
     electric_fan,
     main_led,
     pc,
+    projector,
     schedule,
     sequence,
     speaker,
@@ -37,6 +38,11 @@ urlpatterns = [
         name="dashboard_node_metrics",
     ),
     path("devices/", detail.device_control, name="device_control"),
+    path(
+        "devices/projector/<int:device_id>/",
+        projector.projector_control,
+        name="projector_control",
+    ),
     # Reverse-compatibility alias. Generated UI links use device_control.
     path("devices/", detail.device_control, name="detail_list"),
     path("sequences/", sequence.sequence_list, name="sequence_list"),
@@ -191,6 +197,12 @@ urlpatterns = [
     # ─────────────────────────────────────────────────────────────
     # Device control endpoints
     # ─────────────────────────────────────────────────────────────
+    path(
+        "projector/<int:device_id>/control/",
+        projector.projector_action,
+        name="projector_action",
+    ),
+
     path("aircon/power_on/", aircon.aircon_power_on, name="aircon_power_on"),
     path("aircon/power_off/", aircon.aircon_power_off, name="aircon_power_off"),
     path("aircon/set_temp/", aircon.aircon_set_temp, name="aircon_set_temp"),

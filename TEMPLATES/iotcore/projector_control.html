@@ -1,0 +1,364 @@
+{% extends "iotcore/base_iotcore.html" %}
+{% block title %}빔 프로젝터 제어{% endblock %}
+
+{% block extra_css %}
+<style>
+.projector-page {
+    max-width: 980px;
+    margin: 0 auto;
+}
+
+.projector-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 18px;
+    color: var(--iot-muted);
+    text-decoration: none;
+    font-size: 13px;
+}
+
+.projector-back-link:hover,
+.projector-back-link:focus-visible {
+    color: var(--iot-accent);
+    outline: none;
+}
+
+.projector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--iot-accent);
+}
+
+.projector-header h1 {
+    margin: 2px 0 6px;
+    color: var(--iot-text);
+    font-size: clamp(25px, 4vw, 36px);
+}
+
+.projector-header p {
+    margin: 0;
+}
+
+.projector-device-meta {
+    color: var(--iot-muted);
+    font-size: 13px;
+}
+
+.projector-controller-badge {
+    flex: 0 0 auto;
+    min-width: 190px;
+    padding: 11px 13px;
+    border: 1px solid var(--iot-border);
+    border-radius: 10px;
+    background: var(--iot-surface);
+    text-align: right;
+}
+
+.projector-controller-badge strong {
+    display: block;
+    color: var(--iot-accent);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+}
+
+.projector-controller-badge span {
+    display: block;
+    margin-top: 4px;
+    color: var(--iot-muted);
+    font-size: 12px;
+}
+
+.projector-panel {
+    width: min(100%, 520px);
+    margin: 34px auto 0;
+    padding: 24px;
+    border: 1px solid var(--iot-border);
+    border-radius: 18px;
+    background: #090d11;
+    box-shadow: 0 18px 55px rgba(0, 0, 0, 0.28);
+}
+
+.projector-panel-title {
+    margin-bottom: 22px;
+    color: var(--iot-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-align: center;
+}
+
+.projector-remote-row {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.projector-remote-row--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.projector-remote-row--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.projector-separator {
+    height: 1px;
+    margin: 20px 0;
+    background: var(--iot-border);
+}
+
+.projector-key {
+    min-width: 0;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid #2b3b40;
+    border-radius: 11px;
+    background: #0d1419;
+    color: var(--iot-text);
+    font-size: 13px;
+    font-weight: 750;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.08s ease;
+}
+
+.projector-key:hover,
+.projector-key:focus-visible {
+    border-color: var(--iot-accent);
+    background: #10231f;
+    color: var(--iot-accent);
+    outline: none;
+}
+
+.projector-key:active {
+    transform: translateY(1px);
+}
+
+.projector-key:disabled {
+    cursor: wait;
+    opacity: 0.5;
+}
+
+.projector-key--power {
+    border-color: #714045;
+}
+
+.projector-key--power:hover,
+.projector-key--power:focus-visible {
+    border-color: #ff7f88;
+    background: #2a1115;
+    color: #ff9aa1;
+}
+
+.projector-dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 72px);
+    grid-template-rows: repeat(3, 62px);
+    justify-content: center;
+    gap: 7px;
+    margin: 24px 0;
+}
+
+.projector-dpad .projector-key {
+    min-height: 0;
+    padding: 0;
+    font-size: 19px;
+}
+
+.projector-dpad .projector-key--ok {
+    border-color: var(--iot-accent);
+    border-radius: 50%;
+    color: var(--iot-accent);
+    font-size: 13px;
+}
+
+.projector-dpad__up { grid-column: 2; grid-row: 1; }
+.projector-dpad__left { grid-column: 1; grid-row: 2; }
+.projector-dpad__ok { grid-column: 2; grid-row: 2; }
+.projector-dpad__right { grid-column: 3; grid-row: 2; }
+.projector-dpad__down { grid-column: 2; grid-row: 3; }
+
+.projector-status {
+    min-height: 20px;
+    margin: 18px 0 0;
+    color: var(--iot-muted);
+    font-size: 12px;
+    text-align: center;
+}
+
+.projector-status.is-error {
+    color: #ff8a8a;
+}
+
+.projector-controller-footer {
+    margin-top: 28px;
+    padding-top: 14px;
+    border-top: 1px solid var(--iot-border);
+    color: var(--iot-muted);
+    font-size: 11px;
+    line-height: 1.7;
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    .projector-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .projector-controller-badge {
+        width: 100%;
+        text-align: left;
+    }
+
+    .projector-panel {
+        margin-top: 22px;
+        padding: 18px 14px;
+        border-radius: 14px;
+    }
+
+    .projector-remote-row--3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .projector-key {
+        padding-inline: 7px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 370px) {
+    .projector-dpad {
+        grid-template-columns: repeat(3, 64px);
+        grid-template-rows: repeat(3, 58px);
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="iot-page projector-page">
+    <a class="projector-back-link" href="{% url 'iotcore:device_control' %}">
+        <span aria-hidden="true">←</span> 기기 제어로
+    </a>
+
+    <header class="projector-header">
+        <div>
+            <p class="iot-eyebrow">PROJECTOR REMOTE</p>
+            <h1>{{ device.name }}</h1>
+            <p class="projector-device-meta">빔 프로젝터 · {{ device.location }}</p>
+        </div>
+        <div class="projector-controller-badge">
+            <strong>IR CONTROLLER</strong>
+            {% if controller %}
+                <span>{{ controller.name }} · {{ controller.ip_address }}</span>
+            {% else %}
+                <span>연결된 컨트롤러 없음</span>
+            {% endif %}
+        </div>
+    </header>
+
+    <section class="projector-panel" aria-label="빔 프로젝터 리모컨">
+        <div class="projector-panel-title">PROJECTOR CONTROL</div>
+
+        <div class="projector-remote-row projector-remote-row--2">
+            <button type="button" class="projector-key projector-key--power" data-motion="power">
+                ⏻ 전원
+            </button>
+            <button type="button" class="projector-key" data-motion="external_input">
+                External Input
+            </button>
+        </div>
+
+        <div class="projector-remote-row projector-remote-row--3">
+            <button type="button" class="projector-key" data-motion="home">HOME</button>
+            <button type="button" class="projector-key" data-motion="menu">MENU</button>
+            <button type="button" class="projector-key" data-motion="back">BACK</button>
+        </div>
+
+        <div class="projector-separator"></div>
+
+        <div class="projector-dpad" aria-label="방향 및 확인">
+            <button type="button" class="projector-key projector-dpad__up" data-motion="up" aria-label="위">▲</button>
+            <button type="button" class="projector-key projector-dpad__left" data-motion="left" aria-label="왼쪽">◀</button>
+            <button type="button" class="projector-key projector-key--ok projector-dpad__ok" data-motion="ok">OK</button>
+            <button type="button" class="projector-key projector-dpad__right" data-motion="right" aria-label="오른쪽">▶</button>
+            <button type="button" class="projector-key projector-dpad__down" data-motion="down" aria-label="아래">▼</button>
+        </div>
+
+        <div class="projector-separator"></div>
+
+        <div class="projector-remote-row projector-remote-row--3">
+            <button type="button" class="projector-key" data-motion="volume_down">VOL −</button>
+            <button type="button" class="projector-key" data-motion="mute">MUTE</button>
+            <button type="button" class="projector-key" data-motion="volume_up">VOL +</button>
+        </div>
+
+        <p class="projector-status" id="projectorStatus" aria-live="polite">
+            리모컨 버튼을 선택하세요.
+        </p>
+
+        <div class="projector-controller-footer">
+            NEC 32-bit IR · ESP32 HTTP Controller<br>
+            Mouse Mode 및 수동 포커스 기능은 제어 화면에서 제외됨
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const actionUrl = "{% url 'iotcore:projector_action' device.id %}";
+    const statusEl = document.getElementById('projectorStatus');
+
+    function setStatus(message, isError = false) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle('is-error', isError);
+    }
+
+    async function sendProjectorAction(button) {
+        const motion = button.dataset.motion;
+        if (!motion) return;
+
+        button.disabled = true;
+        setStatus('IR 신호를 전송하고 있습니다.');
+
+        try {
+            const response = await fetch(actionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ motion }),
+            });
+
+            let data = {};
+            try {
+                data = await response.json();
+            } catch (error) {
+                throw new Error('서버 응답을 확인할 수 없습니다.');
+            }
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || '프로젝터 제어에 실패했습니다.');
+            }
+
+            setStatus(data.message || 'IR 신호를 전송했습니다.');
+        } catch (error) {
+            setStatus(error.message || '프로젝터 제어 요청에 실패했습니다.', true);
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    document.querySelectorAll('.projector-key[data-motion]').forEach(button => {
+        button.addEventListener('click', () => sendProjectorAction(button));
+    });
+})();
+</script>
+{% endblock %}

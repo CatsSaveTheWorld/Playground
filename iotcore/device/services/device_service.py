@@ -29,6 +29,8 @@ class DeviceService:
             return DeviceService.execute_light(device.id, step.function)
         if device.device_type == "media_server":
             return DeviceService.execute_media_server(step)
+        if device.device_type == "projector":
+            return DeviceService.execute_projector(step)
         if device.device_type == "speaker":
             return DeviceService.execute_speaker(
                 device.id,
@@ -96,6 +98,18 @@ class DeviceService:
                 # print(f"[DEBUG] device.protocol : zigbee")
                 success, error_message = DeviceService.execute_light(
                     device_id=device_id,
+                    motion=motion,
+                )
+
+        elif device.device_type == 'projector':
+            if device.protocol == 'ir':
+                controller = ControllerRepository.get_controller_by_device(device_id)
+
+                if not controller:
+                    return False, "연결된 컨트롤러를 찾을 수 없습니다."
+
+                success, error_message = DeviceService.execute_projector_ir(
+                    controller_id=controller.id,
                     motion=motion,
                 )
 
@@ -190,6 +204,40 @@ class DeviceService:
             return False, message or "ESP32와 통신에 실패했습니다."
 
         return True, message or "정상적으로 제어되었습니다."
+
+
+    @staticmethod
+    def execute_projector(step):
+        """Sequence/Automation에서 프로젝터 IR 동작을 실행한다."""
+        return DeviceService.control(
+            device_id=step.device.id,
+            motion=step.function,
+        )
+
+    @staticmethod
+    def execute_projector_ir(controller_id, motion):
+        controller = ControllerRepository.get_controller(controller_id)
+
+        if not controller:
+            return False, "컨트롤러를 찾을 수 없습니다."
+
+        code = IRCodeRepository.get_projector_ir_code(
+            motion=motion,
+            bits=32,
+        )
+
+        if not code:
+            return False, f"'{motion}'에 대한 프로젝터 IR 코드가 없습니다."
+
+        success, message = IRClient.send_ir_request(
+            controller.ip_address,
+            code,
+        )
+
+        if not success:
+            return False, message or "프로젝터 ESP32와 통신에 실패했습니다."
+
+        return True, message or "프로젝터 제어 신호를 전송했습니다."
 
 
     @staticmethod

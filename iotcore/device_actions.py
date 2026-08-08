@@ -86,6 +86,22 @@ class DeviceActionRegistry:
             ),
         ],
 
+        "projector": [
+            DeviceAction(code="power", display_name="전원"),
+            DeviceAction(code="external_input", display_name="External Input"),
+            DeviceAction(code="home", display_name="홈"),
+            DeviceAction(code="menu", display_name="메뉴"),
+            DeviceAction(code="back", display_name="뒤로 가기"),
+            DeviceAction(code="up", display_name="위"),
+            DeviceAction(code="down", display_name="아래"),
+            DeviceAction(code="left", display_name="왼쪽"),
+            DeviceAction(code="right", display_name="오른쪽"),
+            DeviceAction(code="ok", display_name="확인"),
+            DeviceAction(code="volume_down", display_name="음량 내리기"),
+            DeviceAction(code="mute", display_name="음소거"),
+            DeviceAction(code="volume_up", display_name="음량 올리기"),
+        ],
+
         "speaker": [
             DeviceAction(
                 code="play_playlist",

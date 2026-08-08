@@ -396,6 +396,35 @@
 .device-control-content .dropdown-content { border: 1px solid var(--iot-border); border-radius: 9px; background: var(--iot-surface); }
 .device-control-content .dropdown-content button { color: var(--iot-text); }
 .device-control-content .speaker-card { width: 100%; flex-basis: 100%; }
+.device-control-content .projector-launch-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    color: var(--iot-text);
+    text-decoration: none;
+}
+.device-control-content .projector-launch-card:hover,
+.device-control-content .projector-launch-card:focus-visible {
+    color: var(--iot-text);
+    border-color: var(--iot-accent);
+    background: var(--iot-surface-2);
+    outline: none;
+}
+.device-control-content .projector-launch-card__eyebrow {
+    color: var(--iot-accent);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+}
+.device-control-content .projector-launch-card__name {
+    font-size: 15px;
+    font-weight: 750;
+}
+.device-control-content .projector-launch-card__meta {
+    color: var(--iot-muted);
+    font-size: 12px;
+}
 @media (max-width: 720px) {
   .device-control-content .card { width: 100%; flex-basis: 100%; }
 }
@@ -682,6 +711,16 @@
                                 </button>
                             </div>
                         </div>
+                    {% endif %}
+                {% endfor %}
+                {% for device in devices %}
+                    {% if device.device_type == "projector" %}
+                        <a class="card projector-launch-card"
+                           href="{% url 'iotcore:projector_control' device.id %}">
+                            <span class="projector-launch-card__eyebrow">PROJECTOR</span>
+                            <span class="projector-launch-card__name">빔 프로젝터 제어</span>
+                            <span class="projector-launch-card__meta">{{ device.name }} · {{ device.location }}</span>
+                        </a>
                     {% endif %}
                 {% endfor %}
                 {% for device in devices %}
