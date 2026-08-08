@@ -35,9 +35,16 @@ class Command(BaseCommand):
                     payload = json.loads(decoded)
                 except json.JSONDecodeError:
                     payload = {"value": decoded}
+
                 if not isinstance(payload, dict):
                     payload = {"value": payload}
+
                 close_old_connections()
+
+                # Zigbee2MQTT 자체 관리/메타데이터는 DeviceState에 저장하지 않는다.
+                if message.topic.startswith("zigbee2mqtt/bridge/"):
+                    return
+
                 if message.retain:
                     AutomationService.update_device_state(
                         message.topic,
@@ -56,13 +63,15 @@ class Command(BaseCommand):
                     self.stdout.write(
                         f"{message.topic}: {len(runs)}개 예약 실행 요청 등록"
                     )
+
             except Exception as exc:
                 self.stderr.write(
-                    f"{message.topic} 이벤트 처리 실패: {type(exc).__name__}: {exc}"
+                    f"{message.topic} 이벤트 처리 실패: "
+                    f"{type(exc).__name__}: {exc}"
                 )
             finally:
                 close_old_connections()
-
+                
         client.on_connect = on_connect
         client.on_message = on_message
         client.connect(settings.MQTT_HOST, settings.MQTT_PORT, 60)
