@@ -1,0 +1,120 @@
+{% extends "iotcore/base_iotcore.html" %}
+{% block title %}대시보드{% endblock %}
+{% block content %}
+<div class="iot-page">
+    <header class="iot-page-header">
+        <div>
+            <p class="iot-eyebrow">DASHBOARD</p>
+            <h1>IoTCore 대시보드</h1>
+            <p>기기 제어, 시퀀스, 예약 실행 관리 화면으로 이동할 수 있는 통합 시작 화면입니다.</p>
+        </div>
+    </header>
+
+    <section class="iot-dashboard-grid" aria-label="IoTCore 요약">
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">REGISTERED DEVICES</span>
+            <strong class="iot-stat-card__value">{{ device_count }}</strong>
+            <p class="iot-stat-card__meta">등록된 제어 대상</p>
+        </article>
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">SEQUENCES</span>
+            <strong class="iot-stat-card__value">{{ sequence_count }}</strong>
+            <p class="iot-stat-card__meta">저장된 시퀀스</p>
+        </article>
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">SCHEDULES</span>
+            <strong class="iot-stat-card__value">{{ enabled_automation_count }} / {{ automation_count }}</strong>
+            <p class="iot-stat-card__meta">활성 / 전체 예약 실행</p>
+        </article>
+    </section>
+    <section class="iot-dashboard-grid" aria-label="실내 환경">
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">TEMPERATURE</span>
+
+            <strong class="iot-stat-card__value">
+                {% if environment and environment.temperature %}
+                    {{ environment.temperature.value|floatformat:1 }} °C
+                {% else %}
+                    --
+                {% endif %}
+            </strong>
+
+            <p class="iot-stat-card__meta">
+                {% if environment %}
+                    {{ environment.device.location }} 온도
+                {% else %}
+                    센서 데이터 없음
+                {% endif %}
+            </p>
+        </article>
+
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">HUMIDITY</span>
+
+            <strong class="iot-stat-card__value">
+                {% if environment and environment.humidity %}
+                    {{ environment.humidity.value|floatformat:1 }} %
+                {% else %}
+                    --
+                {% endif %}
+            </strong>
+
+            <p class="iot-stat-card__meta">상대 습도</p>
+        </article>
+
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">PRESSURE</span>
+
+            <strong class="iot-stat-card__value">
+                {% if environment and environment.pressure %}
+                    {{ environment.pressure.value|floatformat:1 }}
+                {% else %}
+                    --
+                {% endif %}
+            </strong>
+
+            <p class="iot-stat-card__meta">hPa</p>
+        </article>
+
+        <article class="iot-panel iot-stat-card">
+            <span class="iot-stat-card__label">SENSOR STATUS</span>
+
+            <strong class="iot-stat-card__value">
+                {% if environment and environment.battery %}
+                    {{ environment.battery.value }} %
+                {% else %}
+                    --
+                {% endif %}
+            </strong>
+
+            <p class="iot-stat-card__meta">
+                {% if environment and environment.linkquality %}
+                    배터리 · Link {{ environment.linkquality.value }}
+                {% else %}
+                    센서 상태
+                {% endif %}
+            </p>
+        </article>
+    </section>
+    <section class="iot-dashboard-actions" aria-label="주요 기능">
+        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:device_control' %}">
+            <span class="iot-dashboard-action__icon">⌁</span>
+            <h2>기기 제어</h2>
+            <p>PC, 에어컨, 선풍기, 조명, 스피커 등 등록된 기기를 직접 조작합니다.</p>
+            <span>기기 제어 열기 →</span>
+        </a>
+        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:sequence_list' %}">
+            <span class="iot-dashboard-action__icon">▶</span>
+            <h2>시퀀스</h2>
+            <p>여러 기기 동작과 지연 시간을 하나의 순차 작업으로 구성하고 실행합니다.</p>
+            <span>시퀀스 관리 열기 →</span>
+        </a>
+        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:automation_list' %}">
+            <span class="iot-dashboard-action__icon">◴</span>
+            <h2>예약 실행</h2>
+            <p>예약 시간과 이벤트 트리거를 기반으로 기기 동작 또는 시퀀스를 실행합니다.</p>
+            <span>예약 실행 관리 열기 →</span>
+        </a>
+    </section>
+</div>
+{% endblock %}

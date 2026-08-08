@@ -1,3 +1,7 @@
 user iotcore-pi5
 topic read iotcore/agents/pi5/commands
 topic write iotcore/agents/pi5/results/#
+topic write iotcore/nodes/pi5/telemetry
+
+user iotcore-ai-pc
+topic write iotcore/nodes/home-ai-main/telemetry

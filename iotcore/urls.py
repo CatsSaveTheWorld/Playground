@@ -31,6 +31,11 @@ urlpatterns = [
     path("login/", base.login_view, name="login_view"),
     path("logout/", base.logout_view, name="logout_view"),
     path("dashboard/", base.dashboard, name="dashboard"),
+    path(
+        "dashboard/node-metrics/",
+        base.dashboard_node_metrics,
+        name="dashboard_node_metrics",
+    ),
     path("devices/", detail.device_control, name="device_control"),
     # Reverse-compatibility alias. Generated UI links use device_control.
     path("devices/", detail.device_control, name="detail_list"),

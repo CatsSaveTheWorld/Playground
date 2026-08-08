@@ -1,0 +1,10 @@
+[Unit]
+Description=IoTCore node metric retention cleanup
+After=mysql.service
+
+[Service]
+Type=oneshot
+User=leedowon
+Group=leedowon
+WorkingDirectory=/home/leedowon/Playground
+ExecStart=/home/leedowon/Playground/venv/bin/python manage.py purge_node_metrics --hours 24 --settings=playground.settings_mysql

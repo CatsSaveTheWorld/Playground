@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
+from ...monitoring.service import NodeTelemetryService
 from ...scheduler.service import AutomationService
 
 
@@ -43,6 +44,17 @@ class Command(BaseCommand):
 
                 # Zigbee2MQTT 자체 관리/메타데이터는 DeviceState에 저장하지 않는다.
                 if message.topic.startswith("zigbee2mqtt/bridge/"):
+                    return
+
+                # 1초 단위 시스템 telemetry는 범용 DeviceState/예약 실행 경로를
+                # 거치지 않고 전용 시계열 테이블에 한 행으로 저장한다.
+                if NodeTelemetryService.is_telemetry_topic(message.topic):
+                    # retained telemetry는 오래된 값을 새 샘플처럼 재삽입할 수 있으므로 무시한다.
+                    if not message.retain:
+                        NodeTelemetryService.record_sample(
+                            message.topic,
+                            payload,
+                        )
                     return
 
                 if message.retain:

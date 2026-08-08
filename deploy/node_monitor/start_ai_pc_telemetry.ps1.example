@@ -1,0 +1,12 @@
+$env:IOTCORE_MQTT_HOST = "192.168.0.8"
+$env:IOTCORE_MQTT_PORT = "1884"
+$env:IOTCORE_MQTT_USERNAME = "iotcore-ai-pc"
+$env:IOTCORE_MQTT_PASSWORD_FILE = "C:\IoTCore\node-telemetry\mqtt-password"
+$env:IOTCORE_NODE_UID = "home-ai-main"
+$env:IOTCORE_TELEMETRY_INTERVAL = "1"
+$env:IOTCORE_STORAGE_PATH = "C:\"
+# Optional: use a specific adapter name such as "Ethernet 2".
+$env:IOTCORE_NETWORK_INTERFACE = ""
+
+& "C:\IoTCore\node-telemetry\venv\Scripts\python.exe" `
+  "C:\IoTCore\node-telemetry\node_telemetry_agent.py"

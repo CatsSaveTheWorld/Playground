@@ -9,6 +9,7 @@ from .models import (
     Controller,
     Device,
     DeviceState,
+    NodeMetricSample,
     Sequence,
     SequenceRun,
     SequenceStep,
@@ -26,5 +27,6 @@ admin.site.register(AutomationActionRun)
 admin.site.register(AutomationTrigger)
 admin.site.register(AutomationCondition)
 admin.site.register(DeviceState)
+admin.site.register(NodeMetricSample)
 admin.site.register(SequenceRun)
 admin.site.register(SequenceStepRun)

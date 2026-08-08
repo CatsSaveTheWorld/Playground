@@ -257,6 +257,39 @@ class DeviceState(models.Model):
         return f"{self.topic}: {self.key}={self.value}"
 
 
+class NodeMetricSample(models.Model):
+    """One point-in-time performance sample for a monitored PC/node."""
+
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE,
+        related_name="metric_samples",
+    )
+    cpu_percent = models.FloatField()
+    memory_percent = models.FloatField()
+    download_mbps = models.FloatField()
+    upload_mbps = models.FloatField()
+    storage_percent = models.FloatField(blank=True, null=True)
+    storage_used_gb = models.FloatField(blank=True, null=True)
+    storage_total_gb = models.FloatField(blank=True, null=True)
+    recorded_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+        indexes = [
+            models.Index(
+                fields=["device", "-recorded_at"],
+                name="iotcore_node_device_time_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.device.device_uid} "
+            f"CPU {self.cpu_percent:.1f}% @ {self.recorded_at}"
+        )
+
+
 
 
 class AutomationRun(models.Model):

@@ -1,4 +1,5 @@
 {% extends "iotcore/base_iotcore.html" %}
+{% load static %}
 {% block title %}대시보드{% endblock %}
 {% block content %}
 <div class="iot-page">
@@ -6,47 +7,883 @@
         <div>
             <p class="iot-eyebrow">DASHBOARD</p>
             <h1>IoTCore 대시보드</h1>
-            <p>기기 제어, 시퀀스, 예약 실행 관리 화면으로 이동할 수 있는 통합 시작 화면입니다.</p>
+            <p>내 방의 현재 상태를 확인하고 주요 제어 화면으로 이동합니다.</p>
         </div>
     </header>
 
-    <section class="iot-dashboard-grid" aria-label="IoTCore 요약">
-        <article class="iot-panel iot-stat-card">
-            <span class="iot-stat-card__label">REGISTERED DEVICES</span>
-            <strong class="iot-stat-card__value">{{ device_count }}</strong>
-            <p class="iot-stat-card__meta">등록된 제어 대상</p>
-        </article>
-        <article class="iot-panel iot-stat-card">
-            <span class="iot-stat-card__label">SEQUENCES</span>
-            <strong class="iot-stat-card__value">{{ sequence_count }}</strong>
-            <p class="iot-stat-card__meta">저장된 시퀀스</p>
-        </article>
-        <article class="iot-panel iot-stat-card">
-            <span class="iot-stat-card__label">SCHEDULES</span>
-            <strong class="iot-stat-card__value">{{ enabled_automation_count }} / {{ automation_count }}</strong>
-            <p class="iot-stat-card__meta">활성 / 전체 예약 실행</p>
-        </article>
+    <section class="iot-dashboard-section iot-room-section" aria-label="내 방 현황">
+        <div class="iot-dashboard-section__heading">
+            <div>
+                <p class="iot-eyebrow">ROOM STATUS</p>
+                <h2>내 방 현황</h2>
+            </div>
+        </div>
+
+        <div class="iot-room-grid">
+            <article class="iot-panel iot-status-card iot-status-card--environment">
+                <div class="iot-status-card__head">
+                    <div>
+                        <span class="iot-status-card__kicker">ROOM ENVIRONMENT</span>
+                        <h3>실내 환경</h3>
+                    </div>
+                    {% if environment and environment.updated_at %}
+                        <span class="iot-status-card__subtle">
+                            {{ environment.updated_at|date:"H:i" }} 갱신
+                        </span>
+                    {% endif %}
+                </div>
+
+                <div class="iot-environment-metrics">
+                    <div class="iot-primary-metric">
+                        <div class="iot-primary-metric__line">
+                            <strong>
+                                {% if environment %}
+                                    {% if environment.temperature != None %}
+                                        {{ environment.temperature|floatformat:1 }}
+                                    {% else %}
+                                        --
+                                    {% endif %}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </strong>
+                            <span>°C</span>
+                        </div>
+                        <small>온도</small>
+                    </div>
+
+                    <div class="iot-primary-metric">
+                        <div class="iot-primary-metric__line">
+                            <strong>
+                                {% if environment %}
+                                    {% if environment.humidity != None %}
+                                        {{ environment.humidity|floatformat:1 }}
+                                    {% else %}
+                                        --
+                                    {% endif %}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </strong>
+                            <span>%</span>
+                        </div>
+                        <small>습도</small>
+                    </div>
+                </div>
+
+                <div class="iot-status-card__details">
+                    <span>
+                        기압
+                        <strong>
+                            {% if environment %}
+                                {% if environment.pressure != None %}
+                                    {{ environment.pressure|floatformat:1 }} hPa
+                                {% else %}
+                                    --
+                                {% endif %}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </strong>
+                    </span>
+                    <span>
+                        배터리
+                        <strong>
+                            {% if environment %}
+                                {% if environment.battery != None %}
+                                    {{ environment.battery }}%
+                                {% else %}
+                                    --
+                                {% endif %}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </strong>
+                    </span>
+                </div>
+            </article>
+
+            {% if entry_status and entry_status.video_url %}
+            <a class="iot-panel iot-status-card iot-status-card--entry iot-status-card--link"
+               href="{{ entry_status.video_url }}">
+            {% else %}
+            <article class="iot-panel iot-status-card iot-status-card--entry">
+            {% endif %}
+                <div class="iot-status-card__head">
+                    <div>
+                        <span class="iot-status-card__kicker">ROOM ENTRY</span>
+                        <h3>출입 현황</h3>
+                    </div>
+                    <span class="iot-status-card__subtle">
+                        {% if entry_status and entry_status.current_state %}
+                            {{ entry_status.current_state }}
+                        {% else %}
+                            연동 예정
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="iot-entry-metrics">
+                    <div>
+                        <strong>
+                            {% if entry_status and entry_status.open_count != None %}
+                                {{ entry_status.open_count }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </strong>
+                        <small>오늘 열림</small>
+                    </div>
+                    <div>
+                        <strong>
+                            {% if entry_status and entry_status.attempt_count != None %}
+                                {{ entry_status.attempt_count }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </strong>
+                        <small>열림 시도</small>
+                    </div>
+                </div>
+
+                <div class="iot-status-card__details">
+                    <span>
+                        마지막 이벤트
+                        <strong>
+                            {% if entry_status and entry_status.last_event_at %}
+                                {{ entry_status.last_event_at|date:"H:i" }}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </strong>
+                    </span>
+                    <span>
+                        {% if entry_status and entry_status.video_url %}
+                            영상 확인 →
+                        {% else %}
+                            ONVIF 연동 예정
+                        {% endif %}
+                    </span>
+                </div>
+            {% if entry_status and entry_status.video_url %}
+            </a>
+            {% else %}
+            </article>
+            {% endif %}
+
+            <article class="iot-panel iot-status-card iot-status-card--weather">
+                <div class="iot-status-card__head">
+                    <div>
+                        <span class="iot-status-card__kicker">OUTDOOR WEATHER</span>
+                        <h3>현재 날씨</h3>
+                    </div>
+                    {% if weather and weather.updated_at %}
+                        <span class="iot-status-card__subtle">
+                            {{ weather.updated_at|date:"H:i" }} 갱신
+                        </span>
+                    {% endif %}
+                </div>
+
+                <div class="iot-weather-row">
+                    <div class="iot-weather-current">
+                        <strong>
+                            {% if weather %}
+                                {% if weather.temperature != None %}
+                                    {{ weather.temperature|floatformat:1 }}°C
+                                {% else %}
+                                    --
+                                {% endif %}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </strong>
+                        <span>
+                            {% if weather and weather.condition %}
+                                {{ weather.condition }}
+                            {% else %}
+                                날씨 연동 예정
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <div class="iot-weather-metric">
+                        <span>강수 확률</span>
+                        <strong>
+                            {% if weather %}
+                                {% if weather.precipitation_probability != None %}
+                                    {{ weather.precipitation_probability }}%
+                                {% else %}
+                                    --
+                                {% endif %}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </strong>
+                    </div>
+
+                    <div class="iot-weather-metric">
+                        <span>최고 / 최저</span>
+                        <strong>
+                            {% if weather %}
+                                {% if weather.high != None and weather.low != None %}
+                                    {{ weather.high|floatformat:0 }}° / {{ weather.low|floatformat:0 }}°
+                                {% else %}
+                                    --
+                                {% endif %}
+                            {% else %}
+                                --
+                            {% endif %}
+                        </strong>
+                    </div>
+                </div>
+            </article>
+        </div>
     </section>
 
-    <section class="iot-dashboard-actions" aria-label="주요 기능">
-        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:device_control' %}">
-            <span class="iot-dashboard-action__icon">⌁</span>
-            <h2>기기 제어</h2>
-            <p>PC, 에어컨, 선풍기, 조명, 스피커 등 등록된 기기를 직접 조작합니다.</p>
-            <span>기기 제어 열기 →</span>
-        </a>
-        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:sequence_list' %}">
-            <span class="iot-dashboard-action__icon">▶</span>
-            <h2>시퀀스</h2>
-            <p>여러 기기 동작과 지연 시간을 하나의 순차 작업으로 구성하고 실행합니다.</p>
-            <span>시퀀스 관리 열기 →</span>
-        </a>
-        <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:automation_list' %}">
-            <span class="iot-dashboard-action__icon">◴</span>
-            <h2>예약 실행</h2>
-            <p>예약 시간과 이벤트 트리거를 기반으로 기기 동작 또는 시퀀스를 실행합니다.</p>
-            <span>예약 실행 관리 열기 →</span>
-        </a>
+
+
+    <section class="iot-dashboard-section iot-system-section" aria-label="시스템 현황">
+        <div class="iot-dashboard-section__heading">
+            <div>
+                <p class="iot-eyebrow">SYSTEM STATUS</p>
+                <h2>시스템 모니터링</h2>
+            </div>
+        </div>
+
+        <div class="iot-system-grid">
+            {% include "iotcore/partials/node_monitor_card.html" with node=ai_node eyebrow="AI INFERENCE" title="AI 추론 PC" monitor_link=ai_control_url %}
+            {% include "iotcore/partials/node_monitor_card.html" with node=pi5_node eyebrow="MEDIA NODE" title="Raspberry Pi 5" %}
+        </div>
+    </section>
+
+    <section class="iot-dashboard-section iot-dashboard-shortcuts" aria-label="주요 기능">
+        <div class="iot-dashboard-section__heading">
+            <div>
+                <p class="iot-eyebrow">QUICK ACCESS</p>
+                <h2>주요 기능</h2>
+            </div>
+        </div>
+
+        <div class="iot-dashboard-actions">
+            <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:device_control' %}">
+                <span class="iot-dashboard-action__icon">⌁</span>
+                <h2>기기 제어</h2>
+                <p>PC, 에어컨, 선풍기, 조명, 스피커 등 등록된 기기를 직접 조작합니다.</p>
+                <span>기기 제어 열기 →</span>
+            </a>
+
+            <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:sequence_list' %}">
+                <span class="iot-dashboard-action__icon">▶</span>
+                <h2>시퀀스</h2>
+                <p>여러 기기 동작과 지연 시간을 하나의 순차 작업으로 구성하고 실행합니다.</p>
+                <span>시퀀스 관리 열기 →</span>
+            </a>
+
+            <a class="iot-panel iot-dashboard-action" href="{% url 'iotcore:automation_list' %}">
+                <span class="iot-dashboard-action__icon">◴</span>
+                <h2>예약 실행</h2>
+                <p>예약 시간과 이벤트 트리거를 기반으로 기기 동작 또는 시퀀스를 실행합니다.</p>
+                <span>예약 실행 관리 열기 →</span>
+            </a>
+        </div>
     </section>
 </div>
+
+<style>
+.iot-dashboard-section {
+    margin: 24px 0 16px;
+    padding-top: 18px;
+    border-top: 1px solid var(--iot-accent, #00e6b8);
+}
+
+/* 첫 번째 섹션(내 방 현황)은 페이지 헤더의 기존 구분선을 사용 */
+.iot-room-section {
+    margin-top: 20px;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.iot-dashboard-section__heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.iot-dashboard-section__heading .iot-eyebrow {
+    margin: 0 0 5px;
+}
+
+.iot-dashboard-section__heading h2 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.25;
+    font-weight: 700;
+}
+
+.iot-room-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.iot-status-card {
+    min-width: 0;
+    min-height: 174px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
+}
+
+.iot-status-card--weather {
+    grid-column: 1 / -1;
+    min-height: 118px;
+}
+
+.iot-status-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.iot-status-card__kicker {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: .12em;
+    opacity: .68;
+}
+
+.iot-status-card h3 {
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.25;
+    font-weight: 700;
+    color: var(--iot-accent, #00e6b8);
+}
+
+.iot-status-card__subtle {
+    padding-top: 2px;
+    font-size: 11px;
+    opacity: .68;
+    white-space: nowrap;
+}
+
+.iot-environment-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+    margin-bottom: auto;
+}
+
+.iot-primary-metric__line {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+}
+
+.iot-primary-metric__line strong {
+    font-size: 34px;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--iot-accent, #00e6b8);
+}
+
+.iot-primary-metric__line span {
+    font-size: 14px;
+    opacity: .75;
+}
+
+.iot-primary-metric small,
+.iot-entry-metrics small {
+    display: block;
+    margin-top: 7px;
+    font-size: 11px;
+    opacity: .64;
+}
+
+.iot-status-card__details {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,.09);
+    font-size: 11px;
+    opacity: .72;
+}
+
+.iot-status-card__details strong {
+    margin-left: 6px;
+    font-weight: 600;
+    opacity: 1;
+}
+
+.iot-status-indicator {
+    width: 8px;
+    height: 8px;
+    margin-top: 4px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    opacity: .45;
+}
+
+.iot-status-indicator.is-on {
+    background: var(--iot-accent, #00e6b8);
+    border-color: var(--iot-accent, #00e6b8);
+    box-shadow: 0 0 9px var(--iot-accent, #00e6b8);
+    opacity: 1;
+}
+
+.iot-ai-state {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-bottom: auto;
+}
+
+.iot-ai-state strong {
+    font-size: 28px;
+    line-height: 1;
+    color: var(--iot-accent, #00e6b8);
+}
+
+.iot-ai-state span,
+.iot-status-card__bottom {
+    font-size: 11px;
+    opacity: .68;
+}
+
+.iot-status-card__bottom {
+    margin-top: 16px;
+}
+
+.iot-entry-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    margin-bottom: auto;
+}
+
+.iot-entry-metrics strong {
+    display: block;
+    font-size: 28px;
+    line-height: 1;
+    color: var(--iot-accent, #00e6b8);
+}
+
+.iot-weather-row {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin-top: auto;
+}
+
+.iot-weather-current,
+.iot-weather-metric {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+}
+
+.iot-weather-current strong {
+    font-size: 26px;
+    line-height: 1;
+    color: var(--iot-accent, #00e6b8);
+}
+
+.iot-weather-current span,
+.iot-weather-metric span {
+    margin-top: 6px;
+    font-size: 11px;
+    opacity: .66;
+}
+
+.iot-weather-metric {
+    padding-left: 22px;
+    border-left: 1px solid rgba(255,255,255,.09);
+}
+
+.iot-weather-metric strong {
+    margin-top: 6px;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.iot-status-card--link:hover {
+    text-decoration: none;
+}
+
+
+.iot-system-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.iot-node-monitor {
+    min-width: 0;
+    min-height: 385px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
+}
+
+.iot-node-monitor--link:hover {
+    color: inherit;
+    text-decoration: none;
+    background: var(--iot-accent-soft);
+}
+
+.iot-node-monitor__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.iot-node-monitor__head h3 {
+    margin: 0;
+    color: var(--iot-accent);
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.iot-node-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--iot-muted-2);
+    font-size: 10px;
+}
+
+.iot-node-status i {
+    width: 8px;
+    height: 8px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+}
+
+.iot-node-status.is-online {
+    color: var(--iot-accent);
+}
+
+.iot-node-status.is-online i {
+    background: var(--iot-accent);
+    box-shadow: 0 0 9px rgba(0,255,200,.45);
+}
+
+.iot-node-monitor__online {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.iot-node-monitor__online[hidden],
+.iot-node-monitor__offline[hidden] {
+    display: none !important;
+}
+
+.iot-node-metric-grid {
+    display: grid;
+    grid-template-columns: .9fr 1.1fr 1.2fr;
+    gap: 18px;
+    align-items: center;
+    min-height: 112px;
+}
+
+.iot-node-metric {
+    min-width: 0;
+}
+
+.iot-node-metric + .iot-node-metric {
+    padding-left: 18px;
+    border-left: 1px solid rgba(255,255,255,.09);
+}
+
+.iot-node-metric__label {
+    color: var(--iot-muted);
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: .08em;
+}
+
+.iot-node-metric__value {
+    display: block;
+    margin: 12px 0 10px;
+    color: var(--iot-accent);
+    font-size: 25px;
+    line-height: 1;
+}
+
+.iot-radial-gauge {
+    --gauge-value: 0;
+    width: 72px;
+    height: 72px;
+    margin-top: 10px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: conic-gradient(
+        var(--iot-accent) calc(var(--gauge-value) * 1%),
+        #171717 0
+    );
+}
+
+.iot-radial-gauge::before {
+    content: "";
+    grid-area: 1 / 1;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: #000;
+}
+
+.iot-radial-gauge > div {
+    grid-area: 1 / 1;
+    z-index: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+}
+
+.iot-radial-gauge strong {
+    color: var(--iot-accent);
+    font-size: 20px;
+}
+
+.iot-radial-gauge span {
+    color: var(--iot-muted);
+    font-size: 10px;
+}
+
+.iot-meter {
+    width: 100%;
+    height: 9px;
+    overflow: hidden;
+    border: 1px solid var(--iot-border-soft);
+    background: #0b0b0b;
+}
+
+.iot-meter i {
+    display: block;
+    height: 100%;
+    background: var(--iot-accent);
+    transition: width .3s ease;
+}
+
+.iot-semi-gauge {
+    position: relative;
+    width: 112px;
+    max-width: 100%;
+    margin-top: 5px;
+}
+
+.iot-semi-gauge svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.iot-semi-gauge path {
+    fill: none;
+    stroke-width: 9;
+    stroke-linecap: butt;
+}
+
+.iot-semi-gauge__track {
+    stroke: #171717;
+}
+
+.iot-semi-gauge__value {
+    stroke: var(--iot-accent);
+    transition: stroke-dasharray .3s ease;
+}
+
+.iot-semi-gauge strong {
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    transform: translateX(-50%);
+    color: var(--iot-accent);
+    font-size: 18px;
+}
+
+.iot-node-metric--storage small {
+    display: block;
+    margin-top: 3px;
+    color: var(--iot-muted-2);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.iot-network-monitor {
+    margin-top: 17px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,.09);
+}
+
+.iot-network-monitor__head,
+.iot-network-monitor__legend {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.iot-network-monitor__scale {
+    color: var(--iot-muted-2);
+    font-size: 10px;
+}
+
+.iot-network-monitor canvas {
+    display: block;
+    width: 100%;
+    height: 92px;
+    margin-top: 9px;
+}
+
+.iot-network-monitor__legend {
+    margin-top: 8px;
+    justify-content: flex-start;
+    color: var(--iot-muted);
+    font-size: 10px;
+}
+
+.iot-network-monitor__legend > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.iot-network-monitor__legend i {
+    width: 8px;
+    height: 2px;
+}
+
+.iot-network-monitor__legend i.is-download {
+    background: var(--iot-accent);
+}
+
+.iot-network-monitor__legend i.is-upload {
+    background: #b7b7b7;
+}
+
+.iot-network-monitor__legend strong {
+    color: var(--iot-text);
+    font-weight: 600;
+}
+
+.iot-node-monitor__offline {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    text-align: center;
+    color: var(--iot-muted);
+}
+
+.iot-node-offline__mark {
+    color: var(--iot-muted-2);
+    font-size: 46px;
+    line-height: 1;
+}
+
+.iot-node-monitor__offline > strong {
+    margin-top: 8px;
+    color: var(--iot-text);
+    font-size: 18px;
+}
+
+.iot-node-monitor__offline p {
+    margin: 7px 0 4px;
+    color: var(--iot-muted);
+    font-size: 11px;
+}
+
+.iot-node-monitor__offline > span {
+    color: var(--iot-muted-2);
+    font-size: 10px;
+}
+
+.iot-node-monitor__offline b {
+    color: var(--iot-muted);
+    font-weight: 500;
+}
+
+.iot-node-monitor__footer {
+    margin-top: 14px;
+    padding-top: 11px;
+    border-top: 1px solid rgba(255,255,255,.09);
+    color: var(--iot-muted-2);
+    font-size: 10px;
+}
+
+@media (max-width: 1100px) {
+    .iot-system-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .iot-room-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .iot-status-card--weather {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 760px) {
+    .iot-node-metric-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .iot-node-metric + .iot-node-metric {
+        padding: 12px 0 0;
+        border-left: 0;
+        border-top: 1px solid rgba(255,255,255,.09);
+    }
+
+    .iot-room-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .iot-status-card--environment,
+    .iot-status-card--weather {
+        grid-column: auto;
+    }
+
+    .iot-weather-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .iot-weather-metric {
+        padding: 12px 0 0;
+        border-left: 0;
+        border-top: 1px solid rgba(255,255,255,.09);
+    }
+}
+</style>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+window.IOTCORE_NODE_METRICS_URL = "{{ node_metrics_url|escapejs }}";
+</script>
+<script src="{% static 'js/iotcore-dashboard-monitor.js' %}"></script>
+{% endblock %}
+

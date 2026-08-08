@@ -52,3 +52,23 @@ If UFW is enabled, allow port 1884 only from the home subnet:
 ```bash
 sudo ufw allow from 192.168.0.0/24 to any port 1884 proto tcp
 ```
+
+
+## Node telemetry / metric retention
+
+Pi 5 telemetry agent:
+
+```bash
+sudo cp deploy/systemd/iotcore-node-telemetry.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now iotcore-node-telemetry.service
+```
+
+Django server raw metric cleanup (24-hour retention):
+
+```bash
+sudo cp deploy/systemd/iotcore-node-metric-cleanup.service /etc/systemd/system/
+sudo cp deploy/systemd/iotcore-node-metric-cleanup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now iotcore-node-metric-cleanup.timer
+```

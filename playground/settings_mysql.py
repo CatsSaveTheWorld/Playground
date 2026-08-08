@@ -31,6 +31,12 @@ DEBUG = False
 MQTT_HOST = "127.0.0.1"   # IoT 서버 IP
 MQTT_PORT = 1883
 
+# Dashboard system-node monitoring
+IOTCORE_AI_NODE_UID = "home-ai-main"
+IOTCORE_PI5_NODE_UID = "pi5"
+NODE_TELEMETRY_OFFLINE_SECONDS = 5
+NODE_METRIC_RETENTION_HOURS = 24
+
 # Music Assistant 로컬 API
 MUSIC_ASSISTANT_URL = "http://192.168.0.14:8095"
 MUSIC_ASSISTANT_TOKEN = os.environ.get(
