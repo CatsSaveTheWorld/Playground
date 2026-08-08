@@ -8,7 +8,7 @@ from .device_service import DeviceService
 
 
 class SequenceExecutor:
-    DEFAULT_STEP_DELAY = 0.7
+    DEFAULT_STEP_DELAY = 0.5
 
     @classmethod
     def execute(cls, sequence):
@@ -82,11 +82,18 @@ class SequenceExecutor:
 
                 if not success:
                     return cls._finish_run(sequence_run, False, message)
-
+                
                 if index == len(steps) - 1:
                     continue
-                if step.delay_position == SequenceStep.AFTER:
-                    time.sleep(step.delay or cls.DEFAULT_STEP_DELAY)
+
+                if (
+                    step.delay_position == SequenceStep.AFTER
+                    and step.delay > 0
+                ):
+                    time.sleep(step.delay)
+                else:
+                    time.sleep(cls.DEFAULT_STEP_DELAY)
+
         except Exception as exc:
             return cls._finish_run(
                 sequence_run,
