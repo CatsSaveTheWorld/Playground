@@ -266,7 +266,11 @@ class NodeMetricSample(models.Model):
         related_name="metric_samples",
     )
     cpu_percent = models.FloatField()
+    cpu_current_ghz = models.FloatField(blank=True, null=True)
+    cpu_max_ghz = models.FloatField(blank=True, null=True)
     memory_percent = models.FloatField()
+    memory_used_gb = models.FloatField(blank=True, null=True)
+    memory_total_gb = models.FloatField(blank=True, null=True)
     download_mbps = models.FloatField()
     upload_mbps = models.FloatField()
     storage_percent = models.FloatField(blank=True, null=True)

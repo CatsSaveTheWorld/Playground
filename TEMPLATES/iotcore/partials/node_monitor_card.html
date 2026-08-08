@@ -25,12 +25,26 @@
                         <strong data-cpu-value>{% if node.current %}{{ node.current.cpu_percent|floatformat:0 }}{% else %}--{% endif %}</strong><span>%</span>
                     </div>
                 </div>
+                <small class="iot-node-metric__detail" data-cpu-clock-detail>
+                    {% if node.current and node.current.cpu_current_ghz != None %}
+                        {{ node.current.cpu_current_ghz|floatformat:1 }}{% if node.current.cpu_max_ghz != None %} / {{ node.current.cpu_max_ghz|floatformat:1 }}{% endif %} GHz
+                    {% else %}
+                        --
+                    {% endif %}
+                </small>
             </div>
 
             <div class="iot-node-metric iot-node-metric--memory">
                 <span class="iot-node-metric__label">RAM</span>
                 <strong class="iot-node-metric__value"><span data-memory-value>{% if node.current %}{{ node.current.memory_percent|floatformat:0 }}{% else %}--{% endif %}</span>%</strong>
                 <div class="iot-meter"><i data-memory-bar style="width: {% if node.current %}{{ node.current.memory_percent|default:0 }}{% else %}0{% endif %}%;"></i></div>
+                <small class="iot-node-metric__detail" data-memory-detail>
+                    {% if node.current and node.current.memory_used_gb != None and node.current.memory_total_gb != None %}
+                        {{ node.current.memory_used_gb|floatformat:1 }} / {{ node.current.memory_total_gb|floatformat:1 }} GB
+                    {% else %}
+                        --
+                    {% endif %}
+                </small>
             </div>
 
             <div class="iot-node-metric iot-node-metric--storage">
@@ -43,7 +57,7 @@
                     </svg>
                     <strong><span data-storage-value>{% if node.current and node.current.storage_percent != None %}{{ node.current.storage_percent|floatformat:0 }}{% else %}--{% endif %}</span>%</strong>
                 </div>
-                <small data-storage-detail>
+                <small class="iot-node-metric__detail" data-storage-detail>
                     {% if node.current and node.current.storage_used_gb != None and node.current.storage_total_gb != None %}
                         {{ node.current.storage_used_gb|floatformat:0 }} / {{ node.current.storage_total_gb|floatformat:0 }} GB
                     {% else %}

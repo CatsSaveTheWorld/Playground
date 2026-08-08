@@ -1,6 +1,6 @@
 # IoTCore node telemetry
 
-This agent publishes CPU, RAM, network throughput and storage usage once per second.
+This agent publishes CPU utilization/clock, RAM utilization/capacity, network throughput and storage usage once per second.
 The Django MQTT listener stores each payload as one `NodeMetricSample` row.
 Dashboard cards poll the latest 60 seconds once per second.
 

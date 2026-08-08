@@ -64,6 +64,54 @@ def storage_usage():
     }
 
 
+def memory_usage():
+    memory = psutil.virtual_memory()
+    gb = 1024 ** 3
+    used = memory.total - memory.available
+    return {
+        "percent": round(float(memory.percent), 2),
+        "used_gb": round(used / gb, 2),
+        "total_gb": round(memory.total / gb, 2),
+    }
+
+
+def _read_linux_cpu_max_ghz():
+    """Best-effort Linux fallback when psutil reports max frequency as 0."""
+    for filename in ("cpuinfo_max_freq", "scaling_max_freq"):
+        path = Path(f"/sys/devices/system/cpu/cpu0/cpufreq/{filename}")
+        try:
+            khz = float(path.read_text(encoding="utf-8").strip())
+        except (FileNotFoundError, OSError, ValueError):
+            continue
+        if khz > 0:
+            return round(khz / 1_000_000, 2)
+    return None
+
+
+def cpu_frequency():
+    freq = psutil.cpu_freq()
+    if freq is None:
+        return {
+            "current_ghz": None,
+            "max_ghz": _read_linux_cpu_max_ghz(),
+        }
+
+    current_ghz = (
+        round(float(freq.current) / 1000, 2)
+        if freq.current and freq.current > 0
+        else None
+    )
+    max_ghz = (
+        round(float(freq.max) / 1000, 2)
+        if freq.max and freq.max > 0
+        else _read_linux_cpu_max_ghz()
+    )
+    return {
+        "current_ghz": current_ghz,
+        "max_ghz": max_ghz,
+    }
+
+
 def main() -> None:
     if not Config.node_uid:
         raise RuntimeError("IOTCORE_NODE_UID is required")
@@ -105,9 +153,16 @@ def main() -> None:
                 cached_storage = storage_usage()
                 next_storage_at = current_time + 30.0
 
+            cpu = cpu_frequency()
+            memory = memory_usage()
+
             payload = {
                 "cpu_percent": round(psutil.cpu_percent(interval=None), 2),
-                "memory_percent": round(psutil.virtual_memory().percent, 2),
+                "cpu_current_ghz": cpu["current_ghz"],
+                "cpu_max_ghz": cpu["max_ghz"],
+                "memory_percent": memory["percent"],
+                "memory_used_gb": memory["used_gb"],
+                "memory_total_gb": memory["total_gb"],
                 "network": {
                     "download_mbps": round(download_mbps, 3),
                     "upload_mbps": round(upload_mbps, 3),

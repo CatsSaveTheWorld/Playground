@@ -113,11 +113,31 @@
         if (cpuGauge) cpuGauge.style.setProperty('--gauge-value', cpu.toFixed(1));
         const cpuValue = card.querySelector('[data-cpu-value]');
         if (cpuValue) cpuValue.textContent = cpu.toFixed(0);
+        const cpuClockDetail = card.querySelector('[data-cpu-clock-detail]');
+        if (cpuClockDetail) {
+            const currentGhz = current.cpu_current_ghz;
+            const maxGhz = current.cpu_max_ghz;
+            if (currentGhz != null && maxGhz != null) {
+                cpuClockDetail.textContent = `${Number(currentGhz).toFixed(1)} / ${Number(maxGhz).toFixed(1)} GHz`;
+            } else if (currentGhz != null) {
+                cpuClockDetail.textContent = `${Number(currentGhz).toFixed(1)} GHz`;
+            } else {
+                cpuClockDetail.textContent = '--';
+            }
+        }
 
         const memoryValue = card.querySelector('[data-memory-value]');
         if (memoryValue) memoryValue.textContent = memory.toFixed(0);
         const memoryBar = card.querySelector('[data-memory-bar]');
         if (memoryBar) memoryBar.style.width = `${memory.toFixed(1)}%`;
+        const memoryDetail = card.querySelector('[data-memory-detail]');
+        if (memoryDetail) {
+            if (current.memory_used_gb != null && current.memory_total_gb != null) {
+                memoryDetail.textContent = `${Number(current.memory_used_gb).toFixed(1)} / ${Number(current.memory_total_gb).toFixed(1)} GB`;
+            } else {
+                memoryDetail.textContent = '--';
+            }
+        }
 
         const storageValue = card.querySelector('[data-storage-value]');
         if (storageValue) storageValue.textContent = storage == null ? '--' : storage.toFixed(0);

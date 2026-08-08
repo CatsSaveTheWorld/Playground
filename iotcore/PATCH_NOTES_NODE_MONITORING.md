@@ -6,8 +6,8 @@
 - MQTT telemetry topics: `iotcore/nodes/<device_uid>/telemetry`.
 - One-second telemetry agent for Linux/Windows (`psutil` + `paho-mqtt`).
 - Dashboard system-monitor cards for AI PC and Raspberry Pi 5.
-  - CPU: radial gauge
-  - RAM: horizontal usage bar
+  - CPU: radial gauge + current/max clock (GHz)
+  - RAM: horizontal usage bar + used/total capacity (GB)
   - Network: 60-second download/upload line chart
   - Storage: semi-circle gauge
   - Offline state after 5 seconds without telemetry

@@ -74,11 +74,35 @@ class NodeTelemetryService:
                 minimum=0,
                 maximum=100,
             ),
+            cpu_current_ghz=cls._number(
+                payload.get("cpu_current_ghz"),
+                label="CPU 현재 클럭",
+                minimum=0,
+                nullable=True,
+            ),
+            cpu_max_ghz=cls._number(
+                payload.get("cpu_max_ghz"),
+                label="CPU 최대 클럭",
+                minimum=0,
+                nullable=True,
+            ),
             memory_percent=cls._number(
                 payload.get("memory_percent"),
                 label="RAM",
                 minimum=0,
                 maximum=100,
+            ),
+            memory_used_gb=cls._number(
+                payload.get("memory_used_gb"),
+                label="RAM 사용량",
+                minimum=0,
+                nullable=True,
+            ),
+            memory_total_gb=cls._number(
+                payload.get("memory_total_gb"),
+                label="RAM 전체 용량",
+                minimum=0,
+                nullable=True,
             ),
             download_mbps=cls._number(
                 network.get("download_mbps"),
@@ -147,7 +171,11 @@ class NodeTelemetryService:
 
         current = {
             "cpu_percent": latest.cpu_percent,
+            "cpu_current_ghz": latest.cpu_current_ghz,
+            "cpu_max_ghz": latest.cpu_max_ghz,
             "memory_percent": latest.memory_percent,
+            "memory_used_gb": latest.memory_used_gb,
+            "memory_total_gb": latest.memory_total_gb,
             "download_mbps": latest.download_mbps,
             "upload_mbps": latest.upload_mbps,
             "storage_percent": latest.storage_percent,

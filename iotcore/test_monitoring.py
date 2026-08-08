@@ -22,7 +22,11 @@ class NodeTelemetryServiceTests(TestCase):
             "iotcore/nodes/monitor-test/telemetry",
             {
                 "cpu_percent": 12.5,
+                "cpu_current_ghz": 1.8,
+                "cpu_max_ghz": 2.4,
                 "memory_percent": 44.2,
+                "memory_used_gb": 3.5,
+                "memory_total_gb": 8.0,
                 "network": {
                     "download_mbps": 21.3,
                     "upload_mbps": 3.4,
@@ -38,12 +42,20 @@ class NodeTelemetryServiceTests(TestCase):
         self.assertEqual(sample.device, self.device)
         self.assertEqual(sample.download_mbps, 21.3)
         self.assertEqual(sample.storage_percent, 60.0)
+        self.assertEqual(sample.cpu_current_ghz, 1.8)
+        self.assertEqual(sample.cpu_max_ghz, 2.4)
+        self.assertEqual(sample.memory_used_gb, 3.5)
+        self.assertEqual(sample.memory_total_gb, 8.0)
 
     def test_snapshot_returns_current_and_history(self):
         NodeMetricSample.objects.create(
             device=self.device,
             cpu_percent=10,
+            cpu_current_ghz=1.5,
+            cpu_max_ghz=2.4,
             memory_percent=20,
+            memory_used_gb=1.6,
+            memory_total_gb=8.0,
             download_mbps=3,
             upload_mbps=1,
             storage_percent=40,
@@ -56,6 +68,10 @@ class NodeTelemetryServiceTests(TestCase):
         )
         self.assertTrue(snapshot["online"])
         self.assertEqual(snapshot["current"]["cpu_percent"], 10)
+        self.assertEqual(snapshot["current"]["cpu_current_ghz"], 1.5)
+        self.assertEqual(snapshot["current"]["cpu_max_ghz"], 2.4)
+        self.assertEqual(snapshot["current"]["memory_used_gb"], 1.6)
+        self.assertEqual(snapshot["current"]["memory_total_gb"], 8.0)
         self.assertEqual(len(snapshot["history"]), 1)
 
     def test_old_sample_is_offline(self):
