@@ -52,9 +52,13 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
 ]
 
+# Mobile clients reach IoTCore through the router's external port.
+# Trust only that exact origin for state-changing requests.
+CSRF_TRUSTED_ORIGINS = [
+    "http://211.209.134.102:8780",
+]
 
 # Application definition
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
