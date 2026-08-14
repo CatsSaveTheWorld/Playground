@@ -14,6 +14,11 @@ from django.db import models
 
 class Device(models.Model):
 
+    class Role(models.TextChoices):
+        CONTROL = "control", "제어 기기"
+        SENSOR = "sensor", "센서"
+        HYBRID = "hybrid", "제어 + 센서"
+
     class Protocol(models.TextChoices):
         IR = "ir", "IR"
         TUYA = "tuya", "Tuya"
@@ -26,6 +31,12 @@ class Device(models.Model):
     """
 
     device_type = models.CharField(max_length=50)
+    device_role = models.CharField(
+        max_length=20,
+        choices=Role.choices,
+        default=Role.CONTROL,
+        db_index=True,
+    )
     protocol = models.CharField(
         max_length=20,
         choices=Protocol.choices,
@@ -35,6 +46,14 @@ class Device(models.Model):
     device_uid = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=100)
     location = models.CharField(max_length=100)
+
+    @property
+    def is_controllable(self):
+        return self.device_role in {self.Role.CONTROL, self.Role.HYBRID}
+
+    @property
+    def is_state_source(self):
+        return self.device_role in {self.Role.SENSOR, self.Role.HYBRID}
 
     def __str__(self):
         return f"{self.name} ({self.device_type})"
@@ -184,7 +203,8 @@ class AutomationAction(models.Model):
 class AutomationTrigger(models.Model):
     class TriggerType(models.TextChoices):
         TIME = "time", "예약 시간"
-        MQTT_EVENT = "mqtt_event", "센서/MQTT 이벤트"
+        MQTT_EVENT = "mqtt_event", "MQTT 이벤트"
+        DEVICE_STATE = "device_state", "기기 상태 변화"
 
     class ScheduleType(models.TextChoices):
         ONCE = "once", "한 번"
@@ -215,7 +235,8 @@ class AutomationTrigger(models.Model):
 class AutomationCondition(models.Model):
     class ConditionType(models.TextChoices):
         TIME_WINDOW = "time_window", "시간대"
-        DEVICE_STATE = "device_state", "장치 상태"
+        DEVICE_STATE = "device_state", "기기 상태"
+        EVENT_VALUE = "event_value", "트리거 데이터"
 
     automation = models.ForeignKey(
         Automation,

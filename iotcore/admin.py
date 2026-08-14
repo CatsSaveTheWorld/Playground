@@ -17,7 +17,19 @@ from .models import (
 )
 
 admin.site.register(Controller)
-admin.site.register(Device)
+@admin.register(Device)
+class DeviceAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "device_type",
+        "device_role",
+        "protocol",
+        "device_uid",
+        "location",
+    )
+    list_filter = ("device_role", "protocol", "device_type", "location")
+    search_fields = ("name", "device_uid", "device_type", "location")
+
 admin.site.register(Sequence)
 admin.site.register(SequenceStep)
 admin.site.register(Automation)

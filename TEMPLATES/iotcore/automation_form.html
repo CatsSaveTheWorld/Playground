@@ -55,8 +55,10 @@
     .automation-form-content .field,
     .automation-form-content .time-fields,
     .automation-form-content .event-fields,
+    .automation-form-content .state-trigger-fields,
     .automation-form-content .condition-time,
     .automation-form-content .condition-state,
+    .automation-form-content .condition-event,
     .automation-form-content .device-action-fields,
     .automation-form-content .sequence-action-fields {
         min-width: 0;
@@ -150,7 +152,7 @@
         <div>
             <p class="iot-eyebrow">SCHEDULE EDITOR</p>
             <h1>{% if is_update %}예약 실행 수정{% else %}새 예약 실행{% endif %}</h1>
-            <p>예약 또는 이벤트 트리거, 추가 조건, 실행 동작을 순서대로 구성합니다.</p>
+            <p>시간·MQTT·기기 상태 변화를 실행 계기로 사용하고, 실제 실행 여부는 조건에서 판정합니다.</p>
         </div>
         <div class="iot-page-actions"><a class="iot-button" href="{% url 'iotcore:automation_list' %}">예약 실행 목록으로</a></div>
     </header>
@@ -189,11 +191,12 @@
                         <div class="field schedule-interval"><label>{{ tf.interval_every.label }}</label>{{ tf.interval_every }}{{ tf.interval_every.errors }}</div>
                         <div class="field schedule-interval"><label>{{ tf.interval_unit.label }}</label>{{ tf.interval_unit }}{{ tf.interval_unit.errors }}</div>
                     </div>
+                    {{ tf.legacy_event_config }}
                     <div class="event-fields">
                         <div class="field"><label>{{ tf.event_topic.label }}</label>{{ tf.event_topic }}<span class="helptext">{{ tf.event_topic.help_text }}</span>{{ tf.event_topic.errors }}</div>
-                        <div class="field"><label>{{ tf.event_field.label }}</label>{{ tf.event_field }}<span class="helptext">{{ tf.event_field.help_text }}</span>{{ tf.event_field.errors }}</div>
-                        <div class="field"><label>{{ tf.event_operator.label }}</label>{{ tf.event_operator }}{{ tf.event_operator.errors }}</div>
-                        <div class="field"><label>{{ tf.event_value.label }}</label>{{ tf.event_value }}<span class="helptext">{{ tf.event_value.help_text }}</span>{{ tf.event_value.errors }}</div>
+                    </div>
+                    <div class="state-trigger-fields">
+                        <div class="field"><label>{{ tf.state_device.label }}</label>{{ tf.state_device }}<span class="helptext">{{ tf.state_device.help_text }}</span>{{ tf.state_device.errors }}</div>
                     </div>
                 </div>
                 {% endfor %}
@@ -221,10 +224,15 @@
                         <div class="field"><label>{{ cf.time_end.label }}</label>{{ cf.time_end }}{{ cf.time_end.errors }}</div>
                     </div>
                     <div class="condition-state">
-                        <div class="field"><label>{{ cf.state_topic.label }}</label>{{ cf.state_topic }}{{ cf.state_topic.errors }}</div>
-                        <div class="field"><label>{{ cf.state_key.label }}</label>{{ cf.state_key }}{{ cf.state_key.errors }}</div>
+                        <div class="field"><label>{{ cf.state_device.label }}</label>{{ cf.state_device }}{{ cf.state_device.errors }}</div>
+                        <div class="field"><label>{{ cf.state_key.label }}</label>{{ cf.state_key }}<span class="helptext">{{ cf.state_key.help_text }}</span>{{ cf.state_key.errors }}</div>
                         <div class="field"><label>{{ cf.state_operator.label }}</label>{{ cf.state_operator }}{{ cf.state_operator.errors }}</div>
-                        <div class="field"><label>{{ cf.state_value.label }}</label>{{ cf.state_value }}{{ cf.state_value.errors }}</div>
+                        <div class="field condition-value"><label>{{ cf.state_value.label }}</label>{{ cf.state_value }}<span class="helptext">{{ cf.state_value.help_text }}</span>{{ cf.state_value.errors }}</div>
+                    </div>
+                    <div class="condition-event">
+                        <div class="field"><label>{{ cf.event_field.label }}</label>{{ cf.event_field }}<span class="helptext">{{ cf.event_field.help_text }}</span>{{ cf.event_field.errors }}</div>
+                        <div class="field"><label>{{ cf.event_operator.label }}</label>{{ cf.event_operator }}{{ cf.event_operator.errors }}</div>
+                        <div class="field condition-value"><label>{{ cf.event_value.label }}</label>{{ cf.event_value }}<span class="helptext">{{ cf.event_value.help_text }}</span>{{ cf.event_value.errors }}</div>
                     </div>
                 </div>
                 {% endfor %}
@@ -284,11 +292,12 @@
             <div class="field schedule-interval"><label>{{ trigger_formset.empty_form.interval_every.label }}</label>{{ trigger_formset.empty_form.interval_every }}</div>
             <div class="field schedule-interval"><label>{{ trigger_formset.empty_form.interval_unit.label }}</label>{{ trigger_formset.empty_form.interval_unit }}</div>
         </div>
+        {{ trigger_formset.empty_form.legacy_event_config }}
         <div class="event-fields">
-            <div class="field"><label>{{ trigger_formset.empty_form.event_topic.label }}</label>{{ trigger_formset.empty_form.event_topic }}</div>
-            <div class="field"><label>{{ trigger_formset.empty_form.event_field.label }}</label>{{ trigger_formset.empty_form.event_field }}</div>
-            <div class="field"><label>{{ trigger_formset.empty_form.event_operator.label }}</label>{{ trigger_formset.empty_form.event_operator }}</div>
-            <div class="field"><label>{{ trigger_formset.empty_form.event_value.label }}</label>{{ trigger_formset.empty_form.event_value }}</div>
+            <div class="field"><label>{{ trigger_formset.empty_form.event_topic.label }}</label>{{ trigger_formset.empty_form.event_topic }}<span class="helptext">{{ trigger_formset.empty_form.event_topic.help_text }}</span></div>
+        </div>
+        <div class="state-trigger-fields">
+            <div class="field"><label>{{ trigger_formset.empty_form.state_device.label }}</label>{{ trigger_formset.empty_form.state_device }}<span class="helptext">{{ trigger_formset.empty_form.state_device.help_text }}</span></div>
         </div>
     </div>
 </template>
@@ -306,10 +315,15 @@
             <div class="field"><label>{{ condition_formset.empty_form.time_end.label }}</label>{{ condition_formset.empty_form.time_end }}</div>
         </div>
         <div class="condition-state">
-            <div class="field"><label>{{ condition_formset.empty_form.state_topic.label }}</label>{{ condition_formset.empty_form.state_topic }}</div>
-            <div class="field"><label>{{ condition_formset.empty_form.state_key.label }}</label>{{ condition_formset.empty_form.state_key }}</div>
+            <div class="field"><label>{{ condition_formset.empty_form.state_device.label }}</label>{{ condition_formset.empty_form.state_device }}</div>
+            <div class="field"><label>{{ condition_formset.empty_form.state_key.label }}</label>{{ condition_formset.empty_form.state_key }}<span class="helptext">{{ condition_formset.empty_form.state_key.help_text }}</span></div>
             <div class="field"><label>{{ condition_formset.empty_form.state_operator.label }}</label>{{ condition_formset.empty_form.state_operator }}</div>
-            <div class="field"><label>{{ condition_formset.empty_form.state_value.label }}</label>{{ condition_formset.empty_form.state_value }}</div>
+            <div class="field condition-value"><label>{{ condition_formset.empty_form.state_value.label }}</label>{{ condition_formset.empty_form.state_value }}<span class="helptext">{{ condition_formset.empty_form.state_value.help_text }}</span></div>
+        </div>
+        <div class="condition-event">
+            <div class="field"><label>{{ condition_formset.empty_form.event_field.label }}</label>{{ condition_formset.empty_form.event_field }}<span class="helptext">{{ condition_formset.empty_form.event_field.help_text }}</span></div>
+            <div class="field"><label>{{ condition_formset.empty_form.event_operator.label }}</label>{{ condition_formset.empty_form.event_operator }}</div>
+            <div class="field condition-value"><label>{{ condition_formset.empty_form.event_value.label }}</label>{{ condition_formset.empty_form.event_value }}<span class="helptext">{{ condition_formset.empty_form.event_value.help_text }}</span></div>
         </div>
     </div>
 </template>
@@ -348,6 +362,7 @@ function updateTrigger(card) {
     const scheduleType = card.querySelector('select[name$="-schedule_type"]')?.value;
     card.querySelector('.time-fields').style.display = type === 'time' ? 'block' : 'none';
     card.querySelector('.event-fields').style.display = type === 'mqtt_event' ? 'block' : 'none';
+    card.querySelector('.state-trigger-fields').style.display = type === 'device_state' ? 'block' : 'none';
     card.querySelectorAll('.schedule-once').forEach(el => el.style.display = scheduleType === 'once' ? 'block' : 'none');
     card.querySelectorAll('.schedule-clock').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
     card.querySelectorAll('.schedule-weekly').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
@@ -358,6 +373,19 @@ function updateCondition(card) {
     const type = card.querySelector('select[name$="-condition_type"]')?.value;
     card.querySelector('.condition-time').style.display = type === 'time_window' ? 'block' : 'none';
     card.querySelector('.condition-state').style.display = type === 'device_state' ? 'block' : 'none';
+    card.querySelector('.condition-event').style.display = type === 'event_value' ? 'block' : 'none';
+    updateConditionValueVisibility(card);
+}
+
+function updateConditionValueVisibility(card) {
+    const type = card.querySelector('select[name$="-condition_type"]')?.value;
+    const operator = type === 'device_state'
+        ? card.querySelector('select[name$="-state_operator"]')?.value
+        : card.querySelector('select[name$="-event_operator"]')?.value;
+    const container = type === 'device_state'
+        ? card.querySelector('.condition-state .condition-value')
+        : card.querySelector('.condition-event .condition-value');
+    if (container) container.style.display = operator === 'changed' ? 'none' : 'block';
 }
 
 function refreshFunctionChoices(card) {
@@ -391,6 +419,7 @@ function bindCard(card, kind) {
         updateTrigger(card);
     } else if (kind === 'condition') {
         card.querySelectorAll('select[name$="-condition_type"]').forEach(select => select.addEventListener('change', () => updateCondition(card)));
+        card.querySelectorAll('select[name$="-state_operator"], select[name$="-event_operator"]').forEach(select => select.addEventListener('change', () => updateConditionValueVisibility(card)));
         updateCondition(card);
     } else {
         card.querySelectorAll('select[name$="-action_type"]').forEach(select => select.addEventListener('change', () => updateAction(card)));

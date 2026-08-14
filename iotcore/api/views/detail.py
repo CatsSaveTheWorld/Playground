@@ -46,8 +46,12 @@ pc_path = os.path.join(DATA_DIR, 'Computers.csv').replace('\\', '/')
 
 @login_required(login_url="common:login")
 def device_control(request):
-    devices = list(DeviceRepository.get_all())
-    controllers = Controller.objects.all()  # 모든 컨트롤러 조회
+    # Device Control에는 실제 제어 가능한 장치만 노출한다.
+    # 센서는 Device에 정식 등록하되 Dashboard/예약 실행에서 상태 소스로 사용한다.
+    devices = list(DeviceRepository.get_controllable())
+    controllers = Controller.objects.filter(
+        device__device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
+    ).select_related("device")
     playlists = []
     playlists_error = None
 
@@ -62,6 +66,8 @@ def device_control(request):
     pcs = [
         {
             "name": row[0],
+            # 화면에만 표시되는 이름. 실제 제어 식별자인 name은 그대로 유지한다.
+            "display_name": "미디어 서버" if str(row[0]).strip() == "파이" else row[0],
             "mac": row[1],
             "broadcast_ip": row[2],
             "port": row[3],

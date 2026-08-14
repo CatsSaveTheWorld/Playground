@@ -22,7 +22,7 @@ class DeviceForm(forms.ModelForm):
     """
     class Meta:
         model = Device                    # 사용할 모델
-        fields = ['device_type', 'device_uid', 'name', 'location']     # QuestionForm에서 사용할 Question 모델의 속성
+        fields = ['device_type', 'device_role', 'protocol', 'device_uid', 'name', 'location']     # QuestionForm에서 사용할 Question 모델의 속성
 
 
 class ControllerForm(forms.ModelForm):
@@ -78,6 +78,10 @@ class SequenceStepForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.fields["device"].queryset = Device.objects.filter(
+            device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
+        ).order_by("location", "name", "id")
 
         delay = self.instance.delay if self.instance.pk else 0
 
@@ -163,6 +167,9 @@ class AutomationActionForm(forms.ModelForm):
                 if action.code not in seen:
                     choices.append((action.code, action.display_name))
                     seen.add(action.code)
+        self.fields["device"].queryset = Device.objects.filter(
+            device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
+        ).order_by("location", "name", "id")
         self.fields["function"].widget.choices = choices
         if self.instance.pk and self.instance.parameter is not None:
             self.fields["parameter_json"].initial = json.dumps(
@@ -252,12 +259,6 @@ class AutomationTriggerForm(forms.ModelForm):
         ("hours", "시간"),
         ("days", "일"),
     ]
-    EVENT_OPERATOR_CHOICES = [
-        ("eq", "값이 같음"),
-        ("ne", "값이 다름"),
-        ("changed", "값이 변경됨"),
-        ("changed_to", "지정한 값으로 변경됨"),
-    ]
     TIME_SCHEDULE_CHOICES = [
         (AutomationTrigger.ScheduleType.ONCE, "한 번 실행"),
         (AutomationTrigger.ScheduleType.WEEKLY, "요일 선택 반복"),
@@ -269,7 +270,6 @@ class AutomationTriggerForm(forms.ModelForm):
         label="반복 방식",
         choices=TIME_SCHEDULE_CHOICES,
     )
-
     run_at = forms.DateTimeField(
         required=False,
         label="실행 시각",
@@ -303,24 +303,20 @@ class AutomationTriggerForm(forms.ModelForm):
     event_topic = forms.CharField(
         required=False,
         label="MQTT 토픽",
-        help_text="예: zigbee2mqtt/front_door",
+        help_text=(
+            "이 토픽에 메시지가 들어오면 조건을 검사합니다. "
+            "값 비교는 아래의 '트리거 데이터' 조건에서 설정하세요."
+        ),
     )
-    event_field = forms.CharField(
+    legacy_event_config = forms.CharField(
         required=False,
-        label="데이터 필드",
-        initial="contact",
-        help_text="중첩 필드는 점으로 구분합니다. 예: action.contact",
+        widget=forms.HiddenInput(),
     )
-    event_operator = forms.ChoiceField(
+    state_device = forms.ModelChoiceField(
+        queryset=Device.objects.none(),
         required=False,
-        label="이벤트 조건",
-        choices=EVENT_OPERATOR_CHOICES,
-        initial="eq",
-    )
-    event_value = forms.CharField(
-        required=False,
-        label="비교 값",
-        help_text='true, false, 숫자는 JSON 값으로 저장됩니다.',
+        label="감시 기기",
+        help_text="선택한 기기의 상태 값 중 하나가 바뀌면 조건을 검사합니다.",
     )
     trigger_type = forms.ChoiceField(
         required=False,
@@ -338,6 +334,12 @@ class AutomationTriggerForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["state_device"].queryset = Device.objects.all().order_by(
+            "location",
+            "name",
+            "id",
+        )
+
         config = self.instance.config if self.instance.pk else {}
         trigger_type = self.instance.trigger_type if self.instance.pk else None
         if trigger_type == AutomationTrigger.TriggerType.TIME:
@@ -366,12 +368,26 @@ class AutomationTriggerForm(forms.ModelForm):
             self.fields["interval_unit"].initial = config.get("unit")
         elif trigger_type == AutomationTrigger.TriggerType.MQTT_EVENT:
             self.fields["event_topic"].initial = config.get("topic")
-            self.fields["event_field"].initial = config.get("field")
-            self.fields["event_operator"].initial = config.get("operator")
-            value = config.get("value")
-            self.fields["event_value"].initial = (
-                value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
-            )
+            legacy_config = {
+                key: config.get(key)
+                for key in ("field", "operator", "value")
+                if key in config
+            }
+            if legacy_config:
+                self.fields["legacy_event_config"].initial = json.dumps(
+                    legacy_config,
+                    ensure_ascii=False,
+                )
+        elif trigger_type == AutomationTrigger.TriggerType.DEVICE_STATE:
+            device_id = config.get("device_id")
+            if device_id:
+                self.fields["state_device"].initial = device_id
+            elif config.get("device_uid"):
+                device = Device.objects.filter(
+                    device_uid=config.get("device_uid")
+                ).first()
+                if device is not None:
+                    self.fields["state_device"].initial = device.pk
 
     def clean(self):
         cleaned = super().clean()
@@ -424,28 +440,32 @@ class AutomationTriggerForm(forms.ModelForm):
                     }
         elif trigger_type == AutomationTrigger.TriggerType.MQTT_EVENT:
             topic = str(cleaned.get("event_topic") or "").strip()
-            field = str(cleaned.get("event_field") or "value").strip()
-            operator = cleaned.get("event_operator") or "eq"
-            raw_value = str(cleaned.get("event_value") or "").strip()
             if not topic:
-                if not field and raw_value == "":
-                    self._ignore_incomplete(cleaned)
-                else:
-                    self.add_error("event_topic", "MQTT 토픽을 입력하세요.")
-            elif not field:
-                self.add_error("event_field", "데이터 필드를 입력하세요.")
-            if operator != "changed" and raw_value == "":
-                self.add_error("event_value", "비교 값을 입력하세요.")
-            if topic and field and (operator == "changed" or raw_value != ""):
-                try:
-                    value = json.loads(raw_value) if raw_value != "" else None
-                except json.JSONDecodeError:
-                    value = raw_value
+                self._ignore_incomplete(cleaned)
+            else:
+                config = {"topic": topic}
+                raw_legacy = str(
+                    cleaned.get("legacy_event_config") or ""
+                ).strip()
+                if raw_legacy:
+                    try:
+                        legacy_config = json.loads(raw_legacy)
+                    except json.JSONDecodeError:
+                        legacy_config = {}
+                    if isinstance(legacy_config, dict):
+                        for key in ("field", "operator", "value"):
+                            if key in legacy_config:
+                                config[key] = legacy_config[key]
+                cleaned["config"] = config
+        elif trigger_type == AutomationTrigger.TriggerType.DEVICE_STATE:
+            device = cleaned.get("state_device")
+            if device is None:
+                self._ignore_incomplete(cleaned)
+            else:
                 cleaned["config"] = {
-                    "topic": topic,
-                    "field": field,
-                    "operator": operator,
-                    "value": value,
+                    "device_id": device.pk,
+                    "device_uid": device.device_uid,
+                    "device_name": device.name,
                 }
 
         return cleaned
@@ -487,14 +507,19 @@ class BaseAutomationTriggerFormSet(BaseInlineFormSet):
         ]
 
         if not active_forms:
-            raise forms.ValidationError(
-                "실행 계기를 하나 이상 등록하세요."
-            )
+            raise forms.ValidationError("실행 계기를 하나 이상 등록하세요.")
+
 
 class AutomationConditionForm(forms.ModelForm):
     OPERATOR_CHOICES = [
         ("eq", "값이 같음"),
         ("ne", "값이 다름"),
+        ("gt", "보다 큼"),
+        ("gte", "이상"),
+        ("lt", "보다 작음"),
+        ("lte", "이하"),
+        ("changed", "값이 변경됨"),
+        ("changed_to", "지정한 값으로 변경됨"),
     ]
     time_start = forms.TimeField(
         required=False,
@@ -506,14 +531,44 @@ class AutomationConditionForm(forms.ModelForm):
         label="종료 시간",
         widget=forms.TimeInput(format="%H:%M", attrs={"type": "time"}),
     )
-    state_topic = forms.CharField(required=False, label="상태 토픽")
-    state_key = forms.CharField(required=False, label="상태 필드")
+    state_device = forms.ModelChoiceField(
+        queryset=Device.objects.none(),
+        required=False,
+        label="기기",
+    )
+    state_key = forms.CharField(
+        required=False,
+        label="상태 필드",
+        help_text="예: power, temperature, humidity, state",
+    )
     state_operator = forms.ChoiceField(
         required=False,
         label="비교 방식",
         choices=OPERATOR_CHOICES,
+        initial="eq",
     )
-    state_value = forms.CharField(required=False, label="비교 값")
+    state_value = forms.CharField(
+        required=False,
+        label="비교 값",
+        help_text="true, false, 숫자는 JSON 값으로 해석됩니다.",
+    )
+    event_field = forms.CharField(
+        required=False,
+        label="데이터 필드",
+        initial="value",
+        help_text="중첩 필드는 점으로 구분합니다. 예: action.contact",
+    )
+    event_operator = forms.ChoiceField(
+        required=False,
+        label="비교 방식",
+        choices=OPERATOR_CHOICES,
+        initial="eq",
+    )
+    event_value = forms.CharField(
+        required=False,
+        label="비교 값",
+        help_text="true, false, 숫자는 JSON 값으로 해석됩니다.",
+    )
     condition_type = forms.ChoiceField(
         required=False,
         label="조건 종류",
@@ -526,22 +581,58 @@ class AutomationConditionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["state_device"].queryset = Device.objects.all().order_by(
+            "location",
+            "name",
+            "id",
+        )
         config = self.instance.config if self.instance.pk else {}
-        if self.instance.condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
+        condition_type = self.instance.condition_type if self.instance.pk else None
+
+        if condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
             self.fields["time_start"].initial = config.get("start")
             self.fields["time_end"].initial = config.get("end")
-        elif self.instance.condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
-            self.fields["state_topic"].initial = config.get("topic")
+        elif condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
+            device_id = config.get("device_id")
+            if not device_id and config.get("device_uid"):
+                device = Device.objects.filter(
+                    device_uid=config.get("device_uid")
+                ).first()
+                device_id = device.pk if device is not None else None
+            if device_id:
+                self.fields["state_device"].initial = device_id
             self.fields["state_key"].initial = config.get("key")
             self.fields["state_operator"].initial = config.get("operator")
-            value = config.get("value")
-            self.fields["state_value"].initial = (
-                value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+            self.fields["state_value"].initial = self._format_initial_value(
+                config.get("value")
             )
+        elif condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
+            self.fields["event_field"].initial = config.get("field")
+            self.fields["event_operator"].initial = config.get("operator")
+            self.fields["event_value"].initial = self._format_initial_value(
+                config.get("value")
+            )
+
+    @staticmethod
+    def _format_initial_value(value):
+        if value is None:
+            return ""
+        return value if isinstance(value, str) else json.dumps(
+            value,
+            ensure_ascii=False,
+        )
+
+    @staticmethod
+    def _parse_value(raw_value):
+        try:
+            return json.loads(raw_value)
+        except json.JSONDecodeError:
+            return raw_value
 
     def clean(self):
         cleaned = super().clean()
         condition_type = cleaned.get("condition_type")
+
         if condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
             start = cleaned.get("time_start")
             end = cleaned.get("time_end")
@@ -556,29 +647,78 @@ class AutomationConditionForm(forms.ModelForm):
                     "start": start.strftime("%H:%M"),
                     "end": end.strftime("%H:%M"),
                 }
+
         elif condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
-            topic = str(cleaned.get("state_topic") or "").strip()
+            device = cleaned.get("state_device")
             key = str(cleaned.get("state_key") or "").strip()
+            operator = cleaned.get("state_operator") or "eq"
             raw_value = str(cleaned.get("state_value") or "").strip()
-            if not topic and not key and raw_value == "":
+            legacy_topic = ""
+            if self.instance.pk:
+                legacy_topic = str(
+                    (self.instance.config or {}).get("topic") or ""
+                ).strip()
+
+            if device is None and not legacy_topic and not key and raw_value == "":
                 self._ignore_incomplete(cleaned)
-            elif not topic:
-                self.add_error("state_topic", "상태 토픽을 입력하세요.")
-            elif not key:
-                self.add_error("state_key", "상태 필드를 입력하세요.")
-            elif raw_value == "":
-                self.add_error("state_value", "비교 값을 입력하세요.")
-            if topic and key and raw_value != "":
-                try:
-                    value = json.loads(raw_value)
-                except json.JSONDecodeError:
-                    value = raw_value
-                cleaned["config"] = {
-                    "topic": topic,
+            else:
+                if device is None and not legacy_topic:
+                    self.add_error("state_device", "기기를 선택하세요.")
+                if not key:
+                    self.add_error("state_key", "상태 필드를 입력하세요.")
+                if operator != "changed" and raw_value == "":
+                    self.add_error("state_value", "비교 값을 입력하세요.")
+
+            if (
+                (device is not None or legacy_topic)
+                and key
+                and (operator == "changed" or raw_value != "")
+            ):
+                config = {
                     "key": key,
-                    "operator": cleaned.get("state_operator") or "eq",
-                    "value": value,
+                    "operator": operator,
+                    "value": (
+                        None
+                        if operator == "changed"
+                        else self._parse_value(raw_value)
+                    ),
                 }
+                if device is not None:
+                    config.update({
+                        "device_id": device.pk,
+                        "device_uid": device.device_uid,
+                        "device_name": device.name,
+                    })
+                else:
+                    # 이전 버전에서 저장한 raw topic 조건이 현재 Device와
+                    # 매칭되지 않더라도 편집/저장 과정에서 삭제하지 않는다.
+                    config["topic"] = legacy_topic
+                cleaned["config"] = config
+
+        elif condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
+            field = str(cleaned.get("event_field") or "value").strip()
+            operator = cleaned.get("event_operator") or "eq"
+            raw_value = str(cleaned.get("event_value") or "").strip()
+
+            if not field and raw_value == "":
+                self._ignore_incomplete(cleaned)
+            else:
+                if not field:
+                    self.add_error("event_field", "데이터 필드를 입력하세요.")
+                if operator != "changed" and raw_value == "":
+                    self.add_error("event_value", "비교 값을 입력하세요.")
+
+            if field and (operator == "changed" or raw_value != ""):
+                cleaned["config"] = {
+                    "field": field,
+                    "operator": operator,
+                    "value": (
+                        None
+                        if operator == "changed"
+                        else self._parse_value(raw_value)
+                    ),
+                }
+
         return cleaned
 
     def _post_clean(self):

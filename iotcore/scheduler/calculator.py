@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_time
 
-from ..models import AutomationTrigger
+from ..models import AutomationCondition, AutomationTrigger
 
 
 INTERVAL_UNITS = {
@@ -89,15 +89,32 @@ def calculate_next_run(trigger, after=None):
 def describe_trigger(trigger):
     config = trigger.config or {}
     if trigger.trigger_type == AutomationTrigger.TriggerType.MQTT_EVENT:
-        field = config.get("field") or "value"
-        operator = {
-            "eq": "=",
-            "ne": "≠",
-            "changed": "변경됨",
-            "changed_to": "변경 후 =",
-        }.get(config.get("operator"), config.get("operator", "="))
-        value = config.get("value", "")
-        return f"{config.get('topic', '-')} · {field} {operator} {value}"
+        topic = config.get("topic", "-")
+        # Legacy rows may still carry their old inline value filter until the
+        # data migration is applied. Keep the summary readable in that case.
+        if any(key in config for key in ("field", "operator", "value")):
+            field = config.get("field") or "value"
+            operator = {
+                "eq": "=",
+                "ne": "≠",
+                "gt": ">",
+                "gte": "≥",
+                "lt": "<",
+                "lte": "≤",
+                "changed": "변경됨",
+                "changed_to": "변경 후 =",
+            }.get(config.get("operator"), config.get("operator", "="))
+            value = config.get("value", "")
+            return f"{topic} · {field} {operator} {value}"
+        return f"{topic} 메시지 수신"
+
+    if trigger.trigger_type == AutomationTrigger.TriggerType.DEVICE_STATE:
+        label = (
+            config.get("device_name")
+            or config.get("device_uid")
+            or "기기"
+        )
+        return f"{label} 상태 변경"
 
     schedule_type = config.get("schedule_type")
     if schedule_type == AutomationTrigger.ScheduleType.ONCE:
@@ -134,4 +151,41 @@ def describe_trigger(trigger):
     if schedule_type == AutomationTrigger.ScheduleType.INTERVAL:
         unit = INTERVAL_UNITS.get(config.get("unit"), config.get("unit", ""))
         return f"{config.get('every', '-')} {unit}마다"
+    return "설정되지 않음"
+
+
+def describe_condition(condition):
+    config = condition.config or {}
+    if condition.condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
+        return f"{config.get('start', '-')} ~ {config.get('end', '-')}"
+
+    operator = {
+        "eq": "=",
+        "ne": "≠",
+        "gt": ">",
+        "gte": "≥",
+        "lt": "<",
+        "lte": "≤",
+        "changed": "변경됨",
+        "changed_to": "변경 후 =",
+    }.get(config.get("operator"), config.get("operator", "="))
+
+    if condition.condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
+        device = (
+            config.get("device_name")
+            or config.get("device_uid")
+            or config.get("topic")
+            or "기기"
+        )
+        key = config.get("key") or "value"
+        if config.get("operator") == "changed":
+            return f"{device} · {key} {operator}"
+        return f"{device} · {key} {operator} {config.get('value', '')}"
+
+    if condition.condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
+        field = config.get("field") or "value"
+        if config.get("operator") == "changed":
+            return f"트리거 · {field} {operator}"
+        return f"트리거 · {field} {operator} {config.get('value', '')}"
+
     return "설정되지 않음"

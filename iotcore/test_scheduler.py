@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -117,18 +118,18 @@ class AutomationCalculatorTests(TestCase):
 
 
 class AutomationTriggerFormTests(TestCase):
-    def test_mqtt_value_is_parsed_as_json_type(self):
+    def test_mqtt_trigger_only_stores_broad_topic(self):
         form = AutomationTriggerForm(data={
             "trigger_type": AutomationTrigger.TriggerType.MQTT_EVENT,
             "enabled": "on",
             "event_topic": "zigbee2mqtt/front_door",
-            "event_field": "contact",
-            "event_operator": "eq",
-            "event_value": "true",
         })
 
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertIs(form.cleaned_data["config"]["value"], True)
+        self.assertEqual(
+            form.cleaned_data["config"],
+            {"topic": "zigbee2mqtt/front_door"},
+        )
 
     def test_hidden_time_fields_do_not_leak_into_mqtt_config(self):
         form = AutomationTriggerForm(data={
@@ -138,15 +139,66 @@ class AutomationTriggerFormTests(TestCase):
             "time_of_day": "08:30",
             "weekdays": ["0", "1", "2", "3", "4", "5", "6"],
             "event_topic": "zigbee2mqtt/front_door",
-            "event_field": "contact",
-            "event_operator": "eq",
-            "event_value": "false",
         })
 
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(
-            set(form.cleaned_data["config"]),
-            {"topic", "field", "operator", "value"},
+            form.cleaned_data["config"],
+            {"topic": "zigbee2mqtt/front_door"},
+        )
+
+    def test_existing_legacy_mqtt_filter_is_preserved_on_save(self):
+        automation = Automation.objects.create(name="기존 MQTT 예약 실행")
+        trigger = AutomationTrigger.objects.create(
+            automation=automation,
+            trigger_type=AutomationTrigger.TriggerType.MQTT_EVENT,
+            config={
+                "topic": "zigbee2mqtt/front_door",
+                "field": "contact",
+                "operator": "changed_to",
+                "value": False,
+            },
+        )
+        legacy_config = {
+            "field": "contact",
+            "operator": "changed_to",
+            "value": False,
+        }
+        form = AutomationTriggerForm(
+            data={
+                "trigger_type": AutomationTrigger.TriggerType.MQTT_EVENT,
+                "enabled": "on",
+                "event_topic": "zigbee2mqtt/front_door",
+                "legacy_event_config": json.dumps(legacy_config),
+            },
+            instance=trigger,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(
+            form.cleaned_data["config"],
+            {"topic": "zigbee2mqtt/front_door", **legacy_config},
+        )
+
+    def test_device_state_trigger_stores_iotcore_device_identity(self):
+        sensor = Device.objects.create(
+            device_uid="room-sensor",
+            name="방 센서",
+            device_type="sensor",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        form = AutomationTriggerForm(data={
+            "trigger_type": AutomationTrigger.TriggerType.DEVICE_STATE,
+            "enabled": "on",
+            "state_device": sensor.pk,
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["config"]["device_id"], sensor.pk)
+        self.assertEqual(
+            form.cleaned_data["config"]["device_uid"],
+            "room-sensor",
         )
 
 
@@ -181,6 +233,73 @@ class AutomationConditionFormTests(TestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
         self.assertIsNone(form.cleaned_data["condition_type"])
+
+    def test_device_state_condition_parses_numeric_comparison(self):
+        sensor = Device.objects.create(
+            device_uid="condition-sensor",
+            name="조건 센서",
+            device_type="sensor",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        form = AutomationConditionForm(data={
+            "condition_type": AutomationCondition.ConditionType.DEVICE_STATE,
+            "state_device": sensor.pk,
+            "state_key": "temperature",
+            "state_operator": "gte",
+            "state_value": "28",
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["config"]["operator"], "gte")
+        self.assertEqual(form.cleaned_data["config"]["value"], 28)
+
+    def test_unresolved_legacy_device_state_topic_is_preserved_on_save(self):
+        automation = Automation.objects.create(name="기존 상태 조건")
+        condition = AutomationCondition.objects.create(
+            automation=automation,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            order=1,
+            config={
+                "topic": "custom/sensor/state",
+                "key": "temperature",
+                "operator": "gte",
+                "value": 28,
+            },
+        )
+        form = AutomationConditionForm(
+            data={
+                "condition_type": AutomationCondition.ConditionType.DEVICE_STATE,
+                "state_device": "",
+                "state_key": "temperature",
+                "state_operator": "gte",
+                "state_value": "28",
+            },
+            instance=condition,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(
+            form.cleaned_data["config"],
+            {
+                "topic": "custom/sensor/state",
+                "key": "temperature",
+                "operator": "gte",
+                "value": 28,
+            },
+        )
+
+    def test_event_value_condition_supports_changed_without_value(self):
+        form = AutomationConditionForm(data={
+            "condition_type": AutomationCondition.ConditionType.EVENT_VALUE,
+            "event_field": "contact",
+            "event_operator": "changed",
+            "event_value": "",
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["config"]["operator"], "changed")
+        self.assertIsNone(form.cleaned_data["config"]["value"])
 
 
 class AutomationOptionalFormSetTests(TestCase):
@@ -325,6 +444,139 @@ class AutomationServiceTests(TestCase):
         runs = AutomationService.process_event(
             "zigbee2mqtt/front_door",
             {"contact": False},
+        )
+
+        self.assertEqual(len(runs), 1)
+
+    def test_mqtt_trigger_uses_event_value_condition_for_filtering(self):
+        AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.MQTT_EVENT,
+            config={"topic": "zigbee2mqtt/front_door"},
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            condition_type=AutomationCondition.ConditionType.EVENT_VALUE,
+            order=1,
+            config={
+                "field": "contact",
+                "operator": "eq",
+                "value": False,
+            },
+        )
+
+        ignored = AutomationService.process_event(
+            "zigbee2mqtt/front_door",
+            {"contact": True},
+        )
+        matched = AutomationService.process_event(
+            "zigbee2mqtt/front_door",
+            {"contact": False},
+        )
+
+        self.assertEqual(ignored, [])
+        self.assertEqual(len(matched), 1)
+
+    def test_device_state_trigger_fires_only_after_known_state_changes(self):
+        sensor = Device.objects.create(
+            device_uid="room-temp",
+            name="방 온습도",
+            device_type="sensor",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.DEVICE_STATE,
+            config={
+                "device_id": sensor.pk,
+                "device_uid": sensor.device_uid,
+                "device_name": sensor.name,
+            },
+        )
+        AutomationService.update_device_state(
+            "zigbee2mqtt/room-temp",
+            {"temperature": 27.0},
+        )
+
+        unchanged = AutomationService.process_event(
+            "zigbee2mqtt/room-temp",
+            {"temperature": 27.0},
+        )
+        changed = AutomationService.process_event(
+            "zigbee2mqtt/room-temp",
+            {"temperature": 28.0},
+        )
+
+        self.assertEqual(unchanged, [])
+        self.assertEqual(len(changed), 1)
+
+    def test_device_state_condition_reads_canonical_state_and_numeric_operator(self):
+        sensor = Device.objects.create(
+            device_uid="temperature-condition",
+            name="온도 센서",
+            device_type="sensor",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            order=1,
+            config={
+                "device_id": sensor.pk,
+                "device_uid": sensor.device_uid,
+                "key": "temperature",
+                "operator": "gte",
+                "value": 28,
+            },
+        )
+        AutomationService.update_device_state(
+            "zigbee2mqtt/temperature-condition",
+            {"temperature": 28.4},
+        )
+
+        self.assertTrue(
+            AutomationService._conditions_match(self.automation, timezone.now())
+        )
+
+    def test_record_device_state_can_drive_device_change_trigger(self):
+        light = Device.objects.create(
+            device_uid="state-light",
+            name="상태 전등",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.DEVICE_STATE,
+            config={
+                "device_id": light.pk,
+                "device_uid": light.device_uid,
+                "device_name": light.name,
+            },
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            order=1,
+            config={
+                "device_id": light.pk,
+                "device_uid": light.device_uid,
+                "key": "power",
+                "operator": "changed_to",
+                "value": False,
+            },
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(light),
+            {"power": True},
+        )
+
+        runs = AutomationService.record_device_state(
+            light,
+            {"power": False},
         )
 
         self.assertEqual(len(runs), 1)

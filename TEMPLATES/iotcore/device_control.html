@@ -620,7 +620,7 @@
 {% block content %}
 <div class="iot-page device-control-content">
   <header class="iot-page-header">
-    <div><p class="iot-eyebrow">DEVICE CONTROL</p><h1>기기 제어</h1><p>등록된 기기의 세부 기능을 직접 조작합니다.</p></div>
+    <div><p class="iot-eyebrow">DEVICE CONTROL</p><h1>기기 제어</h1><p>등록된 기기의 세부 기능을 직접 제어합니다.</p></div>
   </header>
 <div class="detail-row">
 
@@ -634,7 +634,7 @@
                              data-pc-name="{{ pc.name }}"
                              data-pc-mac="{{ pc.mac }}"
                              data-pc-ip="{{ pc.broadcast_ip }}">
-                            {{ pc.name }}
+                            {{ pc.display_name|default:pc.name }}
                             <div class="dropdown-content" onclick="event.stopPropagation()">
                                 <button onclick="sendAction('/iotcore/pc/power_on/', event)">전원 켜기</button>
                                 <button onclick="sendAction('/iotcore/pc/power_off/', event)">전원 끄기</button>
@@ -657,7 +657,7 @@
                              data-device-id="{{ controller.device.id }}"
                              data-device-type="{{ controller.device.device_type }}"
                              data-location="{{ controller.location }}">
-                            에어컨 조작
+                            에어컨 제어
                             <div class="dropdown-content" onclick="event.stopPropagation()">
                                 <button onclick="sendAction('/iotcore/aircon/power_on/', event)">전원 켜기</button>
                                 <button onclick="sendAction('/iotcore/aircon/power_off/', event)">전원 끄기</button>
@@ -680,7 +680,7 @@
                              data-device-id="{{ controller.device.id }}"
                              data-device-type="{{ controller.device.device_type }}"
                              data-location="{{ controller.location }}">
-                            선풍기 조작 [사용 안함]
+                            선풍기 제어 [사용 안함]
                             <div class="dropdown-content" onclick="event.stopPropagation()">
                                 <!-- <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">풍량 올리기</button>
                                 <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">전원 끄기</button>
@@ -700,7 +700,7 @@
                             onclick="toggleDropdown(this)"
                             data-device-id="{{ device.id }}"
                             data-device-type="{{ device.device_type }}">
-                            전등 조작
+                            전등 제어
                             <div class="dropdown-content" onclick="event.stopPropagation()">
                                 <button onclick="sendAction('/iotcore/main_led/power_on/', event)">
                                     전원 켜기
@@ -733,7 +733,7 @@
                                 class="speaker-card-header"
                                 aria-expanded="false"
                                 onclick="toggleDropdown(this.closest('.speaker-card'))">
-                                <h2 class="speaker-card-title">음악 조작</h2>
+                                <h2 class="speaker-card-title">음악 제어</h2>
                                 <span class="speaker-card-summary">
                                     <span class="speaker-card-device">{{ device.name }}</span>
                                     <span class="speaker-card-chevron" aria-hidden="true">⌄</span>

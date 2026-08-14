@@ -24,15 +24,22 @@ class DeviceService:
         if device.device_type == "aircon":
             return DeviceService.execute_aircon(step)
         if device.device_type == "fan":
-            return DeviceService.execute_fan(step)
+            success, message = DeviceService.execute_fan(step)
+            if success:
+                DeviceService._record_control_state(
+                    device,
+                    step.function,
+                    parameters,
+                )
+            return success, message
         if device.device_type == "light":
-            return DeviceService.execute_light(device.id, step.function)
+            return DeviceService.control(device.id, step.function)
         if device.device_type == "media_server":
             return DeviceService.execute_media_server(step)
         if device.device_type == "projector":
             return DeviceService.execute_projector(step)
         if device.device_type == "speaker":
-            return DeviceService.execute_speaker(
+            return DeviceService.control(
                 device.id,
                 step.function,
                 playlist_id=parameters.get("playlist_id"),
@@ -129,10 +136,82 @@ class DeviceService:
             return False, f"지원하지 않는 기기 종류입니다. ({device.device_type})"
 
         if success:
+            DeviceService._record_control_state(
+                device,
+                motion,
+                {
+                    "bits": bits,
+                    "playlist_id": playlist_id,
+                    "music_id": music_id,
+                    "volume": volume,
+                    "repeat_mode": repeat_mode,
+                },
+            )
             return True, success_message or f"{device.name} 제어를 완료했습니다."
 
         return False, error_message
     
+
+
+    @staticmethod
+    def _record_control_state(device, motion, parameters=None):
+        """Store an optimistic last-known state after a successful control."""
+        patch = DeviceService._infer_state_patch(motion, parameters or {})
+        if not patch:
+            return
+        # Local import avoids coupling the device executor to scheduler startup.
+        from ...scheduler.service import AutomationService
+
+        AutomationService.record_device_state(
+            device,
+            patch,
+            source="iotcore_control",
+        )
+
+    @staticmethod
+    def _infer_state_patch(motion, parameters):
+        if motion == "power_on":
+            return {"power": True}
+        if motion in {"power_off", "stop"}:
+            return {"power": False}
+
+        if str(motion).startswith("set_temp_"):
+            try:
+                return {"target_temperature": int(str(motion).rsplit("_", 1)[1])}
+            except (TypeError, ValueError):
+                return {}
+
+        if motion == "set_temp" and parameters.get("bits") not in (None, ""):
+            try:
+                return {"target_temperature": int(parameters["bits"])}
+            except (TypeError, ValueError):
+                return {"target_temperature": parameters["bits"]}
+
+        mode_mapping = {
+            "mode_auto": "auto",
+            "mode_cool": "cool",
+            "mode_dehumidification": "dehumidification",
+            "mode_fan": "fan",
+        }
+        if motion in mode_mapping:
+            return {"mode": mode_mapping[motion]}
+
+        if motion in {"play_playlist", "play_music", "resume", "play_next", "play_previous"}:
+            return {"playback_state": "playing"}
+        if motion == "pause":
+            return {"playback_state": "paused"}
+        if motion == "adjust_music_volume" and parameters.get("volume") not in (None, ""):
+            try:
+                return {"volume": int(parameters["volume"])}
+            except (TypeError, ValueError):
+                return {"volume": parameters["volume"]}
+        if motion == "activate_shuffle":
+            return {"shuffle": True}
+        if motion == "deactivate_shuffle":
+            return {"shuffle": False}
+        if motion == "set_repeat" and parameters.get("repeat_mode"):
+            return {"repeat_mode": parameters["repeat_mode"]}
+        return {}
 
     @staticmethod
     def execute_aircon(step):

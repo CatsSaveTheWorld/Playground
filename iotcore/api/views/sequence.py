@@ -218,9 +218,11 @@ def sequence_edit(request, sequence_id:int):
             step.function,
         )
     step_form = SequenceStepForm()
-    devices = Device.objects.all().order_by("name")
+    devices = Device.objects.filter(
+        device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
+    ).order_by("name")
     device_actions = {}
-    for device_type in Device.objects.values_list("device_type", flat=True).distinct():
+    for device_type in devices.values_list("device_type", flat=True).distinct():
         actions = DeviceActionRegistry.get_actions(device_type)
         device_actions[device_type] = [
             {

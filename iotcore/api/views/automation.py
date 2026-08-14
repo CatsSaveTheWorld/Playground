@@ -20,7 +20,7 @@ from ...models import (
     AutomationTrigger,
     Device,
 )
-from ...scheduler.calculator import describe_trigger
+from ...scheduler.calculator import describe_condition, describe_trigger
 from ...scheduler.service import AutomationService
 
 
@@ -121,7 +121,9 @@ def _action_ui_context():
     }
     device_types = {
         str(device.pk): device.device_type
-        for device in Device.objects.all()
+        for device in Device.objects.filter(
+            device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
+        )
     }
     return {
         "action_registry_json": json.dumps(action_registry, ensure_ascii=False),
@@ -138,7 +140,12 @@ def _render_form(request, context):
 def automation_list(request):
     automations = list(
         Automation.objects
-        .prefetch_related("triggers", "actions__device", "actions__sequence")
+        .prefetch_related(
+            "triggers",
+            "conditions",
+            "actions__device",
+            "actions__sequence",
+        )
     )
     for automation in automations:
         triggers = list(automation.triggers.all())
@@ -150,6 +157,10 @@ def automation_list(request):
             if trigger.next_run_at is not None
         ]
         automation.next_run_at = min(next_runs) if next_runs else None
+        automation.condition_summary = " / ".join(
+            describe_condition(condition)
+            for condition in automation.conditions.all()
+        ) or "조건 없음"
 
         action_summaries = []
         for action in automation.actions.all():
