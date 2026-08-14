@@ -86,11 +86,24 @@ class SequenceExecutor:
                 if index == len(steps) - 1:
                     continue
 
+                next_step = steps[index + 1]
+
+                # 현재 Step에 AFTER delay가 명시되어 있으면 그대로 사용
                 if (
                     step.delay_position == SequenceStep.AFTER
                     and step.delay > 0
                 ):
                     time.sleep(step.delay)
+
+                # 다음 Step에 BEFORE delay가 있다면
+                # 다음 반복에서 그 delay를 처리하므로 여기서는 기본 delay를 넣지 않음
+                elif (
+                    next_step.delay_position == SequenceStep.BEFORE
+                    and next_step.delay > 0
+                ):
+                    continue
+
+                # 양쪽 모두 명시적인 delay가 없을 때만 기본 간격 적용
                 else:
                     time.sleep(cls.DEFAULT_STEP_DELAY)
 
