@@ -329,23 +329,12 @@
         setStatus('IR 신호를 전송하고 있습니다.');
 
         try {
-            const response = await fetch(actionUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': window.IOTCORE_CSRF_TOKEN,
-                },
-                body: new URLSearchParams({ motion }),
-            });
+            const data = await window.IOTCORE_POST_FORM(
+                actionUrl,
+                new URLSearchParams({ motion })
+            );
 
-            let data = {};
-            try {
-                data = await response.json();
-            } catch (error) {
-                throw new Error('서버 응답을 확인할 수 없습니다.');
-            }
-
-            if (!response.ok || data.success === false) {
+            if (data.success === false || data.status === 'fail') {
                 throw new Error(data.message || '프로젝터 제어에 실패했습니다.');
             }
 

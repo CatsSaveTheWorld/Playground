@@ -966,16 +966,8 @@
             params.set('device_id', deviceId);
         }
 
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': window.IOTCORE_CSRF_TOKEN,
-            },
-            body: params
-        })
-        .then(res => res.json())
-        .then(data => showToast(data.message))
+        window.IOTCORE_POST_FORM(url, params)
+        .then(data => showToast(data.message || '요청을 완료했습니다.'))
         .catch(err => showToast('요청 실패: ' + err.message));
 
         return false;
@@ -1002,19 +994,14 @@
             return false;
         }
 
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': window.IOTCORE_CSRF_TOKEN,
-            },
-            body: new URLSearchParams({
+        window.IOTCORE_POST_FORM(
+            url,
+            new URLSearchParams({
                 'device_id': deviceId,
                 'temperature': temp
             })
-        })
-        .then(res => res.json())
-        .then(data => showToast(data.message))
+        )
+        .then(data => showToast(data.message || '온도 설정을 완료했습니다.'))
         .catch(err => showToast('요청 실패: ' + err.message));
 
         return false;
@@ -1059,23 +1046,9 @@
         setSpeakerStatus(card, '요청을 처리하고 있습니다.');
 
         try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': window.IOTCORE_CSRF_TOKEN,
-                },
-                body: requestParams,
-            });
+            const data = await window.IOTCORE_POST_FORM(url, requestParams);
 
-            let data = {};
-            try {
-                data = await response.json();
-            } catch (error) {
-                throw new Error('서버 응답을 확인할 수 없습니다.');
-            }
-
-            if (!response.ok || data.success === false) {
+            if (data.success === false || data.status === 'fail') {
                 throw new Error(data.message || '스피커 제어에 실패했습니다.');
             }
 
