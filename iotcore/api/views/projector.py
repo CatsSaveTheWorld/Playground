@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from ...device.services.device_service import DeviceService
 from ...models import Controller, Device
@@ -64,8 +64,8 @@ def projector_control(request, device_id):
     )
 
 
-@csrf_exempt
 @login_required(login_url="common:login")
+@require_POST
 def projector_action(request, device_id):
     if request.method != "POST":
         return JsonResponse(

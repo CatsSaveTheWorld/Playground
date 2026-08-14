@@ -333,6 +333,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': window.IOTCORE_CSRF_TOKEN,
                 },
                 body: new URLSearchParams({ motion }),
             });

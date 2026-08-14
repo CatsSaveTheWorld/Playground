@@ -1,5 +1,6 @@
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from ...models import Device
 from .common import parse_request_data
 from ...device.services.device_service import DeviceService
@@ -17,7 +18,6 @@ motion_messages = {
 # ────────────────────────────────
 #  통합 제어 엔트리 (Form + JSON)
 # ────────────────────────────────
-@csrf_exempt
 def aircon_entry(request):
     # POST 요청만 허용
     if request.method != "POST":
@@ -96,49 +96,56 @@ def aircon_entry(request):
 # ────────────────────────────────
 #  에어컨 호환용 뷰 (기존 웹 요청 URL 유지)
 # ────────────────────────────────
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def aircon_power_on(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'power_on'
     return aircon_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def aircon_power_off(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'power_off'
     return aircon_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def aircon_mode_auto(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'mode_auto'
     return aircon_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def aircon_mode_cool(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'mode_cool'
     return aircon_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def aircon_mode_fan(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'mode_fan'
     return aircon_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def aircon_dehumidification_mode(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'mode_dehumidification'
     return aircon_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def aircon_set_temp(request):
     if request.method != "POST":
         return JsonResponse(

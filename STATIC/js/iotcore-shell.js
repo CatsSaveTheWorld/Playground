@@ -1,4 +1,8 @@
 (() => {
+    window.IOTCORE_CSRF_TOKEN = (
+        document.querySelector('meta[name="csrf-token"]')?.content || ''
+    );
+
     const body = document.body;
     const overlay = document.getElementById('iotShellOverlay');
     const navToggle = document.getElementById('iotNavToggle');

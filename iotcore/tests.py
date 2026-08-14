@@ -1,9 +1,10 @@
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import Client, RequestFactory, SimpleTestCase
 from django.template.loader import render_to_string
-from django.urls import reverse
+from django.urls import resolve, reverse
 
 from .device.services.device_service import DeviceService
 from .infrastructure.music_assistant.client import MusicAssistantClient
@@ -205,6 +206,15 @@ class DeviceServiceSpeakerTests(SimpleTestCase):
 
 
 class SpeakerEndpointTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def post_as_authenticated_user(self, url):
+        request = self.factory.post(url)
+        request.user = SimpleNamespace(is_authenticated=True)
+        match = resolve(url)
+        return match.func(request, **match.kwargs)
+
     @patch(
         "iotcore.api.views.speaker.DeviceService.control",
         return_value=(True, "이전 곡을 재생합니다!"),
@@ -218,7 +228,7 @@ class SpeakerEndpointTests(SimpleTestCase):
         get_by_id,
         control,
     ):
-        response = self.client.post(
+        response = self.post_as_authenticated_user(
             reverse(
                 "iotcore:speaker_play_previous",
                 kwargs={"device_id": 4},
@@ -226,7 +236,7 @@ class SpeakerEndpointTests(SimpleTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["success"])
+        self.assertTrue(json.loads(response.content)["success"])
         get_by_id.assert_called_once_with(4)
         self.assertEqual(control.call_args.kwargs["motion"], "play_previous")
 
@@ -243,7 +253,7 @@ class SpeakerEndpointTests(SimpleTestCase):
         get_by_id,
         control,
     ):
-        response = self.client.post(
+        response = self.post_as_authenticated_user(
             reverse(
                 "iotcore:speaker_resume",
                 kwargs={"device_id": 4},
@@ -251,7 +261,7 @@ class SpeakerEndpointTests(SimpleTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["success"])
+        self.assertTrue(json.loads(response.content)["success"])
         get_by_id.assert_called_once_with(4)
         self.assertEqual(control.call_args.kwargs["motion"], "resume")
 
@@ -268,7 +278,7 @@ class SpeakerEndpointTests(SimpleTestCase):
         get_by_id,
         control,
     ):
-        response = self.client.post(
+        response = self.post_as_authenticated_user(
             reverse(
                 "iotcore:speaker_set_repeat",
                 kwargs={"device_id": 4, "repeat_mode": "one"},
@@ -276,13 +286,13 @@ class SpeakerEndpointTests(SimpleTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["success"])
+        self.assertTrue(json.loads(response.content)["success"])
         get_by_id.assert_called_once_with(4)
         self.assertEqual(control.call_args.kwargs["motion"], "set_repeat")
         self.assertEqual(control.call_args.kwargs["repeat_mode"], "one")
 
     def test_repeat_endpoint_rejects_unknown_mode(self):
-        response = self.client.post(
+        response = self.post_as_authenticated_user(
             reverse(
                 "iotcore:speaker_set_repeat",
                 kwargs={"device_id": 4, "repeat_mode": "invalid"},
@@ -290,7 +300,28 @@ class SpeakerEndpointTests(SimpleTestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertFalse(response.json()["success"])
+        self.assertFalse(json.loads(response.content)["success"])
+
+    def test_endpoint_requires_login(self):
+        response = self.client.post(
+            reverse(
+                "iotcore:speaker_play_previous",
+                kwargs={"device_id": 4},
+            ),
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_endpoint_rejects_missing_csrf_token(self):
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(
+            reverse(
+                "iotcore:speaker_play_previous",
+                kwargs={"device_id": 4},
+            ),
+        )
+
+        self.assertEqual(response.status_code, 403)
 
 
 class SpeakerTemplateTests(SimpleTestCase):

@@ -1,6 +1,7 @@
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from ...models import Controller, Device
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from ...infrastructure.ir.client import IRClient
 from ...device.repositories.controller_repository import ControllerRepository
@@ -66,7 +67,8 @@ def electricfan_entry(request):
 # ────────────────────────────────
 #  선풍기 호환용 뷰 (기존 웹 요청 URL 유지)
 # ────────────────────────────────
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def electricfan_power_cycle(request):
     print(f"electricfan_power_cycle 요청 완료.")
     request.POST = request.POST.copy()
@@ -74,21 +76,24 @@ def electricfan_power_cycle(request):
     return electricfan_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def electricfan_stop(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'stop'
     return electricfan_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def electricfan_fan_way_toggle(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'fan_way_toggle'
     return electricfan_entry(request)
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def electricfan_timer_add_30m(request):
     request.POST = request.POST.copy()
     request.POST['motion'] = 'timer_add_30m'

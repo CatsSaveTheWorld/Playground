@@ -1,5 +1,6 @@
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from .common import parse_request_data
 from ...device.repositories.device_repository import DeviceRepository
 from ...device.services.device_service import DeviceService
@@ -14,7 +15,6 @@ motion_messages = {
 # ────────────────────────────────
 #  통합 제어 엔트리 (Form + JSON)
 # ────────────────────────────────
-@csrf_exempt
 def main_led_entry(request):
     # POST 요청만 허용
     if request.method != "POST":
@@ -99,14 +99,16 @@ def main_led_entry(request):
 # ────────────────────────────────
 #  전등 호환용 뷰 (기존 웹 요청 URL 유지)
 # ────────────────────────────────
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def main_led_power_on(request):
     print(f"main_led_power_on 요청 완료.")
     request.POST = request.POST.copy()
     request.POST['motion'] = 'power_on'
     return main_led_entry(request)
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def main_led_power_off(request):
     print(f"main_led_power_off 요청 완료.")
     request.POST = request.POST.copy()

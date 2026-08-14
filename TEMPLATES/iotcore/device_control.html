@@ -968,7 +968,10 @@
 
         fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': window.IOTCORE_CSRF_TOKEN,
+            },
             body: params
         })
         .then(res => res.json())
@@ -1001,7 +1004,10 @@
 
         fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': window.IOTCORE_CSRF_TOKEN,
+            },
             body: new URLSearchParams({
                 'device_id': deviceId,
                 'temperature': temp
@@ -1057,6 +1063,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': window.IOTCORE_CSRF_TOKEN,
                 },
                 body: requestParams,
             });

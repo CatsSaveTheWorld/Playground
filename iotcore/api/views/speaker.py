@@ -1,5 +1,6 @@
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from .common import parse_request_data
 from ...device.repositories.device_repository import DeviceRepository
 from ...device.services.device_service import DeviceService
@@ -24,7 +25,6 @@ motion_messages = {
 # ────────────────────────────────
 #  통합 제어 엔트리 (Form + JSON)
 # ────────────────────────────────
-@csrf_exempt
 def speaker_entry(request, **overrides):
     if request.method != "POST":
         return JsonResponse(
@@ -158,7 +158,8 @@ def speaker_entry(request, **overrides):
 # ────────────────────────────────
 #  스피커 호환용 뷰 (기존 웹 요청 URL 유지)
 # ────────────────────────────────
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_play_playlist(request, device_id, playlist_id):
     return speaker_entry(
         request,
@@ -168,7 +169,8 @@ def speaker_play_playlist(request, device_id, playlist_id):
     )
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_play_music(request, device_id, music_id):
     return speaker_entry(
         request,
@@ -178,7 +180,8 @@ def speaker_play_music(request, device_id, music_id):
     )
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_play_previous(request, device_id):
     return speaker_entry(
         request,
@@ -187,7 +190,8 @@ def speaker_play_previous(request, device_id):
     )
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_resume(request, device_id):
     return speaker_entry(
         request,
@@ -196,7 +200,8 @@ def speaker_resume(request, device_id):
     )
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_pause(request, device_id):
     return speaker_entry(
         request,
@@ -205,7 +210,8 @@ def speaker_pause(request, device_id):
     )
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_play_next(request, device_id):
     return speaker_entry(
         request,
@@ -214,7 +220,8 @@ def speaker_play_next(request, device_id):
     )
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_adjust_music_volume(request, device_id):
     return speaker_entry(
         request,
@@ -223,7 +230,8 @@ def speaker_adjust_music_volume(request, device_id):
     )
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_shuffle_activate(request, device_id):
     return speaker_entry(
         request,
@@ -231,7 +239,8 @@ def speaker_shuffle_activate(request, device_id):
         motion="activate_shuffle",
     )
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_shuffle_deactivate(request, device_id):
     return speaker_entry(
         request,
@@ -240,7 +249,8 @@ def speaker_shuffle_deactivate(request, device_id):
     )
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def speaker_set_repeat(request, device_id, repeat_mode):
     return speaker_entry(
         request,

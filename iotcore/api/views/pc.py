@@ -1,5 +1,6 @@
-from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 from .common import parse_request_data
 from django.conf import settings
 from ...infrastructure.wol.client import WOLClient
@@ -8,7 +9,8 @@ import requests
 
 
 # PC 제어
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def pc_power_on(request):
     if request.method != "POST":
         return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)
@@ -32,7 +34,8 @@ def pc_power_on(request):
     return JsonResponse({'status': 'success', 'message': success_message})
 
 
-@csrf_exempt
+@login_required(login_url="common:login")
+@require_POST
 def pc_power_off(request):
     if request.method != "POST":
         return JsonResponse({'status': 'fail', 'message': 'POST 요청만 허용됩니다.'}, status=400)

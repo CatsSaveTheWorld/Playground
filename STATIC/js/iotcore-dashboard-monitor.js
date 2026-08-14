@@ -172,7 +172,7 @@
 
     let fetching = false;
     const refresh = async () => {
-        if (fetching) return;
+        if (fetching || document.hidden) return;
         fetching = true;
         try {
             const response = await fetch(endpoint, {
@@ -194,7 +194,9 @@
     };
 
     refresh();
-    const timer = window.setInterval(refresh, 1000);
+    const timer = window.setInterval(refresh, 3000);
     window.addEventListener('pagehide', () => window.clearInterval(timer), { once: true });
-    window.addEventListener('resize', refresh);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refresh();
+    });
 })();
