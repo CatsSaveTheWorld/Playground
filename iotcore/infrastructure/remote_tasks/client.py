@@ -12,9 +12,29 @@ class RemoteTaskClient:
     """Send one command to a device agent and wait for its correlated result."""
 
     @classmethod
-    def execute(cls, action, parameters=None, agent_id=None):
+    def execute(cls, action, parameters=None, agent_id=None, timeout=None):
+        result = cls.execute_result(
+            action=action,
+            parameters=parameters,
+            agent_id=agent_id,
+            timeout=timeout,
+        )
+        success = bool(result.get("success"))
+        message = result.get("message") or (
+            "원격 작업이 완료되었습니다."
+            if success
+            else "원격 작업이 실패했습니다."
+        )
+        return success, message
+
+    @classmethod
+    def execute_result(cls, action, parameters=None, agent_id=None, timeout=None):
         agent_id = agent_id or getattr(settings, "IOTCORE_PI_AGENT_ID", "pi5")
-        timeout = float(getattr(settings, "IOTCORE_REMOTE_TASK_TIMEOUT", 180))
+        timeout = float(
+            timeout
+            if timeout is not None
+            else getattr(settings, "IOTCORE_REMOTE_TASK_TIMEOUT", 180)
+        )
         topic_prefix = getattr(
             settings,
             "IOTCORE_REMOTE_TASK_TOPIC_PREFIX",
@@ -57,9 +77,9 @@ class RemoteTaskClient:
             while not client.is_connected() and time.monotonic() < deadline:
                 time.sleep(0.05)
             if not client.is_connected():
-                return False, "MQTT 브로커에 연결하지 못했습니다."
+                return {"success": False, "message": "MQTT 브로커에 연결하지 못했습니다."}
             if not subscribed.wait(min(timeout, 10)):
-                return False, "MQTT 결과 토픽 구독 시간이 초과되었습니다."
+                return {"success": False, "message": "MQTT 결과 토픽 구독 시간이 초과되었습니다."}
 
             payload = {
                 "request_id": request_id,
@@ -73,19 +93,21 @@ class RemoteTaskClient:
                 qos=1,
             )
             if publish_result.rc != mqtt.MQTT_ERR_SUCCESS:
-                return False, f"원격 작업 요청 전송에 실패했습니다. (rc={publish_result.rc})"
+                return {"success": False, "message": f"원격 작업 요청 전송에 실패했습니다. (rc={publish_result.rc})"}
             if not completed.wait(timeout):
-                return False, f"Pi 에이전트 응답 시간이 초과되었습니다. ({timeout:g}초)"
+                return {"success": False, "message": f"Pi 에이전트 응답 시간이 초과되었습니다. ({timeout:g}초)"}
         except OSError as exc:
-            return False, f"MQTT 통신에 실패했습니다. ({exc})"
+            return {"success": False, "message": f"MQTT 통신에 실패했습니다. ({exc})"}
         finally:
             client.loop_stop()
             client.disconnect()
 
-        success = bool(response.get("success"))
-        message = response.get("message") or (
-            "원격 작업이 완료되었습니다."
-            if success
-            else "원격 작업이 실패했습니다."
-        )
-        return success, message
+        if "success" not in response:
+            response["success"] = False
+        if not response.get("message"):
+            response["message"] = (
+                "원격 작업이 완료되었습니다."
+                if response.get("success")
+                else "원격 작업이 실패했습니다."
+            )
+        return response

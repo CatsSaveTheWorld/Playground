@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MQTT agent that refreshes the YouTube Music cookie on the Raspberry Pi."""
+"""IoTCore MQTT agent for Pi-side cookie refresh and projector media playback."""
 
 from __future__ import annotations
 
@@ -17,7 +17,11 @@ from typing import Any
 import paho.mqtt.client as mqtt
 
 
-ACTION = "ytmusic.refresh_cookie"
+COOKIE_ACTION = "ytmusic.refresh_cookie"
+MEDIA_LIST_ACTION = "media.list_videos"
+MEDIA_PLAY_ACTION = "media.play_video"
+MEDIA_STOP_ACTION = "media.stop"
+MEDIA_ACTIONS = {MEDIA_LIST_ACTION, MEDIA_PLAY_ACTION, MEDIA_STOP_ACTION}
 SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 
 
@@ -65,6 +69,21 @@ class Config:
         )
     )
 
+    media_root = Path(
+        os.environ.get(
+            "IOTCORE_MEDIA_ROOT",
+            "/home/leedowon/qleto_2tb/wallpaper/videos",
+        )
+    )
+    mpv_binary = Path(os.environ.get("IOTCORE_MPV_BINARY", "/usr/bin/mpv"))
+    xdg_runtime_dir = os.environ.get("IOTCORE_XDG_RUNTIME_DIR", "/run/user/1000")
+    wayland_display = os.environ.get("IOTCORE_WAYLAND_DISPLAY", "wayland-0")
+    dbus_session_bus = os.environ.get(
+        "IOTCORE_DBUS_SESSION_BUS_ADDRESS",
+        "unix:path=/run/user/1000/bus",
+    )
+    media_extensions = {".mp4", ".mkv", ".webm", ".mov", ".m4v"}
+
     @classmethod
     def command_topic(cls) -> str:
         return f"{cls.topic_prefix}/{cls.agent_id}/commands"
@@ -111,11 +130,11 @@ def safe_process_error(process: subprocess.CompletedProcess[str]) -> str:
     return lines[-1][:300] if lines else "원인 정보 없음"
 
 
-class CookieAgent:
+class PiAgent:
     def __init__(self) -> None:
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
-            client_id=f"iotcore-{Config.agent_id}-ytmusic-cookie",
+            client_id=f"iotcore-{Config.agent_id}-agent",
         )
         if Config.mqtt_username:
             password = read_private_secret(Config.mqtt_password_file, "MQTT 비밀번호")
@@ -129,6 +148,9 @@ class CookieAgent:
         self.state_lock = threading.Lock()
         self.in_flight: set[str] = set()
         self.refresh_lock = threading.Lock()
+        self.media_lock = threading.Lock()
+        self.media_process: subprocess.Popen[Any] | None = None
+        self.now_playing: str | None = None
 
     def on_connect(self, client, userdata, flags, reason_code, properties=None) -> None:
         if reason_code != 0:
@@ -182,14 +204,22 @@ class CookieAgent:
     def handle(self, request_id: str, payload: dict[str, Any]) -> None:
         started = time.monotonic()
         try:
-            if payload.get("action") != ACTION:
-                raise AgentError(f"지원하지 않는 동작입니다. ({payload.get('action')})")
-            if not self.refresh_lock.acquire(blocking=False):
-                raise AgentError("다른 YouTube Music 쿠키 갱신이 이미 실행 중입니다.")
-            try:
-                result = self.refresh_cookie()
-            finally:
-                self.refresh_lock.release()
+            action = str(payload.get("action") or "")
+            parameters = payload.get("parameters") or {}
+            if not isinstance(parameters, dict):
+                raise AgentError("parameters 형식이 올바르지 않습니다.")
+
+            if action == COOKIE_ACTION:
+                if not self.refresh_lock.acquire(blocking=False):
+                    raise AgentError("다른 YouTube Music 쿠키 갱신이 이미 실행 중입니다.")
+                try:
+                    result = self.refresh_cookie()
+                finally:
+                    self.refresh_lock.release()
+            elif action in MEDIA_ACTIONS:
+                result = self.handle_media_action(action, parameters)
+            else:
+                raise AgentError(f"지원하지 않는 동작입니다. ({action})")
             result["success"] = True
         except AgentError as error:
             result = {"success": False, "message": str(error)}
@@ -207,6 +237,144 @@ class CookieAgent:
             while len(self.cache) > 100:
                 self.cache.popitem(last=False)
         self.publish_result(request_id, result)
+
+    def handle_media_action(
+        self,
+        action: str,
+        parameters: dict[str, Any],
+    ) -> dict[str, Any]:
+        with self.media_lock:
+            if action == MEDIA_LIST_ACTION:
+                return self.list_videos()
+            if action == MEDIA_PLAY_ACTION:
+                return self.play_video(str(parameters.get("video_id") or ""))
+            if action == MEDIA_STOP_ACTION:
+                return self.stop_video()
+        raise AgentError(f"지원하지 않는 미디어 동작입니다. ({action})")
+
+    def media_root_resolved(self) -> Path:
+        root = Config.media_root.expanduser().resolve()
+        if not root.is_dir():
+            raise AgentError(f"영상 폴더를 찾을 수 없습니다. ({root})")
+        return root
+
+    def list_videos(self) -> dict[str, Any]:
+        root = self.media_root_resolved()
+        videos = []
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in Config.media_extensions:
+                continue
+            relative = path.relative_to(root)
+            if any(part.startswith(".") for part in relative.parts):
+                continue
+            videos.append(
+                {
+                    "id": relative.as_posix(),
+                    "title": path.stem,
+                    "filename": path.name,
+                    "relative_path": relative.as_posix(),
+                }
+            )
+        videos.sort(key=lambda item: (item["title"].casefold(), item["id"].casefold()))
+        return {
+            "message": f"영상 {len(videos)}개를 불러왔습니다.",
+            "videos": videos,
+            "now_playing": self.now_playing,
+        }
+
+    def resolve_video(self, video_id: str) -> tuple[Path, str]:
+        video_id = video_id.strip()
+        if not video_id:
+            raise AgentError("재생할 영상이 지정되지 않았습니다.")
+
+        root = self.media_root_resolved()
+        candidate = (root / video_id).resolve()
+        try:
+            relative = candidate.relative_to(root)
+        except ValueError as error:
+            raise AgentError("영상 폴더 밖의 파일은 재생할 수 없습니다.") from error
+
+        if not candidate.is_file():
+            raise AgentError("선택한 영상 파일을 찾을 수 없습니다.")
+        if candidate.suffix.lower() not in Config.media_extensions:
+            raise AgentError("지원하지 않는 영상 형식입니다.")
+        return candidate, relative.as_posix()
+
+    def stop_managed_player(self) -> bool:
+        process = self.media_process
+        self.media_process = None
+        self.now_playing = None
+        if process is None or process.poll() is not None:
+            return False
+        process.terminate()
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=2)
+        return True
+
+    def play_video(self, video_id: str) -> dict[str, Any]:
+        video_path, relative = self.resolve_video(video_id)
+        if not Config.mpv_binary.is_file():
+            raise AgentError(f"mpv 실행 파일을 찾을 수 없습니다. ({Config.mpv_binary})")
+
+        self.stop_managed_player()
+
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "XDG_RUNTIME_DIR": Config.xdg_runtime_dir,
+                "WAYLAND_DISPLAY": Config.wayland_display,
+                "DBUS_SESSION_BUS_ADDRESS": Config.dbus_session_bus,
+            }
+        )
+        command = [
+            str(Config.mpv_binary),
+            "--vo=gpu",
+            "--gpu-context=wayland",
+            "--profile=fast",
+            "--fullscreen",
+            "--loop-file=inf",
+            "--no-border",
+            "--no-audio",
+            "--",
+            str(video_path),
+        ]
+        try:
+            process = subprocess.Popen(
+                command,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError as error:
+            raise AgentError(f"mpv를 시작하지 못했습니다: {error}") from error
+
+        time.sleep(0.25)
+        if process.poll() is not None:
+            raise AgentError("mpv가 영상을 재생하지 못하고 종료되었습니다.")
+
+        self.media_process = process
+        self.now_playing = relative
+        return {
+            "message": f"{video_path.stem} 재생을 시작했습니다.",
+            "now_playing": relative,
+        }
+
+    def stop_video(self) -> dict[str, Any]:
+        stopped = self.stop_managed_player()
+        return {
+            "message": (
+                "영상 재생을 정지했습니다."
+                if stopped
+                else "현재 에이전트가 재생 중인 영상이 없습니다."
+            ),
+            "now_playing": None,
+        }
 
     def run_process(
         self,

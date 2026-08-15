@@ -92,3 +92,55 @@ iotcore/agents/pi5/results/<request_id>
 
 The result contains only status, timestamps, provider id, and a cookie
 fingerprint. It never contains the cookie or access token.
+
+## Projector video control
+
+The same Pi agent also handles the first-stage IoTCore media-server API. Keeping
+these actions in the existing agent is intentional: running a second MQTT client
+that subscribes to the same `iotcore/agents/pi5/commands` topic could publish a
+competing result for the same request id.
+
+Supported actions:
+
+```text
+media.list_videos
+media.play_video
+media.stop
+```
+
+The default video directory is:
+
+```text
+/home/leedowon/qleto_2tb/wallpaper/videos
+```
+
+The list action scans that directory recursively and returns the filename stem as
+the UI title. Supported extensions are MP4, MKV, WebM, MOV, and M4V. The play
+action accepts only a relative path that resolves inside this directory; arbitrary
+shell commands and paths outside the media root are rejected.
+
+Playback uses the same Wayland/mpv environment as the manually verified command:
+
+```text
+XDG_RUNTIME_DIR=/run/user/1000
+WAYLAND_DISPLAY=wayland-0
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+```
+
+with `--vo=gpu --gpu-context=wayland --profile=fast --fullscreen
+--loop-file=inf --no-border --no-audio`.
+
+When replacing an already deployed Pi agent, copy the updated repository file to
+the path used by the existing systemd service and restart it:
+
+```bash
+cp deploy/pi5/ytmusic_cookie_agent.py ~/ytmusic-cookie-collector/agent.py
+chmod 755 ~/ytmusic-cookie-collector/agent.py
+sudo systemctl restart ytmusic-cookie-agent.service
+sudo systemctl status ytmusic-cookie-agent.service --no-pager
+```
+
+If the environment file already exists, add the `IOTCORE_MEDIA_*`, mpv, and
+Wayland variables from `ytmusic-cookie-agent.env.example`, then restart the
+service. The defaults match the current Pi setup, so adding them is optional
+unless the paths/display names differ.

@@ -62,17 +62,24 @@ def device_control(request):
     if any(device.device_type == "speaker" for device in devices):
         playlists, playlists_error = MusicAssistantClient.get_playlists()
 
+    media_server_device = next(
+        (device for device in devices if device.device_type == "media_server"),
+        None,
+    )
+
     pcs_df = pd.read_csv(pc_path, encoding='cp949')
+    # Raspberry Pi 미디어 서버는 더 이상 PC/WOL 카드로 노출하지 않는다.
+    # media_server Device를 기준으로 "내 방 제어"에 독립 카드로 표시한다.
     pcs = [
         {
             "name": row[0],
-            # 화면에만 표시되는 이름. 실제 제어 식별자인 name은 그대로 유지한다.
-            "display_name": "미디어 서버" if str(row[0]).strip() == "파이" else row[0],
+            "display_name": row[0],
             "mac": row[1],
             "broadcast_ip": row[2],
             "port": row[3],
         }
         for row in pcs_df.values
+        if str(row[0]).strip() not in {"파이", "미디어 서버"}
     ]
     # ✅ PC 제어용 목록 (WOL 대상)
     # - 필요하면 DB 모델로 빼도 되지만, 우선은 여기서 관리하는 형태로 구성
@@ -92,6 +99,7 @@ def device_control(request):
         "pcs": pcs,
         "playlists": playlists,
         "playlists_error": playlists_error,
+        "media_server_device": media_server_device,
     }
     return render(request, "iotcore/device_control.html", context)
 

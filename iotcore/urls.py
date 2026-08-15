@@ -9,6 +9,7 @@ from iotcore.api.views import (
     detail,
     electric_fan,
     main_led,
+    media_server,
     pc,
     projector,
     schedule,
@@ -42,6 +43,31 @@ urlpatterns = [
         "devices/projector/<int:device_id>/",
         projector.projector_control,
         name="projector_control",
+    ),
+    path(
+        "devices/media-server/<int:device_id>/",
+        media_server.media_server_control,
+        name="media_server_control",
+    ),
+    path(
+        "devices/media-server/<int:device_id>/videos/",
+        media_server.media_server_videos,
+        name="media_server_videos",
+    ),
+    path(
+        "devices/media-server/<int:device_id>/play/",
+        media_server.media_server_play_video,
+        name="media_server_play_video",
+    ),
+    path(
+        "devices/media-server/<int:device_id>/stop/",
+        media_server.media_server_stop,
+        name="media_server_stop",
+    ),
+    path(
+        "devices/media-server/<int:device_id>/moods/play/",
+        media_server.media_server_play_mood,
+        name="media_server_play_mood",
     ),
     # Reverse-compatibility alias. Generated UI links use device_control.
     path("devices/", detail.device_control, name="detail_list"),

@@ -396,7 +396,8 @@
 .device-control-content .dropdown-content { border: 1px solid var(--iot-border); border-radius: 9px; background: var(--iot-surface); }
 .device-control-content .dropdown-content button { color: var(--iot-text); }
 .device-control-content .speaker-card { width: 100%; flex-basis: 100%; }
-.device-control-content .projector-launch-card {
+.device-control-content .projector-launch-card,
+.device-control-content .media-server-launch-card {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -405,23 +406,28 @@
     text-decoration: none;
 }
 .device-control-content .projector-launch-card:hover,
-.device-control-content .projector-launch-card:focus-visible {
+.device-control-content .projector-launch-card:focus-visible,
+.device-control-content .media-server-launch-card:hover,
+.device-control-content .media-server-launch-card:focus-visible {
     color: var(--iot-text);
     border-color: var(--iot-accent);
     background: var(--iot-surface-2);
     outline: none;
 }
-.device-control-content .projector-launch-card__eyebrow {
+.device-control-content .projector-launch-card__eyebrow,
+.device-control-content .media-server-launch-card__eyebrow {
     color: var(--iot-accent);
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.12em;
 }
-.device-control-content .projector-launch-card__name {
+.device-control-content .projector-launch-card__name,
+.device-control-content .media-server-launch-card__name {
     font-size: 15px;
     font-weight: 750;
 }
-.device-control-content .projector-launch-card__meta {
+.device-control-content .projector-launch-card__meta,
+.device-control-content .media-server-launch-card__meta {
     color: var(--iot-muted);
     font-size: 12px;
 }
@@ -723,6 +729,14 @@
                         </a>
                     {% endif %}
                 {% endfor %}
+                {% if media_server_device %}
+                    <a class="card media-server-launch-card"
+                       href="{% url 'iotcore:media_server_control' media_server_device.id %}">
+                        <span class="media-server-launch-card__eyebrow">MEDIA SERVER</span>
+                        <span class="media-server-launch-card__name">미디어 서버 제어</span>
+                        <span class="media-server-launch-card__meta">{{ media_server_device.name }} · {{ media_server_device.location }}</span>
+                    </a>
+                {% endif %}
                 {% for device in devices %}
                     {% if device.device_type == "speaker" %}
                         <section class="card speaker-card"
