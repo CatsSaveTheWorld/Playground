@@ -1,0 +1,76 @@
+{% extends "iotcore/base_iotcore.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="iot-page iot-group-manage-page">
+    <header class="iot-page-header">
+        <div>
+            <p class="iot-eyebrow">{{ eyebrow }}</p>
+            <h1>{{ title }}</h1>
+            <p>{{ description }}</p>
+        </div>
+        <div class="iot-page-actions">
+            <a class="iot-button" href="{% url back_url_name %}">목록으로</a>
+        </div>
+    </header>
+
+    <section class="iot-panel iot-group-create-panel">
+        <div>
+            <span class="iot-group-section__eyebrow">NEW GROUP</span>
+            <h2>새 그룹</h2>
+            <p>정렬 순서가 작은 그룹부터 목록 위쪽에 표시됩니다.</p>
+        </div>
+        <form method="post" class="iot-group-create-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <label>
+                <span>그룹 이름</span>
+                <input type="text" name="name" maxlength="100" required placeholder="예: 미디어">
+            </label>
+            <label>
+                <span>정렬 순서</span>
+                <input type="number" name="order" min="0" value="0" required>
+            </label>
+            <button class="iot-button iot-button--primary" type="submit">+ 그룹 추가</button>
+        </form>
+    </section>
+
+    {% if groups %}
+    <section class="iot-group-manage-list">
+        {% for group in groups %}
+        <form method="post" class="iot-panel iot-group-manage-row">
+            {% csrf_token %}
+            <input type="hidden" name="group_id" value="{{ group.id }}">
+            <div class="iot-group-manage-row__info">
+                <span class="iot-group-section__eyebrow">GROUP {{ forloop.counter }}</span>
+                <strong>{{ group.name }}</strong>
+                <small>소속 항목 {{ group.item_count }}개</small>
+            </div>
+            <label>
+                <span>그룹 이름</span>
+                <input type="text" name="name" value="{{ group.name }}" maxlength="100" required>
+            </label>
+            <label>
+                <span>정렬 순서</span>
+                <input type="number" name="order" value="{{ group.order }}" min="0" required>
+            </label>
+            <div class="iot-group-manage-row__actions">
+                <button class="iot-button" type="submit" name="action" value="update">저장</button>
+                <button
+                    class="iot-button iot-button--danger"
+                    type="submit"
+                    name="action"
+                    value="delete"
+                    formnovalidate
+                    onclick="return confirm('이 그룹을 삭제할까요? 소속 항목은 미분류로 이동합니다.');">삭제</button>
+            </div>
+        </form>
+        {% endfor %}
+    </section>
+    {% else %}
+    <section class="iot-panel iot-empty-panel">
+        <h2>아직 만든 그룹이 없습니다.</h2>
+        <p>위에서 첫 그룹을 추가하면 목록 화면에서 그룹별로 정리할 수 있습니다.</p>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

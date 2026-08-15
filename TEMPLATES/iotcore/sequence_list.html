@@ -9,36 +9,102 @@
             <p>여러 기기의 동작과 지연 시간을 순서대로 구성하고 수동으로 실행합니다.</p>
         </div>
         <div class="iot-page-actions">
+            <a class="iot-button" href="{% url 'iotcore:sequence_group_manage' %}">그룹 관리</a>
             <a class="iot-button iot-button--primary" href="{% url 'iotcore:sequence_create' %}">+ 새 시퀀스</a>
         </div>
     </header>
 
-    {% if sequences %}
-    <section class="iot-card-grid">
-        {% for sequence in sequences %}
-        <article class="iot-panel iot-entity-card sequence-card" data-edit-url="{% url 'iotcore:sequence_edit' sequence.id %}">
-            <div class="iot-entity-card__top">
-                <div>
-                    <span class="iot-entity-card__type">SEQUENCE</span>
-                    <h2>{{ sequence.name }}</h2>
-                </div>
-                <span class="iot-status-toggle"><i></i>{{ sequence.step_count }} Steps</span>
-            </div>
-            <p class="iot-entity-card__description">{{ sequence.description|default:"설명이 없습니다."|truncatechars:100 }}</p>
-            <div class="iot-entity-card__meta">최근 수정 {{ sequence.updated_at|date:"Y.m.d H:i" }}</div>
-            <div class="iot-entity-card__actions">
-                <form method="post" action="{% url 'iotcore:sequence_run' sequence.id %}">
-                    {% csrf_token %}
-                    <button class="iot-button iot-button--primary" type="submit">실행</button>
-                </form>
-                <form method="post" action="{% url 'iotcore:sequence_delete' sequence.id %}" onsubmit="return confirm('이 시퀀스를 삭제할까요?');">
-                    {% csrf_token %}
-                    <button class="iot-button iot-button--danger" type="submit">삭제</button>
-                </form>
-            </div>
-        </article>
-        {% endfor %}
+    {% if has_any_sequences %}
+    <section class="iot-list-toolbar" aria-label="시퀀스 검색 및 분류">
+        <form method="get" class="iot-list-toolbar__search">
+            <input type="hidden" name="scope" value="{{ current_scope }}">
+            <label class="iot-visually-hidden" for="sequenceSearch">시퀀스 검색</label>
+            <input
+                id="sequenceSearch"
+                class="iot-list-search"
+                type="search"
+                name="q"
+                value="{{ query }}"
+                placeholder="시퀀스 이름·설명·기기·동작 검색">
+            <label class="iot-list-select-label" for="sequenceSort">정렬</label>
+            <select id="sequenceSort" class="iot-list-select" name="sort">
+                <option value="updated" {% if current_sort == "updated" %}selected{% endif %}>최근 수정</option>
+                <option value="name" {% if current_sort == "name" %}selected{% endif %}>이름</option>
+                <option value="steps" {% if current_sort == "steps" %}selected{% endif %}>Step 수</option>
+            </select>
+            <button class="iot-button" type="submit">적용</button>
+            {% if query %}<a class="iot-button iot-button--quiet" href="{{ clear_search_url }}">검색 초기화</a>{% endif %}
+        </form>
+
+        <nav class="iot-scope-tabs" aria-label="시퀀스 그룹 필터">
+            <a class="iot-scope-tab {% if current_scope == 'all' %}is-active{% endif %}" href="{{ scope_all_url }}">전체 <span>{{ total_count }}</span></a>
+            <a class="iot-scope-tab {% if current_scope == 'favorite' %}is-active{% endif %}" href="{{ scope_favorite_url }}">★ 즐겨찾기 <span>{{ favorite_count }}</span></a>
+            {% for tab in group_tabs %}
+            <a class="iot-scope-tab {% if current_scope == tab.scope %}is-active{% endif %}" href="{{ tab.url }}">{{ tab.name }} <span>{{ tab.count }}</span></a>
+            {% endfor %}
+            {% if ungrouped_count %}
+            <a class="iot-scope-tab {% if current_scope == 'ungrouped' %}is-active{% endif %}" href="{{ scope_ungrouped_url }}">미분류 <span>{{ ungrouped_count }}</span></a>
+            {% endif %}
+        </nav>
     </section>
+
+    {% if sequences %}
+        {% for section in sequence_sections %}
+        <section class="iot-group-section">
+            <div class="iot-group-section__header">
+                <div>
+                    <span class="iot-group-section__eyebrow">GROUP</span>
+                    <h2>{{ section.name }}</h2>
+                </div>
+                <span class="iot-group-section__count">{{ section.items|length }}</span>
+            </div>
+            <div class="iot-card-grid">
+                {% for sequence in section.items %}
+                <article class="iot-panel iot-entity-card sequence-card" data-edit-url="{% url 'iotcore:sequence_edit' sequence.id %}">
+                    <div class="iot-entity-card__top">
+                        <div>
+                            <span class="iot-entity-card__type">SEQUENCE{% if sequence.group %} · {{ sequence.group.name }}{% else %} · 미분류{% endif %}</span>
+                            <h2>{{ sequence.name }}</h2>
+                        </div>
+                        <div class="iot-entity-card__indicators">
+                            <form method="post" action="{% url 'iotcore:sequence_favorite_toggle' sequence.id %}" class="iot-favorite-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button
+                                    class="iot-favorite-button {% if sequence.is_favorite %}is-active{% endif %}"
+                                    type="submit"
+                                    title="{% if sequence.is_favorite %}즐겨찾기 해제{% else %}즐겨찾기 추가{% endif %}"
+                                    aria-label="{% if sequence.is_favorite %}즐겨찾기 해제{% else %}즐겨찾기 추가{% endif %}">{% if sequence.is_favorite %}★{% else %}☆{% endif %}</button>
+                            </form>
+                            <span class="iot-status-toggle"><i></i>{{ sequence.step_count }} Steps</span>
+                        </div>
+                    </div>
+                    <p class="iot-entity-card__description">{{ sequence.description|default:"설명이 없습니다."|truncatechars:100 }}</p>
+                    <div class="iot-entity-card__meta">최근 수정 {{ sequence.updated_at|date:"Y.m.d H:i" }}</div>
+                    <div class="iot-entity-card__actions">
+                        <form method="post" action="{% url 'iotcore:sequence_run' sequence.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button class="iot-button iot-button--primary" type="submit">실행</button>
+                        </form>
+                        <form method="post" action="{% url 'iotcore:sequence_delete' sequence.id %}" onsubmit="return confirm('이 시퀀스를 삭제할까요?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button class="iot-button iot-button--danger" type="submit">삭제</button>
+                        </form>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    {% else %}
+    <section class="iot-panel iot-empty-panel">
+        <h2>조건에 맞는 시퀀스가 없습니다.</h2>
+        <p>검색어 또는 그룹 필터를 변경해보세요.</p>
+        <a class="iot-button iot-button--primary" href="{% url 'iotcore:sequence_list' %}">전체 시퀀스 보기</a>
+    </section>
+    {% endif %}
     {% else %}
     <section class="iot-panel iot-empty-panel">
         <h2>등록된 시퀀스가 없습니다.</h2>

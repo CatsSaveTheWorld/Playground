@@ -86,9 +86,32 @@ class Controller(models.Model):
         return f"{self.name} (MAC: {self.mac_address})"
     
 
+class SequenceGroup(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    order = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "name", "id"]
+        verbose_name = "시퀀스 그룹"
+        verbose_name_plural = "시퀀스 그룹"
+
+    def __str__(self):
+        return self.name
+
+
 class Sequence(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
+    group = models.ForeignKey(
+        SequenceGroup,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="sequences",
+    )
+    is_favorite = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -138,8 +161,31 @@ class SequenceStep(models.Model):
         return f"{self.sequence} #{self.order}: {self.function}"
 
 
+class AutomationGroup(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    order = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "name", "id"]
+        verbose_name = "예약 실행 그룹"
+        verbose_name_plural = "예약 실행 그룹"
+
+    def __str__(self):
+        return self.name
+
+
 class Automation(models.Model):
     name = models.CharField(max_length=100)
+    group = models.ForeignKey(
+        AutomationGroup,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="automations",
+    )
+    is_favorite = models.BooleanField(default=False, db_index=True)
     enabled = models.BooleanField(default=True)
     cooldown_seconds = models.PositiveIntegerField(default=0)
     last_triggered_at = models.DateTimeField(blank=True, null=True)

@@ -24,6 +24,16 @@
             {{ form.description }}
             {{ form.description.errors }}
         </div>
+        <div class="iot-form-field">
+            <label for="{{ form.group.id_for_label }}">{{ form.group.label }}</label>
+            {{ form.group }}
+            {{ form.group.errors }}
+            <small class="iot-form-help">그룹이 없으면 미분류로 표시됩니다. 목록의 그룹 관리에서 새 그룹을 만들 수 있습니다.</small>
+        </div>
+        <div class="iot-form-field iot-form-field--checkbox">
+            <label for="{{ form.is_favorite.id_for_label }}">{{ form.is_favorite }} {{ form.is_favorite.label }}</label>
+            {{ form.is_favorite.errors }}
+        </div>
         <div class="iot-form-actions">
             <a class="iot-button" href="{% if sequence %}{% url 'iotcore:sequence_edit' sequence.id %}{% else %}{% url 'iotcore:sequence_list' %}{% endif %}">취소</a>
             <button class="iot-button iot-button--primary" type="submit">{% if is_update %}저장{% else %}생성{% endif %}</button>

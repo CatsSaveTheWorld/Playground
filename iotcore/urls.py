@@ -60,9 +60,19 @@ urlpatterns = [
     # Sequence pages and actions
     # ─────────────────────────────────────────────────────────────
     path(
+        "sequences/groups/",
+        sequence.sequence_group_manage,
+        name="sequence_group_manage",
+    ),
+    path(
         "sequences/create/",
         sequence.sequence_create,
         name="sequence_create",
+    ),
+    path(
+        "sequences/<int:sequence_id>/favorite/",
+        sequence.sequence_favorite_toggle,
+        name="sequence_favorite_toggle",
     ),
     path(
         "sequences/<int:sequence_id>/",
@@ -99,9 +109,19 @@ urlpatterns = [
     # Automation pages and actions
     # ─────────────────────────────────────────────────────────────
     path(
+        "automations/groups/",
+        automation.automation_group_manage,
+        name="automation_group_manage",
+    ),
+    path(
         "automations/create/",
         automation.automation_create,
         name="automation_create",
+    ),
+    path(
+        "automations/<int:automation_id>/favorite/",
+        automation.automation_favorite_toggle,
+        name="automation_favorite_toggle",
     ),
     path(
         "automations/create/",

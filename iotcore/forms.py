@@ -7,11 +7,13 @@ from django.utils.dateparse import parse_datetime
 from .models import (
     Automation,
     AutomationAction,
+    AutomationGroup,
     AutomationCondition,
     AutomationTrigger,
     Controller,
     Device,
     Sequence,
+    SequenceGroup,
     SequenceStep,
 )
 
@@ -36,10 +38,36 @@ class ControllerForm(forms.ModelForm):
         fields = ['name', 'mac_address', 'ip_address', 'location', 'device']     # QuestionForm에서 사용할 Question 모델의 속성
 
 
+class SequenceGroupForm(forms.ModelForm):
+    class Meta:
+        model = SequenceGroup
+        fields = ["name", "order"]
+        labels = {
+            "name": "그룹 이름",
+            "order": "정렬 순서",
+        }
+
+    def clean_name(self):
+        return self.cleaned_data["name"].strip()
+
+
 class SequenceForm(forms.ModelForm):
     class Meta:
-        model = Sequence                    # 사용할 모델
-        fields = ['name', 'description']     # QuestionForm에서 사용할 Question 모델의 속성
+        model = Sequence
+        fields = ["name", "description", "group", "is_favorite"]
+        labels = {
+            "name": "이름",
+            "description": "설명",
+            "group": "그룹",
+            "is_favorite": "즐겨찾기",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["group"].queryset = SequenceGroup.objects.order_by(
+            "order", "name", "id"
+        )
+        self.fields["group"].empty_label = "미분류"
 
 
 class SequenceStepForm(forms.ModelForm):
@@ -111,21 +139,43 @@ class SequenceStepForm(forms.ModelForm):
         return instance
 
 
+class AutomationGroupForm(forms.ModelForm):
+    class Meta:
+        model = AutomationGroup
+        fields = ["name", "order"]
+        labels = {
+            "name": "그룹 이름",
+            "order": "정렬 순서",
+        }
+
+    def clean_name(self):
+        return self.cleaned_data["name"].strip()
+
+
 class AutomationForm(forms.ModelForm):
     class Meta:
         model = Automation
         fields = [
             "name",
+            "group",
+            "is_favorite",
             "enabled",
             "cooldown_seconds",
         ]
         labels = {
             "name": "이름",
+            "group": "그룹",
+            "is_favorite": "즐겨찾기",
             "enabled": "활성화",
             "cooldown_seconds": "재실행 제한(초)",
         }
 
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["group"].queryset = AutomationGroup.objects.order_by(
+            "order", "name", "id"
+        )
+        self.fields["group"].empty_label = "미분류"
 
 
 class AutomationActionForm(forms.ModelForm):

@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import (
     Automation,
     AutomationAction,
+    AutomationGroup,
     AutomationActionRun,
     AutomationCondition,
     AutomationRun,
@@ -11,6 +12,7 @@ from .models import (
     DeviceState,
     NodeMetricSample,
     Sequence,
+    SequenceGroup,
     SequenceRun,
     SequenceStep,
     SequenceStepRun,
@@ -30,8 +32,10 @@ class DeviceAdmin(admin.ModelAdmin):
     list_filter = ("device_role", "protocol", "device_type", "location")
     search_fields = ("name", "device_uid", "device_type", "location")
 
+admin.site.register(SequenceGroup)
 admin.site.register(Sequence)
 admin.site.register(SequenceStep)
+admin.site.register(AutomationGroup)
 admin.site.register(Automation)
 admin.site.register(AutomationAction)
 admin.site.register(AutomationRun)
