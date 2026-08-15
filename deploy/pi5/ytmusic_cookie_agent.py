@@ -475,7 +475,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        agent = CookieAgent()
+        agent = PiAgent()
         if args.run_once:
             result = agent.refresh_cookie()
             result["success"] = True
