@@ -93,6 +93,50 @@ class MusicAssistantClient:
         )
 
     @staticmethod
+    def get_player_state(player_id):
+        """플레이어의 현재 상태를 조회한다."""
+        player_value, error = MusicAssistantClient._validate_id(
+            player_id,
+            "player_id",
+        )
+        if error:
+            return None, error
+
+        success, result = MusicAssistantClient._send_command(
+            command="players/get",
+            args={"player_id": player_value},
+            action_name="플레이어 상태 조회",
+            return_result=True,
+        )
+        if not success:
+            return None, result
+        if not isinstance(result, dict):
+            return None, "Music Assistant 플레이어 상태 응답 형식이 올바르지 않습니다."
+        return result, None
+
+    @staticmethod
+    def get_queue_state(player_id):
+        """플레이어 큐의 현재 상태를 조회한다."""
+        player_value, error = MusicAssistantClient._validate_id(
+            player_id,
+            "player_id",
+        )
+        if error:
+            return None, error
+
+        success, result = MusicAssistantClient._send_command(
+            command="player_queues/get",
+            args={"queue_id": player_value},
+            action_name="플레이어 큐 상태 조회",
+            return_result=True,
+        )
+        if not success:
+            return None, result
+        if not isinstance(result, dict):
+            return None, "Music Assistant 플레이어 큐 응답 형식이 올바르지 않습니다."
+        return result, None
+
+    @staticmethod
     def play_playlist(device_id, playlist_id):
         """재생목록으로 현재 큐를 교체하고 재생한다."""
         return MusicAssistantClient._play_media(
