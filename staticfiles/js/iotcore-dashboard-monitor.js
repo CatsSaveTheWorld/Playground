@@ -231,7 +231,7 @@
     };
 
     refresh();
-    const timer = window.setInterval(refresh, 3000);
+    const timer = window.setInterval(refresh, 2000);
     window.addEventListener('pagehide', () => window.clearInterval(timer), { once: true });
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) refresh();
