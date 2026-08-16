@@ -9,6 +9,8 @@
         ])
     );
 
+    const entryCard = document.querySelector('[data-entry-status-card]');
+
     const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
 
     const formatLastSeen = (iso) => {
@@ -23,6 +25,40 @@
             second: '2-digit',
             hour12: false,
         }).format(date);
+    };
+
+    const formatEntryTime = (iso) => {
+        if (!iso) return '--';
+        const date = new Date(iso);
+        if (Number.isNaN(date.getTime())) return '--';
+        return new Intl.DateTimeFormat('ko-KR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+        }).format(date);
+    };
+
+    const updateEntryStatus = (entry) => {
+        if (!entryCard) return;
+
+        const state = entryCard.querySelector('[data-entry-state]');
+        const openCount = entryCard.querySelector('[data-entry-open-count]');
+        const attemptCount = entryCard.querySelector('[data-entry-attempt-count]');
+        const lastEvent = entryCard.querySelector('[data-entry-last-event]');
+
+        if (state) {
+            state.textContent = entry?.current_state || '상태 대기';
+            state.classList.toggle('is-entry-open', entry?.is_open === true);
+        }
+        if (openCount) {
+            openCount.textContent = entry?.open_count == null ? '--' : String(entry.open_count);
+        }
+        if (attemptCount) {
+            attemptCount.textContent = entry?.attempt_count == null ? '--' : String(entry.attempt_count);
+        }
+        if (lastEvent) {
+            lastEvent.textContent = formatEntryTime(entry?.last_event_at);
+        }
     };
 
     const niceMax = (value) => {
@@ -182,6 +218,7 @@
             });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
+            updateEntryStatus(data.entry_status);
             Object.entries(data.nodes || {}).forEach(([uid, node]) => {
                 const card = cards.get(uid);
                 if (card) updateCard(card, node);

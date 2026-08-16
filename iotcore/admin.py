@@ -10,6 +10,7 @@ from .models import (
     Controller,
     Device,
     DeviceState,
+    DoorEvent,
     NodeMetricSample,
     Sequence,
     SequenceGroup,
@@ -43,6 +44,7 @@ admin.site.register(AutomationActionRun)
 admin.site.register(AutomationTrigger)
 admin.site.register(AutomationCondition)
 admin.site.register(DeviceState)
+admin.site.register(DoorEvent)
 admin.site.register(NodeMetricSample)
 admin.site.register(SequenceRun)
 admin.site.register(SequenceStepRun)

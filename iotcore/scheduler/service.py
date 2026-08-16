@@ -13,6 +13,7 @@ from ..models import (
     Device,
     DeviceState,
 )
+from ..room_entry.service import RoomEntryService
 from .calculator import calculate_next_run
 
 
@@ -195,6 +196,15 @@ class AutomationService:
             previous_device,
             require_previous=True,
         ) if device is not None else set()
+
+        if device is not None:
+            RoomEntryService.record_contact_change(
+                device=device,
+                payload=normalized_payload,
+                previous=previous_device,
+                changed_keys=device_changed_keys,
+                now=now,
+            )
 
         context = {
             "type": "mqtt_event",

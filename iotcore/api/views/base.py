@@ -8,6 +8,7 @@ from django.urls import reverse
 
 from ...models import Automation, Device, DeviceState, Sequence
 from ...monitoring.service import NodeTelemetryService
+from ...room_entry.service import RoomEntryService
 
 
 def login_view(request):
@@ -81,6 +82,7 @@ def dashboard(request):
 
     context = {
         "environment": environment,
+        "entry_status": RoomEntryService.snapshot(),
         "ai_node": NodeTelemetryService.snapshot(ai_uid),
         "pi5_node": NodeTelemetryService.snapshot(pi5_uid),
         "ai_control_url": reverse("iotcore:automation_list"),
@@ -97,6 +99,7 @@ def dashboard_node_metrics(request):
     pi5_uid = getattr(settings, "IOTCORE_PI5_NODE_UID", "pi5")
     return JsonResponse(
         {
+            "entry_status": RoomEntryService.snapshot(),
             "nodes": {
                 ai_uid: NodeTelemetryService.snapshot(
                     ai_uid,

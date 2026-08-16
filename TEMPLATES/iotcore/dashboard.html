@@ -105,27 +105,29 @@
 
             {% if entry_status and entry_status.video_url %}
             <a class="iot-panel iot-status-card iot-status-card--entry iot-status-card--link"
+               data-entry-status-card
                href="{{ entry_status.video_url }}">
             {% else %}
-            <article class="iot-panel iot-status-card iot-status-card--entry">
+            <article class="iot-panel iot-status-card iot-status-card--entry" data-entry-status-card>
             {% endif %}
                 <div class="iot-status-card__head">
                     <div>
                         <span class="iot-status-card__kicker">ROOM ENTRY</span>
                         <h3>출입 현황</h3>
                     </div>
-                    <span class="iot-status-card__subtle">
+                    <span class="iot-status-card__subtle{% if entry_status and entry_status.is_open %} is-entry-open{% endif %}"
+                          data-entry-state>
                         {% if entry_status and entry_status.current_state %}
                             {{ entry_status.current_state }}
                         {% else %}
-                            연동 예정
+                            상태 대기
                         {% endif %}
                     </span>
                 </div>
 
                 <div class="iot-entry-metrics">
                     <div>
-                        <strong>
+                        <strong data-entry-open-count>
                             {% if entry_status and entry_status.open_count != None %}
                                 {{ entry_status.open_count }}
                             {% else %}
@@ -135,7 +137,7 @@
                         <small>오늘 열림</small>
                     </div>
                     <div>
-                        <strong>
+                        <strong data-entry-attempt-count>
                             {% if entry_status and entry_status.attempt_count != None %}
                                 {{ entry_status.attempt_count }}
                             {% else %}
@@ -149,7 +151,7 @@
                 <div class="iot-status-card__details">
                     <span>
                         마지막 이벤트
-                        <strong>
+                        <strong data-entry-last-event>
                             {% if entry_status and entry_status.last_event_at %}
                                 {{ entry_status.last_event_at|date:"H:i" }}
                             {% else %}
@@ -372,6 +374,13 @@
     font-size: 11px;
     opacity: .68;
     white-space: nowrap;
+}
+
+
+.iot-status-card__subtle.is-entry-open {
+    color: var(--iot-accent, #00e6b8);
+    opacity: 1;
+    font-weight: 700;
 }
 
 .iot-environment-metrics {
@@ -885,6 +894,6 @@
 <script>
 window.IOTCORE_NODE_METRICS_URL = "{{ node_metrics_url|escapejs }}";
 </script>
-<script src="{% static 'js/iotcore-dashboard-monitor.js' %}"></script>
+<script src="{% static 'js/iotcore-dashboard-monitor.js' %}?v=20260816-door-1"></script>
 {% endblock %}
 

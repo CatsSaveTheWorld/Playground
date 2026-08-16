@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 # class Device(models.Model):
 #     """
@@ -322,6 +323,31 @@ class DeviceState(models.Model):
 
     def __str__(self):
         return f"{self.topic}: {self.key}={self.value}"
+
+
+class DoorEvent(models.Model):
+    """A confirmed open/close transition reported by a door contact sensor."""
+
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE,
+        related_name="door_events",
+    )
+    is_open = models.BooleanField(db_index=True)
+    recorded_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-recorded_at", "-id"]
+        indexes = [
+            models.Index(
+                fields=["device", "-recorded_at"],
+                name="iotcore_door_device_time_idx",
+            ),
+        ]
+
+    def __str__(self):
+        state = "열림" if self.is_open else "닫힘"
+        return f"{self.device.name}: {state} @ {self.recorded_at}"
 
 
 class NodeMetricSample(models.Model):

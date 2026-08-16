@@ -37,6 +37,11 @@ IOTCORE_PI5_NODE_UID = "pi5"
 NODE_TELEMETRY_OFFLINE_SECONDS = 5
 NODE_METRIC_RETENTION_HOURS = 24
 
+# Room entry / Aqara P1 door sensor
+IOTCORE_DOOR_SENSOR_UID = "livingroom_door_sensor"
+# Set this later when the ONVIF/video page is ready.
+IOTCORE_ENTRY_VIDEO_URL = ""
+
 # Music Assistant 로컬 API
 MUSIC_ASSISTANT_URL = "http://192.168.0.14:8095"
 MUSIC_ASSISTANT_TOKEN = os.environ.get(
