@@ -551,12 +551,9 @@ class AutomationService:
         if not automation.enabled or not trigger.enabled:
             return None
 
-        try:
-            action = trigger.action
-        except Exception:
-            action = None
+        actions = list(trigger.actions.order_by("order", "id"))
         conditions = list(trigger.conditions.order_by("order", "id"))
-        if action is None or not conditions:
+        if not actions or not conditions:
             return None
 
         previous_result = bool(trigger.last_result)
@@ -599,7 +596,7 @@ class AutomationService:
 
         run_payload = dict(trigger_payload or {})
         run_payload["trigger_id"] = trigger.pk
-        run_payload[MATCHED_ACTION_IDS_KEY] = [action.pk]
+        run_payload[MATCHED_ACTION_IDS_KEY] = [action.pk for action in actions]
 
         if scheduled_for is not None:
             automation_run, created = AutomationRun.objects.get_or_create(
@@ -645,10 +642,7 @@ class AutomationService:
         if not automation.enabled:
             return None
 
-        try:
-            action = trigger.action
-        except Exception:
-            action = None
+        action = trigger.actions.order_by("order", "id").first()
 
         cooldown_anchor = trigger.last_triggered_at if action is not None else automation.last_triggered_at
         if (

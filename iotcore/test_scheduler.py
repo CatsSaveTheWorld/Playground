@@ -934,6 +934,77 @@ class AutomationServiceTests(TestCase):
             ).exists()
         )
 
+    def test_trigger_set_enqueues_all_owned_actions_in_order(self):
+        sensor = Device.objects.create(
+            device_uid="multi-action-sensor",
+            name="다중 동작 센서",
+            device_type="sensor",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        light = Device.objects.create(
+            device_uid="multi-action-light",
+            name="다중 동작 전등",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        aircon = Device.objects.create(
+            device_uid="multi-action-aircon",
+            name="다중 동작 에어컨",
+            device_type="aircon",
+            protocol=Device.Protocol.IR,
+            location="방",
+        )
+        trigger = AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.SET,
+            condition_operator=AutomationTrigger.ConditionOperator.AND,
+        )
+        first_action = AutomationAction.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=1,
+            action_type=AutomationAction.ActionType.DEVICE,
+            device=light,
+            function="power_off",
+        )
+        second_action = AutomationAction.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=2,
+            action_type=AutomationAction.ActionType.DEVICE,
+            device=aircon,
+            function="power_off",
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=1,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            config={
+                "device_id": sensor.pk,
+                "device_uid": sensor.device_uid,
+                "key": "occupancy",
+                "operator": "eq",
+                "value": True,
+            },
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(sensor),
+            {"occupancy": False},
+        )
+        AutomationService.refresh_trigger_result(trigger)
+
+        runs = AutomationService.record_device_state(sensor, {"occupancy": True})
+
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(
+            runs[0].trigger_payload[MATCHED_ACTION_IDS_KEY],
+            [first_action.pk, second_action.pk],
+        )
+
+
 
 class SequenceWorkerTests(TestCase):
     def setUp(self):
@@ -1225,6 +1296,71 @@ class AutomationViewTests(TestCase):
             actions[1].trigger.conditions.get().config["device_id"],
             aircon.pk,
         )
+
+
+    def test_create_saves_multiple_actions_under_one_trigger_set(self):
+        light = Device.objects.create(
+            device_uid="multi-form-light",
+            name="다중 폼 전등",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        aircon = Device.objects.create(
+            device_uid="multi-form-aircon",
+            name="다중 폼 에어컨",
+            device_type="aircon",
+            protocol=Device.Protocol.IR,
+            location="방",
+        )
+        response = self.client.post(
+            reverse("iotcore:schedule_create"),
+            {
+                "name": "한 세트 다중 동작",
+                "enabled": "on",
+                "cooldown_seconds": "0",
+                "triggers-TOTAL_FORMS": "1",
+                "triggers-INITIAL_FORMS": "0",
+                "triggers-MIN_NUM_FORMS": "0",
+                "triggers-MAX_NUM_FORMS": "1000",
+                "triggers-0-enabled": "on",
+                "triggers-0-condition_operator": AutomationTrigger.ConditionOperator.AND,
+                "conditions-TOTAL_FORMS": "1",
+                "conditions-INITIAL_FORMS": "0",
+                "conditions-MIN_NUM_FORMS": "0",
+                "conditions-MAX_NUM_FORMS": "1000",
+                "conditions-0-trigger_index": "0",
+                "conditions-0-condition_type": AutomationCondition.ConditionType.DEVICE_STATE,
+                "conditions-0-state_device": str(light.pk),
+                "conditions-0-state_key": "power",
+                "conditions-0-state_operator": "eq",
+                "conditions-0-state_value": "true",
+                "actions-TOTAL_FORMS": "2",
+                "actions-INITIAL_FORMS": "0",
+                "actions-MIN_NUM_FORMS": "0",
+                "actions-MAX_NUM_FORMS": "1000",
+                "actions-0-trigger_index": "0",
+                "actions-0-action_type": AutomationAction.ActionType.DEVICE,
+                "actions-0-device": str(light.pk),
+                "actions-0-function": "power_off",
+                "actions-0-delay": "0",
+                "actions-1-trigger_index": "0",
+                "actions-1-action_type": AutomationAction.ActionType.DEVICE,
+                "actions-1-device": str(aircon.pk),
+                "actions-1-function": "power_off",
+                "actions-1-delay": "2",
+            },
+        )
+
+        self.assertRedirects(response, reverse("iotcore:schedule_list"))
+        automation = Automation.objects.get(name="한 세트 다중 동작")
+        trigger = automation.triggers.get()
+        actions = list(trigger.actions.order_by("order", "id"))
+        self.assertEqual(len(actions), 2)
+        self.assertEqual([action.order for action in actions], [1, 2])
+        self.assertEqual(actions[0].device, light)
+        self.assertEqual(actions[1].device, aircon)
+        self.assertEqual(actions[1].delay, 2)
 
     def test_new_trigger_set_defaults_to_enabled_when_checkbox_is_omitted(self):
         device = Device.objects.create(

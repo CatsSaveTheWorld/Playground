@@ -16,9 +16,9 @@
 .set-subsection__header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .set-subsection__header h3 { margin: 0; color: var(--iot-text); font-size: 13px; }
 .set-subsection__header p { margin: 0; color: var(--iot-muted); font-size: 11px; text-align: right; }
-.condition-card { border: 1px solid var(--iot-border-soft); background: #030303; padding: 14px; margin: 10px 0; }
-.condition-card__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--iot-border-soft); }
-.condition-card__header strong { color: var(--iot-text); font-size: 12px; }
+.condition-card, .action-card { border: 1px solid var(--iot-border-soft); background: #030303; padding: 14px; margin: 10px 0; }
+.condition-card__header, .action-card__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--iot-border-soft); }
+.condition-card__header strong, .action-card__header strong { color: var(--iot-text); font-size: 12px; }
 .field { margin-bottom: 18px; }
 .field > label { display: block; color: var(--iot-muted); margin-bottom: 8px; font-size: 11px; font-weight: 650; }
 input[type=text], input[type=number], input[type=datetime-local], input[type=time], select, textarea { width: 100%; padding: 10px; color: #fff; background: #000; border: 1px solid var(--iot-border); }
@@ -31,7 +31,7 @@ input[type=checkbox] { margin-right: 8px; }
 .button:hover { border-color: var(--iot-accent); color: var(--iot-accent); }
 .remove-button { flex: 0 0 auto; min-height: 34px; padding: 0 13px; border-color: #ff6666; color: #ff6666; }
 .remove-button:hover { border-color: #ff6666; background: #180000; color: #ff8b8b; }
-.condition-add-button { margin-top: 8px; }
+.condition-add-button, .action-add-button { margin-top: 8px; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
 .hidden, .pending-delete { display: none !important; }
 .automation-form-content .form-actions button[type="submit"] { border-color: var(--iot-accent); background: var(--iot-accent); color: #06251f; font-weight: 750; }
@@ -69,7 +69,7 @@ input[type=checkbox] { margin-right: 8px; }
         <div>
             <p class="iot-eyebrow">SCHEDULE EDITOR</p>
             <h1>{% if is_update %}예약 실행 수정{% else %}새 예약 실행{% endif %}</h1>
-            <p>트리거 세트마다 조건을 하나 이상 구성하고, 조건 전체가 FALSE에서 TRUE로 바뀌는 순간 해당 세트의 실행 동작 하나를 실행합니다.</p>
+            <p>트리거 세트마다 조건과 실행 동작을 하나 이상 구성하고, 조건 전체가 FALSE에서 TRUE로 바뀌는 순간 해당 세트의 실행 동작들을 순서대로 실행합니다.</p>
         </div>
         <div class="iot-page-actions"><a class="iot-button" href="{% url 'iotcore:automation_list' %}">예약 실행 목록으로</a></div>
     </header>
@@ -88,7 +88,7 @@ input[type=checkbox] { margin-right: 8px; }
 
         <section class="section">
             <h2>실행 트리거</h2>
-            <p>하나의 트리거 세트는 <strong>조건 1개 이상 + 실행 동작 1개</strong>로 구성됩니다. 세트는 여러 개 만들 수 있으며 서로 독립적으로 동작합니다.</p>
+            <p>하나의 트리거 세트는 <strong>조건 1개 이상 + 실행 동작 1개 이상</strong>으로 구성됩니다. 같은 조건으로 여러 동작을 실행할 수 있고, 세트끼리는 서로 독립적으로 동작합니다.</p>
             {{ trigger_formset.management_form }}
             {{ action_formset.management_form }}
             {{ condition_formset.management_form }}
@@ -98,15 +98,15 @@ input[type=checkbox] { margin-right: 8px; }
 
             <div id="trigger-set-list">
                 {% for block in execution_blocks %}
-                {% with tf=block.trigger_form af=block.action_form %}
-                <div class="trigger-set{% if tf.DELETE.value or af.DELETE.value %} pending-delete{% endif %}" data-set-index="{{ block.index }}">
-                    {{ tf.id }}{{ af.id }}<span class="hidden">{{ tf.DELETE }}{{ af.DELETE }}</span>
+                {% with tf=block.trigger_form %}
+                <div class="trigger-set{% if tf.DELETE.value %} pending-delete{% endif %}" data-set-index="{{ block.index }}">
+                    {{ tf.id }}<span class="hidden">{{ tf.DELETE }}</span>
                     <div class="trigger-set__header">
                         <div class="trigger-set__heading"><span>TRIGGER SET</span><strong>트리거 세트 {{ forloop.counter }}</strong></div>
                         <button type="button" class="button remove-button" onclick="removeTriggerSet(this)">세트 삭제</button>
                     </div>
 
-                    {{ tf.non_field_errors }}{{ af.non_field_errors }}
+                    {{ tf.non_field_errors }}
                     <div class="field"><label>{{ tf.enabled }} {{ tf.enabled.label }}</label>{{ tf.enabled.errors }}</div>
                     <div class="field"><label>{{ tf.condition_operator.label }}</label>{{ tf.condition_operator }}{{ tf.condition_operator.errors }}</div>
                     <div class="logic-help">AND는 모든 조건이 참일 때, OR는 하나 이상의 조건이 참일 때 세트 전체를 참으로 평가합니다. 같은 참 상태가 유지되는 동안에는 반복 실행하지 않습니다.</div>
@@ -166,21 +166,34 @@ input[type=checkbox] { margin-right: 8px; }
                         <button type="button" class="button condition-add-button" onclick="addCondition(this)">+ 실행 조건 추가</button>
                     </div>
 
-                    <div class="set-subsection set-action">
+                    <div class="set-subsection set-actions">
                         <div class="set-subsection__header">
                             <h3>실행 동작</h3>
-                            <p>이 세트의 조건 충족 방식에 따라 전체 결과가 FALSE → TRUE가 될 때 한 번 실행합니다.</p>
+                            <p>세트가 FALSE → TRUE가 되면 아래 동작을 위에서부터 순서대로 실행합니다.</p>
                         </div>
-                        <div class="field"><label>{{ af.action_type.label }}</label>{{ af.action_type }}{{ af.action_type.errors }}</div>
-                        <div class="device-action-fields">
-                            <div class="field"><label>{{ af.device.label }}</label>{{ af.device }}{{ af.device.errors }}</div>
-                            <div class="field"><label>{{ af.function.label }}</label>{{ af.function }}{{ af.function.errors }}</div>
-                            <div class="field"><label>{{ af.parameter_json.label }}</label>{{ af.parameter_json }}<span class="helptext">{{ af.parameter_json.help_text }}</span>{{ af.parameter_json.errors }}</div>
+                        <div class="action-list">
+                            {% for af in block.actions %}
+                            <div class="action-card{% if af.DELETE.value %} pending-delete{% endif %}">
+                                {{ af.id }}{{ af.trigger_index }}<span class="hidden">{{ af.DELETE }}</span>
+                                <div class="action-card__header">
+                                    <strong>실행 동작 {{ forloop.counter }}</strong>
+                                    <button type="button" class="button remove-button" onclick="removeAction(this)">삭제</button>
+                                </div>
+                                {{ af.non_field_errors }}
+                                <div class="field"><label>{{ af.action_type.label }}</label>{{ af.action_type }}{{ af.action_type.errors }}</div>
+                                <div class="device-action-fields">
+                                    <div class="field"><label>{{ af.device.label }}</label>{{ af.device }}{{ af.device.errors }}</div>
+                                    <div class="field"><label>{{ af.function.label }}</label>{{ af.function }}{{ af.function.errors }}</div>
+                                    <div class="field"><label>{{ af.parameter_json.label }}</label>{{ af.parameter_json }}<span class="helptext">{{ af.parameter_json.help_text }}</span>{{ af.parameter_json.errors }}</div>
+                                </div>
+                                <div class="sequence-action-fields">
+                                    <div class="field"><label>{{ af.sequence.label }}</label>{{ af.sequence }}{{ af.sequence.errors }}</div>
+                                </div>
+                                <div class="field"><label>{{ af.delay.label }}</label>{{ af.delay }}{{ af.delay.errors }}</div>
+                            </div>
+                            {% endfor %}
                         </div>
-                        <div class="sequence-action-fields">
-                            <div class="field"><label>{{ af.sequence.label }}</label>{{ af.sequence }}{{ af.sequence.errors }}</div>
-                        </div>
-                        <div class="field"><label>{{ af.delay.label }}</label>{{ af.delay }}{{ af.delay.errors }}</div>
+                        <button type="button" class="button action-add-button" onclick="addAction(this)">+ 실행 동작 추가</button>
                     </div>
                 </div>
                 {% endwith %}
@@ -197,7 +210,7 @@ input[type=checkbox] { margin-right: 8px; }
 
     <template id="trigger-set-empty-form">
         <div class="trigger-set" data-new-form="true">
-            {{ trigger_formset.empty_form.id }}{{ action_formset.empty_form.id }}<span class="hidden">{{ trigger_formset.empty_form.DELETE }}{{ action_formset.empty_form.DELETE }}</span>
+            {{ trigger_formset.empty_form.id }}<span class="hidden">{{ trigger_formset.empty_form.DELETE }}</span>
             <div class="trigger-set__header">
                 <div class="trigger-set__heading"><span>TRIGGER SET</span><strong>새 트리거 세트</strong></div>
                 <button type="button" class="button remove-button" onclick="removeTriggerSet(this)">세트 삭제</button>
@@ -212,17 +225,29 @@ input[type=checkbox] { margin-right: 8px; }
                 <button type="button" class="button condition-add-button" onclick="addCondition(this)">+ 실행 조건 추가</button>
             </div>
 
-            <div class="set-subsection set-action">
-                <div class="set-subsection__header"><h3>실행 동작</h3><p>세트당 하나의 동작을 실행합니다.</p></div>
-                <div class="field"><label>{{ action_formset.empty_form.action_type.label }}</label>{{ action_formset.empty_form.action_type }}</div>
-                <div class="device-action-fields">
-                    <div class="field"><label>{{ action_formset.empty_form.device.label }}</label>{{ action_formset.empty_form.device }}</div>
-                    <div class="field"><label>{{ action_formset.empty_form.function.label }}</label>{{ action_formset.empty_form.function }}</div>
-                    <div class="field"><label>{{ action_formset.empty_form.parameter_json.label }}</label>{{ action_formset.empty_form.parameter_json }}<span class="helptext">{{ action_formset.empty_form.parameter_json.help_text }}</span></div>
-                </div>
-                <div class="sequence-action-fields"><div class="field"><label>{{ action_formset.empty_form.sequence.label }}</label>{{ action_formset.empty_form.sequence }}</div></div>
-                <div class="field"><label>{{ action_formset.empty_form.delay.label }}</label>{{ action_formset.empty_form.delay }}</div>
+            <div class="set-subsection set-actions">
+                <div class="set-subsection__header"><h3>실행 동작</h3><p>동작은 하나 이상 필요하며 위에서부터 순서대로 실행합니다.</p></div>
+                <div class="action-list"></div>
+                <button type="button" class="button action-add-button" onclick="addAction(this)">+ 실행 동작 추가</button>
             </div>
+        </div>
+    </template>
+
+    <template id="action-empty-form">
+        <div class="action-card" data-new-form="true">
+            {{ action_formset.empty_form.id }}{{ action_formset.empty_form.trigger_index }}<span class="hidden">{{ action_formset.empty_form.DELETE }}</span>
+            <div class="action-card__header">
+                <strong>새 실행 동작</strong>
+                <button type="button" class="button remove-button" onclick="removeAction(this)">삭제</button>
+            </div>
+            <div class="field"><label>{{ action_formset.empty_form.action_type.label }}</label>{{ action_formset.empty_form.action_type }}</div>
+            <div class="device-action-fields">
+                <div class="field"><label>{{ action_formset.empty_form.device.label }}</label>{{ action_formset.empty_form.device }}</div>
+                <div class="field"><label>{{ action_formset.empty_form.function.label }}</label>{{ action_formset.empty_form.function }}</div>
+                <div class="field"><label>{{ action_formset.empty_form.parameter_json.label }}</label>{{ action_formset.empty_form.parameter_json }}<span class="helptext">{{ action_formset.empty_form.parameter_json.help_text }}</span></div>
+            </div>
+            <div class="sequence-action-fields"><div class="field"><label>{{ action_formset.empty_form.sequence.label }}</label>{{ action_formset.empty_form.sequence }}</div></div>
+            <div class="field"><label>{{ action_formset.empty_form.delay.label }}</label>{{ action_formset.empty_form.delay }}</div>
         </div>
     </template>
 
@@ -355,21 +380,38 @@ function bindCondition(card) {
     updateCondition(card);
 }
 
-function bindTriggerSet(card) {
+function bindAction(card) {
     card.querySelectorAll('select[name^="actions-"][name$="-action_type"]').forEach(select => select.addEventListener('change', () => updateAction(card)));
     card.querySelectorAll('select[name^="actions-"][name$="-device"]').forEach(select => select.addEventListener('change', () => refreshFunctionChoices(card)));
-    card.querySelectorAll('.condition-card').forEach(bindCondition);
     updateAction(card);
 }
 
-function syncConditionTriggerIndexes() {
+function bindTriggerSet(card) {
+    card.querySelectorAll('.condition-card').forEach(bindCondition);
+    card.querySelectorAll('.action-card').forEach(bindAction);
+}
+
+function syncChildTriggerIndexes() {
     document.querySelectorAll('#trigger-set-list > .trigger-set').forEach(setCard => {
         const triggerIndex = formIndex(setCard, 'triggers');
         if (triggerIndex === null) return;
         setCard.dataset.setIndex = triggerIndex;
-        setCard.querySelectorAll('.condition-card input[name$="-trigger_index"]').forEach(input => {
+        setCard.querySelectorAll('.condition-card input[name$="-trigger_index"], .action-card input[name$="-trigger_index"]').forEach(input => {
             input.value = triggerIndex;
         });
+    });
+}
+
+function refreshChildHeadings(setCard) {
+    let conditionIndex = 1;
+    setCard.querySelectorAll('.condition-card:not(.pending-delete)').forEach(card => {
+        const heading = card.querySelector('.condition-card__header strong');
+        if (heading) heading.textContent = `실행 조건 ${conditionIndex++}`;
+    });
+    let actionIndex = 1;
+    setCard.querySelectorAll('.action-card:not(.pending-delete)').forEach(card => {
+        const heading = card.querySelector('.action-card__header strong');
+        if (heading) heading.textContent = `실행 동작 ${actionIndex++}`;
     });
 }
 
@@ -378,26 +420,26 @@ function refreshSetHeadings() {
     document.querySelectorAll('#trigger-set-list > .trigger-set:not(.pending-delete)').forEach(card => {
         const heading = card.querySelector('.trigger-set__heading strong');
         if (heading) heading.textContent = `트리거 세트 ${visibleIndex++}`;
+        refreshChildHeadings(card);
     });
 }
 
 function addTriggerSet() {
     const triggerTotal = document.getElementById('id_triggers-TOTAL_FORMS');
-    const actionTotal = document.getElementById('id_actions-TOTAL_FORMS');
-    const index = Math.max(Number(triggerTotal.value), Number(actionTotal.value));
+    const index = Number(triggerTotal.value);
     const html = document.getElementById('trigger-set-empty-form').innerHTML.replaceAll('__prefix__', index);
     const list = document.getElementById('trigger-set-list');
     list.insertAdjacentHTML('beforeend', html);
     triggerTotal.value = index + 1;
-    actionTotal.value = index + 1;
     const card = list.lastElementChild;
     const enabled = ownField(card, 'triggers', 'enabled');
     if (enabled) enabled.checked = true;
     const operator = ownField(card, 'triggers', 'condition_operator');
     if (operator && !operator.value) operator.value = 'and';
     bindTriggerSet(card);
-    syncConditionTriggerIndexes();
+    syncChildTriggerIndexes();
     addCondition(card.querySelector('.condition-add-button'));
+    addAction(card.querySelector('.action-add-button'));
     refreshSetHeadings();
 }
 
@@ -415,6 +457,24 @@ function addCondition(button) {
     const triggerIndexField = conditionCard.querySelector('input[name$="-trigger_index"]');
     if (triggerIndexField) triggerIndexField.value = triggerIndex;
     bindCondition(conditionCard);
+    refreshChildHeadings(setCard);
+}
+
+function addAction(button) {
+    const setCard = button.closest('.trigger-set');
+    const triggerIndex = formIndex(setCard, 'triggers');
+    if (triggerIndex === null) return;
+    const total = document.getElementById('id_actions-TOTAL_FORMS');
+    const index = Number(total.value);
+    const html = document.getElementById('action-empty-form').innerHTML.replaceAll('__prefix__', index);
+    const list = setCard.querySelector('.action-list');
+    list.insertAdjacentHTML('beforeend', html);
+    total.value = index + 1;
+    const actionCard = list.lastElementChild;
+    const triggerIndexField = actionCard.querySelector('input[name$="-trigger_index"]');
+    if (triggerIndexField) triggerIndexField.value = triggerIndex;
+    bindAction(actionCard);
+    refreshChildHeadings(setCard);
 }
 
 function renamePrefixWithin(card, prefix, oldIndex, newIndex) {
@@ -430,22 +490,15 @@ function renamePrefixWithin(card, prefix, oldIndex, newIndex) {
 }
 
 function renumberNewTriggerSets() {
-    const triggerInitial = Number(document.getElementById('id_triggers-INITIAL_FORMS').value);
-    const actionInitial = Number(document.getElementById('id_actions-INITIAL_FORMS').value);
-    const initial = Math.max(triggerInitial, actionInitial);
-    const newSets = [...document.querySelectorAll('#trigger-set-list > .trigger-set')].filter(card => {
-        return !ownField(card, 'triggers', 'id')?.value && !ownField(card, 'actions', 'id')?.value;
-    });
+    const initial = Number(document.getElementById('id_triggers-INITIAL_FORMS').value);
+    const newSets = [...document.querySelectorAll('#trigger-set-list > .trigger-set')].filter(card => !ownField(card, 'triggers', 'id')?.value);
     newSets.forEach((card, offset) => {
-        const oldTriggerIndex = formIndex(card, 'triggers');
-        const oldActionIndex = formIndex(card, 'actions');
+        const oldIndex = formIndex(card, 'triggers');
         const newIndex = initial + offset;
-        if (oldTriggerIndex !== null) renamePrefixWithin(card, 'triggers', oldTriggerIndex, newIndex);
-        if (oldActionIndex !== null) renamePrefixWithin(card, 'actions', oldActionIndex, newIndex);
+        if (oldIndex !== null) renamePrefixWithin(card, 'triggers', oldIndex, newIndex);
     });
     document.getElementById('id_triggers-TOTAL_FORMS').value = initial + newSets.length;
-    document.getElementById('id_actions-TOTAL_FORMS').value = initial + newSets.length;
-    syncConditionTriggerIndexes();
+    syncChildTriggerIndexes();
 }
 
 function renumberNewConditions() {
@@ -457,7 +510,19 @@ function renumberNewConditions() {
         if (oldIndex !== null) renamePrefixWithin(card, 'conditions', oldIndex, newIndex);
     });
     document.getElementById('id_conditions-TOTAL_FORMS').value = initial + newCards.length;
-    syncConditionTriggerIndexes();
+    syncChildTriggerIndexes();
+}
+
+function renumberNewActions() {
+    const initial = Number(document.getElementById('id_actions-INITIAL_FORMS').value);
+    const newCards = [...document.querySelectorAll('.action-card')].filter(card => !ownField(card, 'actions', 'id')?.value);
+    newCards.forEach((card, offset) => {
+        const oldIndex = formIndex(card, 'actions');
+        const newIndex = initial + offset;
+        if (oldIndex !== null) renamePrefixWithin(card, 'actions', oldIndex, newIndex);
+    });
+    document.getElementById('id_actions-TOTAL_FORMS').value = initial + newCards.length;
+    syncChildTriggerIndexes();
 }
 
 function markDeleted(card, prefix) {
@@ -471,6 +536,7 @@ function markDeleted(card, prefix) {
 
 function removeCondition(button) {
     const card = button.closest('.condition-card');
+    const setCard = card.closest('.trigger-set');
     if (ownField(card, 'conditions', 'id')?.value) {
         markDeleted(card, 'conditions');
         card.classList.add('pending-delete');
@@ -478,6 +544,20 @@ function removeCondition(button) {
         card.remove();
         renumberNewConditions();
     }
+    refreshChildHeadings(setCard);
+}
+
+function removeAction(button) {
+    const card = button.closest('.action-card');
+    const setCard = card.closest('.trigger-set');
+    if (ownField(card, 'actions', 'id')?.value) {
+        markDeleted(card, 'actions');
+        card.classList.add('pending-delete');
+    } else {
+        card.remove();
+        renumberNewActions();
+    }
+    refreshChildHeadings(setCard);
 }
 
 function removeTriggerSet(button) {
@@ -489,22 +569,28 @@ function removeTriggerSet(button) {
             conditionCard.remove();
         }
     });
+    [...card.querySelectorAll('.action-card')].forEach(actionCard => {
+        if (ownField(actionCard, 'actions', 'id')?.value) {
+            markDeleted(actionCard, 'actions');
+        } else {
+            actionCard.remove();
+        }
+    });
 
-    const existing = Boolean(ownField(card, 'triggers', 'id')?.value || ownField(card, 'actions', 'id')?.value);
-    if (existing) {
+    if (ownField(card, 'triggers', 'id')?.value) {
         markDeleted(card, 'triggers');
-        markDeleted(card, 'actions');
         card.classList.add('pending-delete');
     } else {
         card.remove();
         renumberNewTriggerSets();
-        renumberNewConditions();
     }
+    renumberNewConditions();
+    renumberNewActions();
     refreshSetHeadings();
 }
 
 document.querySelectorAll('#trigger-set-list > .trigger-set').forEach(bindTriggerSet);
-syncConditionTriggerIndexes();
+syncChildTriggerIndexes();
 refreshSetHeadings();
 if (!document.querySelector('#trigger-set-list > .trigger-set')) {
     addTriggerSet();

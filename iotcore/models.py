@@ -214,12 +214,12 @@ class AutomationAction(models.Model):
         on_delete=models.CASCADE,
         related_name="actions",
     )
-    trigger = models.OneToOneField(
+    trigger = models.ForeignKey(
         "AutomationTrigger",
         on_delete=models.CASCADE,
         blank=True,
         null=True,
-        related_name="action",
+        related_name="actions",
     )
     order = models.PositiveIntegerField(default=1)
     action_type = models.CharField(max_length=20, choices=ActionType.choices)
@@ -242,11 +242,11 @@ class AutomationAction(models.Model):
     delay = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["order", "id"]
+        ordering = ["trigger_id", "order", "id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["automation", "order"],
-                name="unique_automation_action_order",
+                fields=["trigger", "order"],
+                name="unique_automation_trigger_action_order",
             ),
         ]
 
@@ -257,7 +257,7 @@ class AutomationAction(models.Model):
 class AutomationTrigger(models.Model):
     class TriggerType(models.TextChoices):
         # SET is the current model: one trigger set owns 1..N conditions and
-        # exactly one action.  The legacy types remain for migration/runtime
+        # 1..N ordered actions. The legacy types remain for migration/runtime
         # compatibility with installations that have not applied 0020 yet.
         SET = "set", "트리거 세트"
         TIME = "time", "예약 시간 (기존)"

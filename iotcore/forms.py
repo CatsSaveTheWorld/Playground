@@ -179,6 +179,13 @@ class AutomationForm(forms.ModelForm):
 
 
 class AutomationActionForm(forms.ModelForm):
+    # UI-only owner pointer. Actions are an automation-level formset, so the
+    # editor posts the TriggerSet form index that owns each action card.
+    trigger_index = forms.IntegerField(
+        required=False,
+        min_value=0,
+        widget=forms.HiddenInput(),
+    )
     parameter_json = forms.CharField(
         required=False,
         label="동작 파라미터(JSON)",

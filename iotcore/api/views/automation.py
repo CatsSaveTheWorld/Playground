@@ -35,12 +35,12 @@ def _automation_forms(request, automation):
     action_queryset = AutomationAction.objects.none()
     condition_queryset = AutomationCondition.objects.none()
     if automation.pk:
-        # Trigger-set and action indexes are aligned 1:1. Conditions point at
-        # their owning trigger set and can be 1..N per set.
-        trigger_queryset = automation.triggers.order_by("action__order", "id")
-        action_queryset = automation.actions.order_by("order", "id")
+        # TriggerSet is the parent. Conditions and actions are independent
+        # 1..N child collections that point back to the owning set.
+        trigger_queryset = automation.triggers.order_by("id")
+        action_queryset = automation.actions.order_by("trigger_id", "order", "id")
         condition_queryset = automation.conditions.order_by(
-            "trigger__action__order", "order", "id"
+            "trigger_id", "order", "id"
         )
     return (
         AutomationForm(data, instance=automation),
@@ -77,19 +77,63 @@ def _active_form_indexes(formset, value_key=None):
     return indexes
 
 
-def _trigger_sets_are_paired(trigger_formset, action_formset):
-    trigger_indexes = _active_form_indexes(trigger_formset)
-    action_indexes = _active_form_indexes(action_formset, "action_type")
-    if trigger_indexes == action_indexes and trigger_indexes:
-        return True
+def _action_trigger_index(form):
+    raw = form["trigger_index"].value()
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
 
-    message = (
-        "각 트리거 세트에는 실행 동작이 정확히 하나 필요합니다. "
-        "세트를 삭제하거나 추가할 때는 세트 전체를 함께 편집하세요."
-    )
-    trigger_formset._non_form_errors = trigger_formset.error_class([message])
-    action_formset._non_form_errors = action_formset.error_class([message])
-    return False
+
+def _trigger_sets_have_actions(trigger_formset, action_formset):
+    """Require one or more actions under every active TriggerSet.
+
+    v4 POSTs did not contain ``actions-N-trigger_index`` because the action
+    index was implicitly identical to the trigger index. Keep that one-action
+    shape as a compatibility fallback while the v5 editor always posts the
+    explicit owner index.
+    """
+    set_indexes = _active_form_indexes(trigger_formset)
+    counts = {index: 0 for index in set_indexes}
+    invalid_action_forms = []
+    active_actions = 0
+
+    for form_index, form in enumerate(action_formset.forms):
+        cleaned = form.cleaned_data
+        if not cleaned or cleaned.get("DELETE") or not cleaned.get("action_type"):
+            continue
+        active_actions += 1
+        trigger_index = cleaned.get("trigger_index")
+        if trigger_index is None and form_index in set_indexes:
+            # v4 compatibility: exactly one action occupied the same form
+            # index as its TriggerSet.
+            trigger_index = form_index
+        if trigger_index not in counts:
+            invalid_action_forms.append(form_index + 1)
+            continue
+        counts[trigger_index] += 1
+
+    missing = [index + 1 for index, count in counts.items() if count == 0]
+    errors = []
+    if not set_indexes:
+        errors.append("트리거 세트를 하나 이상 등록하세요.")
+    elif missing:
+        errors.append(
+            "각 트리거 세트에는 실행 동작이 하나 이상 필요합니다. "
+            f"동작이 없는 세트: {', '.join(map(str, missing))}"
+        )
+    if invalid_action_forms:
+        errors.append(
+            "일부 실행 동작의 트리거 세트 연결 정보가 올바르지 않습니다. "
+            f"동작 폼: {', '.join(map(str, invalid_action_forms))}"
+        )
+    if active_actions == 0:
+        errors.append("실행 동작을 하나 이상 등록하세요.")
+
+    if errors:
+        action_formset._non_form_errors = action_formset.error_class(errors)
+        return False
+    return True
 
 
 def _condition_trigger_index(form):
@@ -131,7 +175,7 @@ def _trigger_sets_have_conditions(trigger_formset, condition_formset):
 
     # Backward-compatible POSTs from the v3 editor may still carry a legacy
     # trigger_type/config instead of an explicit source condition. Treat that
-    # source as one condition; _replace_children() converts it to v4 data.
+    # source as one condition; _replace_children() converts it to v5 data.
     for index in set_indexes:
         trigger_cleaned = trigger_formset.forms[index].cleaned_data
         legacy_type = trigger_cleaned.get("trigger_type")
@@ -174,9 +218,7 @@ def _trigger_sets_have_conditions(trigger_formset, condition_formset):
 
 
 def _replace_children(automation, trigger_formset, condition_formset, action_formset):
-    trigger_indexes = _active_form_indexes(trigger_formset)
-    action_indexes = _active_form_indexes(action_formset, "action_type")
-    active_indexes = sorted(trigger_indexes & action_indexes)
+    active_indexes = sorted(_active_form_indexes(trigger_formset))
 
     trigger_rows = {}
     for form_index in active_indexes:
@@ -196,10 +238,10 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
         }
 
     # The editor treats each card as one atomic TriggerSet:
-    # 1..N conditions + exactly 1 action.
-    automation.triggers.all().delete()  # cascades paired actions/conditions
+    # 1..N conditions + 1..N ordered actions.
+    automation.triggers.all().delete()  # cascades owned actions/conditions
     automation.conditions.all().delete()  # malformed legacy orphans
-    automation.actions.all().delete()
+    automation.actions.all().delete()  # legacy actions without a trigger
 
     trigger_by_form_index = {}
     for form_index in active_indexes:
@@ -214,15 +256,23 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
         )
         trigger_by_form_index[form_index] = trigger
 
-    action_order = 1
-    for form_index in active_indexes:
-        form = action_formset.forms[form_index]
+    action_order_by_trigger = {}
+    for form_index, form in enumerate(action_formset.forms):
         cleaned = form.cleaned_data
-        trigger = trigger_by_form_index[form_index]
+        if not cleaned or cleaned.get("DELETE") or not cleaned.get("action_type"):
+            continue
+        trigger_index = cleaned.get("trigger_index")
+        if trigger_index is None and form_index in trigger_by_form_index:
+            # v4 compatibility: action form index == TriggerSet form index.
+            trigger_index = form_index
+        trigger = trigger_by_form_index.get(trigger_index)
+        if trigger is None:
+            continue
+        order = action_order_by_trigger.get(trigger.pk, 0) + 1
         AutomationAction.objects.create(
             automation=automation,
             trigger=trigger,
-            order=action_order,
+            order=order,
             action_type=cleaned["action_type"],
             device=cleaned.get("device"),
             function=cleaned.get("function") or "",
@@ -230,7 +280,7 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
             sequence=cleaned.get("sequence"),
             delay=cleaned.get("delay") or 0,
         )
-        action_order += 1
+        action_order_by_trigger[trigger.pk] = order
 
     condition_order_by_trigger = {}
     for form in condition_formset.forms:
@@ -319,6 +369,25 @@ def _build_execution_blocks(trigger_formset, action_formset, condition_formset):
         for index, trigger_form in enumerate(trigger_formset.forms)
         if trigger_form.instance.pk
     }
+
+    actions_by_trigger_index = {}
+    for form_index, action_form in enumerate(action_formset.forms):
+        if (
+            not action_form.is_bound
+            and action_form.instance.pk
+            and action_form.instance.trigger_id
+        ):
+            trigger_index = trigger_index_by_id.get(action_form.instance.trigger_id)
+            action_form.fields["trigger_index"].initial = trigger_index
+        else:
+            trigger_index = _action_trigger_index(action_form)
+            if trigger_index is None and form_index < len(trigger_formset.forms):
+                # Render old v4 POSTs that lack the explicit owner field.
+                trigger_index = form_index
+        if trigger_index is None:
+            continue
+        actions_by_trigger_index.setdefault(trigger_index, []).append(action_form)
+
     conditions_by_trigger_index = {}
     for condition_form in condition_formset.forms:
         if (
@@ -339,16 +408,15 @@ def _build_execution_blocks(trigger_formset, action_formset, condition_formset):
         )
 
     blocks = []
-    trigger_forms = list(trigger_formset.forms)
-    action_forms = list(action_formset.forms)
-    for index in range(min(len(trigger_forms), len(action_forms))):
+    for index, trigger_form in enumerate(trigger_formset.forms):
         blocks.append({
             "index": index,
-            "trigger_form": trigger_forms[index],
-            "action_form": action_forms[index],
+            "trigger_form": trigger_form,
+            "actions": actions_by_trigger_index.get(index, []),
             "conditions": conditions_by_trigger_index.get(index, []),
         })
     return blocks
+
 
 def _action_ui_context():
     action_registry = {
@@ -722,7 +790,7 @@ def automation_create(request):
         and trigger_formset.is_valid()
         and condition_formset.is_valid()
         and action_formset.is_valid()
-        and _trigger_sets_are_paired(trigger_formset, action_formset)
+        and _trigger_sets_have_actions(trigger_formset, action_formset)
         and _trigger_sets_have_conditions(trigger_formset, condition_formset)
     ):
         with transaction.atomic():
@@ -756,7 +824,7 @@ def automation_update(request, automation_id):
         and trigger_formset.is_valid()
         and condition_formset.is_valid()
         and action_formset.is_valid()
-        and _trigger_sets_are_paired(trigger_formset, action_formset)
+        and _trigger_sets_have_actions(trigger_formset, action_formset)
         and _trigger_sets_have_conditions(trigger_formset, condition_formset)
     ):
         with transaction.atomic():
