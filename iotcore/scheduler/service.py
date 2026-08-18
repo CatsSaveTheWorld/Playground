@@ -14,7 +14,12 @@ from ..models import (
     DeviceState,
 )
 from ..room_entry.service import RoomEntryService
-from .calculator import calculate_next_run, calculate_next_schedule
+from .calculator import (
+    calculate_next_run,
+    calculate_next_schedule,
+    is_schedule_window,
+    schedule_window_matches,
+)
 from .constants import MATCHED_ACTION_IDS_KEY
 
 
@@ -141,10 +146,10 @@ class AutomationService:
     def refresh_trigger_result(cls, trigger, now=None):
         """Synchronize a set's resting truth value without executing it.
 
-        This prevents a newly saved set whose state conditions are already
+        This prevents a newly saved set whose persistent conditions are already
         true from firing merely because the next unrelated state report
-        arrives. Transient conditions (schedule/MQTT/changed) are false while
-        the set is resting.
+        arrives. Exact reservation times, MQTT events, and changed operators
+        are transient while weekly time ranges remain persistent constraints.
         """
         if trigger.trigger_type != AutomationTrigger.TriggerType.SET:
             return False
@@ -805,6 +810,8 @@ class AutomationService:
         config = condition.config or {}
 
         if condition.condition_type == AutomationCondition.ConditionType.SCHEDULE:
+            if is_schedule_window(config):
+                return schedule_window_matches(config, now=now)
             if resting:
                 return False
             try:

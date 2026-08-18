@@ -15,6 +15,68 @@ INTERVAL_UNITS = {
 }
 
 
+def _schedule_weekdays(config, schedule_type):
+    if schedule_type == AutomationTrigger.ScheduleType.DAILY:
+        return set(range(7))
+    try:
+        weekdays = {int(day) for day in config.get("weekdays", [])}
+    except (TypeError, ValueError):
+        return set()
+    return weekdays if weekdays.issubset(set(range(7))) else set()
+
+
+def is_schedule_window(config):
+    config = config or {}
+    return (
+        config.get("schedule_type")
+        in {AutomationTrigger.ScheduleType.DAILY, AutomationTrigger.ScheduleType.WEEKLY}
+        and config.get("time_mode") == AutomationTrigger.ScheduleTimeMode.WINDOW
+    )
+
+
+def schedule_is_event_source(config):
+    """Whether this reservation-time condition actively wakes a TriggerSet."""
+    return not is_schedule_window(config)
+
+
+def schedule_window_matches(config, now=None):
+    """Evaluate a weekly/daily passive time window.
+
+    A crossing-midnight window is anchored to the selected start weekday.
+    Example: Monday 23:00~06:00 remains true until Tuesday 06:00 even if
+    Tuesday itself is not selected. ``end=None`` means from start until the
+    end of each selected day.
+    """
+    config = config or {}
+    if not is_schedule_window(config):
+        return False
+
+    now = now or timezone.now()
+    local_now = timezone.localtime(now)
+    schedule_type = config.get("schedule_type")
+    weekdays = _schedule_weekdays(config, schedule_type)
+    if not weekdays:
+        return False
+
+    start = parse_time(str(config.get("start", "")))
+    if start is None:
+        return False
+    raw_end = config.get("end")
+    end = parse_time(str(raw_end)) if raw_end not in (None, "") else None
+    current = local_now.time().replace(tzinfo=None)
+    today = local_now.weekday()
+
+    if end is None:
+        return today in weekdays and current >= start
+    if start <= end:
+        return today in weekdays and start <= current <= end
+    if current >= start:
+        return today in weekdays
+    if current <= end:
+        return ((today - 1) % 7) in weekdays
+    return False
+
+
 def format_korean_time(value):
     """Format a time as Korean 12-hour clock text."""
     hour = value.hour
@@ -42,22 +104,22 @@ def calculate_next_schedule(config, after=None, previous_next=None):
         AutomationTrigger.ScheduleType.DAILY,
         AutomationTrigger.ScheduleType.WEEKLY,
     }:
+        # A time range is a passive constraint. It is evaluated only when a
+        # state/MQTT condition wakes the set and therefore has no next_run_at.
+        if is_schedule_window(config):
+            return None
+
         run_time = parse_time(str(config.get("time", "")))
         if run_time is None:
             raise ValidationError("실행 시간이 올바르지 않습니다.")
 
-        weekdays = None
-        if schedule_type == AutomationTrigger.ScheduleType.WEEKLY:
-            try:
-                weekdays = {int(day) for day in config.get("weekdays", [])}
-            except (TypeError, ValueError):
-                weekdays = set()
-            if not weekdays or not weekdays.issubset(set(range(7))):
-                raise ValidationError("실행 요일을 하나 이상 선택하세요.")
+        weekdays = _schedule_weekdays(config, schedule_type)
+        if not weekdays:
+            raise ValidationError("실행 요일을 하나 이상 선택하세요.")
 
         for days_ahead in range(8):
             candidate_date = local_after.date() + timedelta(days=days_ahead)
-            if weekdays is not None and candidate_date.weekday() not in weekdays:
+            if candidate_date.weekday() not in weekdays:
                 continue
             candidate = timezone.make_aware(
                 datetime.combine(candidate_date, run_time),
@@ -139,18 +201,32 @@ def describe_schedule(config):
         local_run_at = timezone.localtime(run_at)
         return f"{local_run_at:%Y-%m-%d} {format_korean_time(local_run_at)} 한 번"
     if schedule_type == AutomationTrigger.ScheduleType.DAILY:
+        if is_schedule_window(config):
+            start = parse_time(str(config.get("start", "")))
+            raw_end = config.get("end")
+            end = parse_time(str(raw_end)) if raw_end not in (None, "") else None
+            if start is None:
+                return "매일 시간대 미설정"
+            if end is None:
+                return f"매일 {format_korean_time(start)} 이후"
+            return f"매일 {format_korean_time(start)} ~ {format_korean_time(end)}"
         run_time = parse_time(str(config.get("time", "")))
         return f"매일 {format_korean_time(run_time)}" if run_time else "매일 -"
     if schedule_type == AutomationTrigger.ScheduleType.WEEKLY:
         labels = ["월", "화", "수", "목", "금", "토", "일"]
-        weekday_numbers = {
-            int(day)
-            for day in config.get("weekdays", [])
-            if str(day).isdigit() and 0 <= int(day) <= 6
-        }
+        weekday_numbers = _schedule_weekdays(config, schedule_type)
         days = "매일" if weekday_numbers == set(range(7)) else (
             "매주 " + ", ".join(labels[day] for day in sorted(weekday_numbers))
         )
+        if is_schedule_window(config):
+            start = parse_time(str(config.get("start", "")))
+            raw_end = config.get("end")
+            end = parse_time(str(raw_end)) if raw_end not in (None, "") else None
+            if start is None:
+                return f"{days} 시간대 미설정"
+            if end is None:
+                return f"{days} {format_korean_time(start)} 이후"
+            return f"{days} {format_korean_time(start)} ~ {format_korean_time(end)}"
         run_time = parse_time(str(config.get("time", "")))
         return f"{days} {format_korean_time(run_time) if run_time else '-'}"
     if schedule_type == AutomationTrigger.ScheduleType.INTERVAL:

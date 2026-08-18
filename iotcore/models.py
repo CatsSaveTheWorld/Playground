@@ -274,6 +274,10 @@ class AutomationTrigger(models.Model):
         WEEKLY = "weekly", "매주"
         INTERVAL = "interval", "일정 간격"
 
+    class ScheduleTimeMode(models.TextChoices):
+        AT = "at", "지정 시각"
+        WINDOW = "window", "시간대"
+
     automation = models.ForeignKey(
         Automation,
         on_delete=models.CASCADE,
@@ -309,7 +313,9 @@ class AutomationTrigger(models.Model):
 class AutomationCondition(models.Model):
     class ConditionType(models.TextChoices):
         SCHEDULE = "schedule", "예약 시간"
-        TIME_WINDOW = "time_window", "시간대"
+        # Legacy rows are migrated into SCHEDULE + ScheduleTimeMode.WINDOW.
+        # Keep the enum value so old databases/rollback tooling can still read it.
+        TIME_WINDOW = "time_window", "시간대 (기존)"
         DEVICE_STATE = "device_state", "기기 상태"
         MQTT_EVENT = "mqtt_event", "MQTT 이벤트"
         # Kept only for old rows/tests.  Migration 0020 converts event-value

@@ -25,7 +25,7 @@ from ...models import (
     AutomationTrigger,
     Device,
 )
-from ...scheduler.calculator import describe_trigger
+from ...scheduler.calculator import describe_trigger, schedule_is_event_source
 from ...scheduler.service import AutomationService
 
 
@@ -165,8 +165,9 @@ def _trigger_sets_have_conditions(trigger_formset, condition_formset):
         condition_type = cleaned.get("condition_type")
         if condition_type == AutomationCondition.ConditionType.SCHEDULE:
             schedule_counts[index] += 1
-        if condition_type in {
-            AutomationCondition.ConditionType.SCHEDULE,
+            if schedule_is_event_source(cleaned.get("config") or {}):
+                source_counts[index] += 1
+        elif condition_type in {
             AutomationCondition.ConditionType.DEVICE_STATE,
             AutomationCondition.ConditionType.MQTT_EVENT,
             AutomationCondition.ConditionType.EVENT_VALUE,
@@ -207,8 +208,8 @@ def _trigger_sets_have_conditions(trigger_formset, condition_formset):
         )
     if no_source:
         errors.append(
-            "각 트리거 세트에는 상태 변화나 이벤트를 발생시키는 조건이 하나 이상 필요합니다. "
-            "'시간대' 조건은 보조 조건이므로 단독으로는 실행 시점을 만들지 않습니다. "
+            "각 트리거 세트에는 실행 시점을 만드는 조건이 하나 이상 필요합니다. "
+            "예약 시간의 '시간대' 방식은 보조 조건이므로 단독으로는 실행 시점을 만들지 않습니다. "
             f"해당 세트: {', '.join(map(str, no_source))}"
         )
     if errors:

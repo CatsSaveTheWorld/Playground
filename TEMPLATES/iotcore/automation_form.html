@@ -22,8 +22,15 @@
 .field { margin-bottom: 18px; }
 .field > label { display: block; color: var(--iot-muted); margin-bottom: 8px; font-size: 11px; font-weight: 650; }
 input[type=text], input[type=number], input[type=datetime-local], input[type=time], select, textarea { width: 100%; padding: 10px; color: #fff; background: #000; border: 1px solid var(--iot-border); }
-input[type=checkbox] { margin-right: 8px; }
+input[type=checkbox], input[type=radio] { margin-right: 8px; }
 .weekdays ul, ul[id$="weekdays"] { display: flex; list-style: none; padding: 0; gap: 14px; flex-wrap: wrap; }
+.schedule-time-mode ul, ul[id$="schedule_time_mode"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); list-style: none; padding: 0; margin: 0; gap: 8px; }
+.schedule-time-mode li { min-width: 0; }
+.schedule-time-mode label { display: flex; align-items: center; min-height: 42px; padding: 0 12px; border: 1px solid var(--iot-border-soft); color: var(--iot-text); cursor: pointer; }
+.schedule-time-mode label:has(input:checked) { border-color: var(--iot-accent); color: var(--iot-accent); }
+.schedule-window-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.schedule-window-grid .field { margin-bottom: 0; }
+.schedule-window-no-end { margin-top: 14px; }
 .errorlist, .form-errors { color: #ff6666; }
 .helptext { display: block; color: var(--iot-muted); margin-top: 5px; font-size: 12px; line-height: 1.5; }
 .logic-help { border-left: 2px solid var(--iot-border); padding-left: 10px; color: var(--iot-muted); font-size: 11px; line-height: 1.6; margin-top: -8px; margin-bottom: 18px; }
@@ -40,7 +47,7 @@ input[type=checkbox] { margin-right: 8px; }
 @media (max-width: 720px) {
     .automation-form-content, .automation-form-content form, .automation-form-content .section,
     .automation-form-content .trigger-set, .automation-form-content .field,
-    .automation-form-content .condition-schedule, .automation-form-content .condition-time,
+    .automation-form-content .condition-schedule, .automation-form-content .condition-window-fields,
     .automation-form-content .condition-state, .automation-form-content .condition-mqtt,
     .automation-form-content .device-action-fields, .automation-form-content .sequence-action-fields {
         min-width: 0; max-width: 100%;
@@ -50,6 +57,7 @@ input[type=checkbox] { margin-right: 8px; }
     .automation-form-content .trigger-set__header { align-items: flex-start; gap: 10px; }
     .automation-form-content .set-subsection__header { align-items: flex-start; flex-direction: column; gap: 5px; }
     .automation-form-content .set-subsection__header p { text-align: left; }
+    .automation-form-content .schedule-window-grid { grid-template-columns: minmax(0, 1fr); }
     .automation-form-content input[type=text], .automation-form-content input[type=number],
     .automation-form-content input[type=datetime-local], .automation-form-content input[type=time],
     .automation-form-content select, .automation-form-content textarea { min-width: 0; max-width: 100%; width: 100%; }
@@ -125,20 +133,25 @@ input[type=checkbox] { margin-right: 8px; }
                                     <button type="button" class="button remove-button" onclick="removeCondition(this)">삭제</button>
                                 </div>
                                 {{ cf.non_field_errors }}
-                                <div class="field"><label>{{ cf.condition_type.label }}</label>{{ cf.condition_type }}<span class="helptext">예약 시간·기기 상태·MQTT 이벤트는 세트를 깨우는 조건입니다. 시간대는 다른 조건이 변할 때 함께 검사되는 보조 조건입니다.</span>{{ cf.condition_type.errors }}</div>
+                                <div class="field"><label>{{ cf.condition_type.label }}</label>{{ cf.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트는 세트를 깨웁니다. 예약 시간의 시간대 방식은 다른 조건이 변할 때 함께 검사되는 허용 시간 조건입니다.</span>{{ cf.condition_type.errors }}</div>
 
                                 <div class="condition-schedule">
                                     <div class="field"><label>{{ cf.schedule_type.label }}</label>{{ cf.schedule_type }}{{ cf.schedule_type.errors }}</div>
                                     <div class="field schedule-once"><label>{{ cf.run_at.label }}</label>{{ cf.run_at }}{{ cf.run_at.errors }}</div>
-                                    <div class="field schedule-clock"><label>{{ cf.time_of_day.label }}</label>{{ cf.time_of_day }}{{ cf.time_of_day.errors }}</div>
                                     <div class="field schedule-weekly weekdays"><label>반복 요일</label>{{ cf.weekdays }}{{ cf.weekdays.errors }}</div>
+                                    <div class="field schedule-weekly schedule-time-mode"><label>{{ cf.schedule_time_mode.label }}</label>{{ cf.schedule_time_mode }}<span class="helptext">지정 시각은 선택한 각 요일에 한 번 세트를 평가합니다. 시간대는 다른 상태/이벤트가 발생했을 때 현재 시각이 허용 범위인지 검사합니다.</span>{{ cf.schedule_time_mode.errors }}</div>
+                                    <div class="field schedule-at"><label>지정 시각</label>{{ cf.time_of_day }}{{ cf.time_of_day.errors }}</div>
                                     <div class="field schedule-interval"><label>{{ cf.interval_every.label }}</label>{{ cf.interval_every }}{{ cf.interval_every.errors }}</div>
                                     <div class="field schedule-interval"><label>{{ cf.interval_unit.label }}</label>{{ cf.interval_unit }}{{ cf.interval_unit.errors }}</div>
                                 </div>
 
-                                <div class="condition-time">
-                                    <div class="field"><label>{{ cf.time_start.label }}</label>{{ cf.time_start }}{{ cf.time_start.errors }}</div>
-                                    <div class="field"><label>{{ cf.time_end.label }}</label>{{ cf.time_end }}{{ cf.time_end.errors }}</div>
+                                <div class="condition-window-fields">
+                                    <div class="logic-help legacy-time-window-help">이 항목은 기존 데이터 호환용입니다. 새 조건에서는 예약 시간 &gt; 요일 선택 반복 &gt; 시간대를 사용하세요.</div>
+                                    <div class="schedule-window-grid">
+                                        <div class="field"><label>{{ cf.time_start.label }}</label>{{ cf.time_start }}{{ cf.time_start.errors }}</div>
+                                        <div class="field schedule-window-end"><label>{{ cf.time_end.label }}</label>{{ cf.time_end }}{{ cf.time_end.errors }}</div>
+                                    </div>
+                                    <div class="field schedule-window-no-end"><label>{{ cf.time_no_end }} {{ cf.time_no_end.label }}</label><span class="helptext">선택하면 각 반복 요일의 시작 시간부터 자정까지 허용됩니다.</span>{{ cf.time_no_end.errors }}</div>
                                 </div>
 
                                 <div class="condition-state">
@@ -258,18 +271,23 @@ input[type=checkbox] { margin-right: 8px; }
                 <strong>새 실행 조건</strong>
                 <button type="button" class="button remove-button" onclick="removeCondition(this)">삭제</button>
             </div>
-            <div class="field"><label>{{ condition_formset.empty_form.condition_type.label }}</label>{{ condition_formset.empty_form.condition_type }}<span class="helptext">예약 시간·기기 상태·MQTT 이벤트는 세트를 깨우는 조건입니다. 시간대는 보조 조건입니다.</span></div>
+            <div class="field"><label>{{ condition_formset.empty_form.condition_type.label }}</label>{{ condition_formset.empty_form.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트는 세트를 깨웁니다. 시간대는 예약 시간 안에서 설정하는 허용 시간 조건입니다.</span></div>
             <div class="condition-schedule">
                 <div class="field"><label>{{ condition_formset.empty_form.schedule_type.label }}</label>{{ condition_formset.empty_form.schedule_type }}</div>
                 <div class="field schedule-once"><label>{{ condition_formset.empty_form.run_at.label }}</label>{{ condition_formset.empty_form.run_at }}</div>
-                <div class="field schedule-clock"><label>{{ condition_formset.empty_form.time_of_day.label }}</label>{{ condition_formset.empty_form.time_of_day }}</div>
                 <div class="field schedule-weekly weekdays"><label>반복 요일</label>{{ condition_formset.empty_form.weekdays }}</div>
+                <div class="field schedule-weekly schedule-time-mode"><label>{{ condition_formset.empty_form.schedule_time_mode.label }}</label>{{ condition_formset.empty_form.schedule_time_mode }}<span class="helptext">지정 시각은 선택한 각 요일에 한 번 평가하고, 시간대는 다른 조건이 변할 때 허용 범위를 검사합니다.</span></div>
+                <div class="field schedule-at"><label>지정 시각</label>{{ condition_formset.empty_form.time_of_day }}</div>
                 <div class="field schedule-interval"><label>{{ condition_formset.empty_form.interval_every.label }}</label>{{ condition_formset.empty_form.interval_every }}</div>
                 <div class="field schedule-interval"><label>{{ condition_formset.empty_form.interval_unit.label }}</label>{{ condition_formset.empty_form.interval_unit }}</div>
             </div>
-            <div class="condition-time">
-                <div class="field"><label>{{ condition_formset.empty_form.time_start.label }}</label>{{ condition_formset.empty_form.time_start }}</div>
-                <div class="field"><label>{{ condition_formset.empty_form.time_end.label }}</label>{{ condition_formset.empty_form.time_end }}</div>
+            <div class="condition-window-fields">
+                <div class="logic-help legacy-time-window-help">기존 데이터 호환용 시간대입니다.</div>
+                <div class="schedule-window-grid">
+                    <div class="field"><label>{{ condition_formset.empty_form.time_start.label }}</label>{{ condition_formset.empty_form.time_start }}</div>
+                    <div class="field schedule-window-end"><label>{{ condition_formset.empty_form.time_end.label }}</label>{{ condition_formset.empty_form.time_end }}</div>
+                </div>
+                <div class="field schedule-window-no-end"><label>{{ condition_formset.empty_form.time_no_end }} {{ condition_formset.empty_form.time_no_end.label }}</label><span class="helptext">선택하면 각 반복 요일의 시작 시간부터 자정까지 허용됩니다.</span></div>
             </div>
             <div class="condition-state">
                 <div class="field"><label>{{ condition_formset.empty_form.state_device.label }}</label>{{ condition_formset.empty_form.state_device }}</div>
@@ -311,20 +329,27 @@ function formIndex(card, prefix) {
 function updateCondition(card) {
     const type = card.querySelector('select[name$="-condition_type"]')?.value;
     const schedule = card.querySelector('.condition-schedule');
-    const time = card.querySelector('.condition-time');
+    const time = card.querySelector('.condition-window-fields');
     const state = card.querySelector('.condition-state');
     const mqtt = card.querySelector('.condition-mqtt');
     const event = card.querySelector('.condition-event');
     if (schedule) schedule.style.display = type === 'schedule' ? 'block' : 'none';
-    if (time) time.style.display = type === 'time_window' ? 'block' : 'none';
     if (state) state.style.display = type === 'device_state' ? 'block' : 'none';
     if (mqtt) mqtt.style.display = type === 'mqtt_event' ? 'block' : 'none';
     if (event) event.style.display = type === 'event_value' ? 'block' : 'none';
 
     const scheduleType = card.querySelector('select[name$="-schedule_type"]')?.value;
+    const timeMode = card.querySelector('input[name$="-schedule_time_mode"]:checked')?.value || 'at';
+    const noEnd = card.querySelector('input[name$="-time_no_end"]')?.checked || false;
+    const isScheduleWindow = type === 'schedule' && scheduleType === 'weekly' && timeMode === 'window';
+    const isLegacyWindow = type === 'time_window';
+    if (time) time.style.display = (isScheduleWindow || isLegacyWindow) ? 'block' : 'none';
     card.querySelectorAll('.schedule-once').forEach(el => el.style.display = scheduleType === 'once' ? 'block' : 'none');
-    card.querySelectorAll('.schedule-clock').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
     card.querySelectorAll('.schedule-weekly').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
+    card.querySelectorAll('.schedule-at').forEach(el => el.style.display = scheduleType === 'weekly' && timeMode === 'at' ? 'block' : 'none');
+    card.querySelectorAll('.schedule-window-end').forEach(el => el.style.display = isLegacyWindow || (isScheduleWindow && !noEnd) ? 'block' : 'none');
+    card.querySelectorAll('.schedule-window-no-end').forEach(el => el.style.display = isScheduleWindow ? 'block' : 'none');
+    card.querySelectorAll('.legacy-time-window-help').forEach(el => el.style.display = isLegacyWindow ? 'block' : 'none');
     card.querySelectorAll('.schedule-interval').forEach(el => el.style.display = scheduleType === 'interval' ? 'block' : 'none');
     updateConditionValueVisibility(card);
 }
@@ -375,7 +400,7 @@ function updateAction(card) {
 }
 
 function bindCondition(card) {
-    card.querySelectorAll('select[name$="-condition_type"], select[name$="-schedule_type"]').forEach(select => select.addEventListener('change', () => updateCondition(card)));
+    card.querySelectorAll('select[name$="-condition_type"], select[name$="-schedule_type"], input[name$="-schedule_time_mode"], input[name$="-time_no_end"]').forEach(field => field.addEventListener('change', () => updateCondition(card)));
     card.querySelectorAll('select[name$="-state_operator"], select[name$="-mqtt_operator"], select[name$="-event_operator"]').forEach(select => select.addEventListener('change', () => updateConditionValueVisibility(card)));
     updateCondition(card);
 }

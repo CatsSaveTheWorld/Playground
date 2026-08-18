@@ -30,7 +30,11 @@ from .models import (
     SequenceStep,
     SequenceStepRun,
 )
-from .scheduler.calculator import calculate_next_run, describe_trigger
+from .scheduler.calculator import (
+    calculate_next_run,
+    describe_trigger,
+    schedule_window_matches,
+)
 from .scheduler.executor import AutomationExecutor
 from .scheduler.constants import MATCHED_ACTION_IDS_KEY
 from .scheduler.service import AutomationService
@@ -118,6 +122,52 @@ class AutomationCalculatorTests(TestCase):
         self.assertEqual(describe_trigger(trigger), "매일 오전 8:00")
 
 
+    def test_weekly_time_window_has_no_scheduled_wake(self):
+        trigger = self.make_trigger({
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
+            "time_mode": AutomationTrigger.ScheduleTimeMode.WINDOW,
+            "weekdays": [0, 1, 2, 3, 4],
+            "start": "18:30",
+            "end": None,
+        })
+        after = timezone.make_aware(datetime(2026, 8, 3, 19, 0))
+
+        self.assertIsNone(calculate_next_run(trigger, after=after))
+
+    def test_weekly_time_window_after_start_matches_selected_day(self):
+        config = {
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
+            "time_mode": AutomationTrigger.ScheduleTimeMode.WINDOW,
+            "weekdays": [0, 1, 2, 3, 4],
+            "start": "18:30",
+            "end": None,
+        }
+        monday_evening = timezone.make_aware(datetime(2026, 8, 3, 19, 0))
+        monday_before = timezone.make_aware(datetime(2026, 8, 3, 18, 0))
+        saturday_evening = timezone.make_aware(datetime(2026, 8, 8, 19, 0))
+
+        self.assertTrue(schedule_window_matches(config, monday_evening))
+        self.assertFalse(schedule_window_matches(config, monday_before))
+        self.assertFalse(schedule_window_matches(config, saturday_evening))
+
+    def test_cross_midnight_window_is_anchored_to_start_weekday(self):
+        config = {
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
+            "time_mode": AutomationTrigger.ScheduleTimeMode.WINDOW,
+            "weekdays": [0],  # Monday only
+            "start": "23:00",
+            "end": "06:00",
+        }
+        monday_late = timezone.make_aware(datetime(2026, 8, 3, 23, 30))
+        tuesday_early = timezone.make_aware(datetime(2026, 8, 4, 2, 0))
+        tuesday_late = timezone.make_aware(datetime(2026, 8, 4, 23, 30))
+
+        self.assertTrue(schedule_window_matches(config, monday_late))
+        self.assertTrue(schedule_window_matches(config, tuesday_early))
+        self.assertFalse(schedule_window_matches(config, tuesday_late))
+
+
+
 class AutomationTriggerFormTests(TestCase):
     def test_mqtt_trigger_only_stores_broad_topic(self):
         form = AutomationTriggerForm(data={
@@ -203,6 +253,8 @@ class AutomationTriggerFormTests(TestCase):
         )
 
 
+
+
 class AutomationActionFormTests(TestCase):
     def test_rejects_action_not_supported_by_selected_device(self):
         light = Device.objects.create(
@@ -229,11 +281,47 @@ class AutomationConditionFormTests(TestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
 
-    def test_empty_time_window_condition_is_ignored(self):
-        form = AutomationConditionForm(data={"condition_type": "time_window"})
+    def test_new_condition_choices_do_not_offer_standalone_time_window(self):
+        form = AutomationConditionForm()
+        values = [value for value, _label in form.fields["condition_type"].choices]
+
+        self.assertNotIn(AutomationCondition.ConditionType.TIME_WINDOW, values)
+
+    def test_weekly_schedule_at_mode_builds_exact_time_config(self):
+        form = AutomationConditionForm(data={
+            "condition_type": AutomationCondition.ConditionType.SCHEDULE,
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
+            "schedule_time_mode": AutomationTrigger.ScheduleTimeMode.AT,
+            "weekdays": ["0", "1", "2", "3", "4"],
+            "time_of_day": "09:02",
+        })
 
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertIsNone(form.cleaned_data["condition_type"])
+        self.assertEqual(form.cleaned_data["config"], {
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
+            "time_mode": AutomationTrigger.ScheduleTimeMode.AT,
+            "time": "09:02",
+            "weekdays": [0, 1, 2, 3, 4],
+        })
+
+    def test_weekly_schedule_window_supports_open_ended_after_time(self):
+        form = AutomationConditionForm(data={
+            "condition_type": AutomationCondition.ConditionType.SCHEDULE,
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
+            "schedule_time_mode": AutomationTrigger.ScheduleTimeMode.WINDOW,
+            "weekdays": ["0", "1", "2", "3", "4"],
+            "time_start": "18:30",
+            "time_no_end": "on",
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["config"], {
+            "schedule_type": AutomationTrigger.ScheduleType.WEEKLY,
+            "time_mode": AutomationTrigger.ScheduleTimeMode.WINDOW,
+            "weekdays": [0, 1, 2, 3, 4],
+            "start": "18:30",
+            "end": None,
+        })
 
     def test_device_state_condition_parses_numeric_comparison(self):
         sensor = Device.objects.create(

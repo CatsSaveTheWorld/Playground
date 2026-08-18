@@ -531,6 +531,13 @@ class AutomationConditionForm(forms.ModelForm):
     TIME_SCHEDULE_CHOICES = AutomationTriggerForm.TIME_SCHEDULE_CHOICES
 
     schedule_type = forms.ChoiceField(required=False, label="반복 방식", choices=TIME_SCHEDULE_CHOICES)
+    schedule_time_mode = forms.ChoiceField(
+        required=False,
+        label="시간 방식",
+        choices=AutomationTrigger.ScheduleTimeMode.choices,
+        initial=AutomationTrigger.ScheduleTimeMode.AT,
+        widget=forms.RadioSelect,
+    )
     run_at = forms.DateTimeField(
         required=False,
         label="실행 시각",
@@ -544,6 +551,7 @@ class AutomationConditionForm(forms.ModelForm):
 
     time_start = forms.TimeField(required=False, label="시작 시간", widget=forms.TimeInput(format="%H:%M", attrs={"type": "time"}))
     time_end = forms.TimeField(required=False, label="종료 시간", widget=forms.TimeInput(format="%H:%M", attrs={"type": "time"}))
+    time_no_end = forms.BooleanField(required=False, label="종료 시간 제한 없음")
 
     state_device = forms.ModelChoiceField(queryset=Device.objects.none(), required=False, label="기기")
     state_key = forms.CharField(required=False, label="상태 필드", help_text="예: power, temperature, humidity, state")
@@ -563,7 +571,6 @@ class AutomationConditionForm(forms.ModelForm):
 
     MODERN_CONDITION_CHOICES = [
         (AutomationCondition.ConditionType.SCHEDULE, "예약 시간"),
-        (AutomationCondition.ConditionType.TIME_WINDOW, "시간대"),
         (AutomationCondition.ConditionType.DEVICE_STATE, "기기 상태"),
         (AutomationCondition.ConditionType.MQTT_EVENT, "MQTT 이벤트"),
     ]
@@ -585,11 +592,21 @@ class AutomationConditionForm(forms.ModelForm):
         posted_condition_type = None
         if self.is_bound:
             posted_condition_type = self.data.get(self.add_prefix("condition_type"))
+        legacy_choices = []
         if condition_type == AutomationCondition.ConditionType.EVENT_VALUE or posted_condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
+            legacy_choices.append(
+                (AutomationCondition.ConditionType.EVENT_VALUE, "트리거 데이터 (기존)")
+            )
+        if condition_type == AutomationCondition.ConditionType.TIME_WINDOW or posted_condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
+            legacy_choices.append(
+                (AutomationCondition.ConditionType.TIME_WINDOW, "시간대 (기존)")
+            )
+        if legacy_choices:
             self.fields["condition_type"].choices = [
                 *self.MODERN_CONDITION_CHOICES,
-                (AutomationCondition.ConditionType.EVENT_VALUE, "트리거 데이터 (기존)"),
+                *legacy_choices,
             ]
+
         if condition_type == AutomationCondition.ConditionType.SCHEDULE:
             schedule_type = config.get("schedule_type")
             if schedule_type == AutomationTrigger.ScheduleType.DAILY:
@@ -600,13 +617,25 @@ class AutomationConditionForm(forms.ModelForm):
                 if run_at is not None and timezone.is_aware(run_at):
                     run_at = timezone.localtime(run_at)
                 self.fields["run_at"].initial = run_at
-            elif schedule_type in {AutomationTrigger.ScheduleType.DAILY, AutomationTrigger.ScheduleType.WEEKLY}:
-                self.fields["time_of_day"].initial = config.get("time")
+            elif schedule_type == AutomationTrigger.ScheduleType.WEEKLY:
+                time_mode = (
+                    config.get("time_mode")
+                    or AutomationTrigger.ScheduleTimeMode.AT
+                )
+                self.fields["schedule_time_mode"].initial = time_mode
                 self.fields["weekdays"].initial = [str(day) for day in config.get("weekdays", [])] or [str(day) for day in range(7)]
+                if time_mode == AutomationTrigger.ScheduleTimeMode.WINDOW:
+                    self.fields["time_start"].initial = config.get("start")
+                    self.fields["time_end"].initial = config.get("end")
+                    self.fields["time_no_end"].initial = not bool(config.get("end"))
+                else:
+                    self.fields["time_of_day"].initial = config.get("time")
             elif schedule_type == AutomationTrigger.ScheduleType.INTERVAL:
                 self.fields["interval_every"].initial = config.get("every")
                 self.fields["interval_unit"].initial = config.get("unit")
         elif condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
+            # Legacy rows are still editable if migration 0022 could not safely
+            # merge them with another reservation-time condition.
             self.fields["time_start"].initial = config.get("start")
             self.fields["time_end"].initial = config.get("end")
         elif condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
@@ -657,14 +686,41 @@ class AutomationConditionForm(forms.ModelForm):
                 else:
                     cleaned["config"] = {"schedule_type": schedule_type, "run_at": run_at.isoformat()}
             elif schedule_type == AutomationTrigger.ScheduleType.WEEKLY:
-                run_time = cleaned.get("time_of_day")
                 weekdays = cleaned.get("weekdays") or []
-                if run_time is None:
-                    self.add_error("time_of_day", "실행 시간을 입력하세요.")
+                time_mode = (
+                    cleaned.get("schedule_time_mode")
+                    or AutomationTrigger.ScheduleTimeMode.AT
+                )
                 if not weekdays:
                     self.add_error("weekdays", "요일을 하나 이상 선택하세요.")
-                if run_time is not None and weekdays:
-                    cleaned["config"] = {"schedule_type": schedule_type, "time": run_time.strftime("%H:%M"), "weekdays": [int(day) for day in weekdays]}
+
+                if time_mode == AutomationTrigger.ScheduleTimeMode.WINDOW:
+                    start = cleaned.get("time_start")
+                    end = cleaned.get("time_end")
+                    no_end = bool(cleaned.get("time_no_end"))
+                    if start is None:
+                        self.add_error("time_start", "시작 시간을 입력하세요.")
+                    if not no_end and end is None:
+                        self.add_error("time_end", "종료 시간을 입력하거나 '종료 시간 제한 없음'을 선택하세요.")
+                    if start is not None and weekdays and (no_end or end is not None):
+                        cleaned["config"] = {
+                            "schedule_type": schedule_type,
+                            "time_mode": AutomationTrigger.ScheduleTimeMode.WINDOW,
+                            "weekdays": [int(day) for day in weekdays],
+                            "start": start.strftime("%H:%M"),
+                            "end": None if no_end else end.strftime("%H:%M"),
+                        }
+                else:
+                    run_time = cleaned.get("time_of_day")
+                    if run_time is None:
+                        self.add_error("time_of_day", "실행 시간을 입력하세요.")
+                    if run_time is not None and weekdays:
+                        cleaned["config"] = {
+                            "schedule_type": schedule_type,
+                            "time_mode": AutomationTrigger.ScheduleTimeMode.AT,
+                            "time": run_time.strftime("%H:%M"),
+                            "weekdays": [int(day) for day in weekdays],
+                        }
             elif schedule_type == AutomationTrigger.ScheduleType.INTERVAL:
                 every = cleaned.get("interval_every")
                 unit = cleaned.get("interval_unit")
