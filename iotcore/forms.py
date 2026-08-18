@@ -179,8 +179,10 @@ class AutomationForm(forms.ModelForm):
 
 
 class AutomationActionForm(forms.ModelForm):
-    # UI-only owner pointer. Actions are an automation-level formset, so the
-    # editor posts the TriggerSet form index that owns each action card.
+    # UI-only owner pointer. ``trigger_key`` is the stable identifier used by
+    # the current editor. ``trigger_index`` remains only for backward
+    # compatibility with older POST payloads/tests.
+    trigger_key = forms.CharField(required=False, widget=forms.HiddenInput())
     trigger_index = forms.IntegerField(
         required=False,
         min_value=0,
@@ -322,6 +324,7 @@ class AutomationTriggerForm(forms.ModelForm):
         (AutomationTrigger.ScheduleType.INTERVAL, "일정 간격"),
     ]
 
+    set_key = forms.CharField(required=False, widget=forms.HiddenInput())
     schedule_type = forms.ChoiceField(required=False, label="반복 방식", choices=TIME_SCHEDULE_CHOICES)
     run_at = forms.DateTimeField(
         required=False,
@@ -364,6 +367,8 @@ class AutomationTriggerForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["state_device"].queryset = Device.objects.all().order_by("location", "name", "id")
+        if not self.is_bound and self.instance.pk:
+            self.fields["set_key"].initial = f"trigger-{self.instance.pk}"
         if not self.is_bound and not self.instance.pk:
             self.fields["enabled"].initial = True
             self.fields["condition_operator"].initial = AutomationTrigger.ConditionOperator.AND
@@ -516,8 +521,11 @@ class BaseAutomationTriggerFormSet(BaseInlineFormSet):
 
 
 class AutomationConditionForm(forms.ModelForm):
+    # Stable owner key used by the current editor. Index fields are retained
+    # only so old pages/tests can still submit their previous payload shape.
+    trigger_key = forms.CharField(required=False, widget=forms.HiddenInput())
     trigger_index = forms.IntegerField(required=False, min_value=0, widget=forms.HiddenInput())
-    # Backward-compatible hidden field; new editor uses trigger_index.
+    # Backward-compatible hidden field.
     action_index = forms.IntegerField(required=False, min_value=0, widget=forms.HiddenInput())
 
     OPERATOR_CHOICES = [

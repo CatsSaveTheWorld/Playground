@@ -1450,6 +1450,89 @@ class AutomationViewTests(TestCase):
         self.assertEqual(actions[1].device, aircon)
         self.assertEqual(actions[1].delay, 2)
 
+    def test_create_prefers_stable_set_keys_over_form_indexes(self):
+        light = Device.objects.create(
+            device_uid="stable-owner-light",
+            name="안정 연결 전등",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        aircon = Device.objects.create(
+            device_uid="stable-owner-aircon",
+            name="안정 연결 에어컨",
+            device_type="aircon",
+            protocol=Device.Protocol.IR,
+            location="방",
+        )
+        response = self.client.post(
+            reverse("iotcore:schedule_create"),
+            {
+                "name": "안정 세트 키 테스트",
+                "enabled": "on",
+                "cooldown_seconds": "0",
+                "triggers-TOTAL_FORMS": "2",
+                "triggers-INITIAL_FORMS": "0",
+                "triggers-MIN_NUM_FORMS": "0",
+                "triggers-MAX_NUM_FORMS": "1000",
+                "triggers-0-set_key": "set-light",
+                "triggers-0-enabled": "on",
+                "triggers-0-condition_operator": AutomationTrigger.ConditionOperator.AND,
+                "triggers-1-set_key": "set-aircon",
+                "triggers-1-enabled": "on",
+                "triggers-1-condition_operator": AutomationTrigger.ConditionOperator.AND,
+                "conditions-TOTAL_FORMS": "2",
+                "conditions-INITIAL_FORMS": "0",
+                "conditions-MIN_NUM_FORMS": "0",
+                "conditions-MAX_NUM_FORMS": "1000",
+                # Deliberately wrong legacy indexes: trigger_key must win.
+                "conditions-0-trigger_key": "set-aircon",
+                "conditions-0-trigger_index": "0",
+                "conditions-0-condition_type": AutomationCondition.ConditionType.DEVICE_STATE,
+                "conditions-0-state_device": str(aircon.pk),
+                "conditions-0-state_key": "power",
+                "conditions-0-state_operator": "eq",
+                "conditions-0-state_value": "true",
+                "conditions-1-trigger_key": "set-light",
+                "conditions-1-trigger_index": "1",
+                "conditions-1-condition_type": AutomationCondition.ConditionType.DEVICE_STATE,
+                "conditions-1-state_device": str(light.pk),
+                "conditions-1-state_key": "power",
+                "conditions-1-state_operator": "eq",
+                "conditions-1-state_value": "true",
+                "actions-TOTAL_FORMS": "2",
+                "actions-INITIAL_FORMS": "0",
+                "actions-MIN_NUM_FORMS": "0",
+                "actions-MAX_NUM_FORMS": "1000",
+                "actions-0-trigger_key": "set-aircon",
+                "actions-0-trigger_index": "0",
+                "actions-0-action_type": AutomationAction.ActionType.DEVICE,
+                "actions-0-device": str(aircon.pk),
+                "actions-0-function": "power_off",
+                "actions-0-delay": "0",
+                "actions-1-trigger_key": "set-light",
+                "actions-1-trigger_index": "1",
+                "actions-1-action_type": AutomationAction.ActionType.DEVICE,
+                "actions-1-device": str(light.pk),
+                "actions-1-function": "power_off",
+                "actions-1-delay": "0",
+            },
+        )
+
+        self.assertRedirects(response, reverse("iotcore:schedule_list"))
+        automation = Automation.objects.get(name="안정 세트 키 테스트")
+        aircon_action = automation.actions.get(device=aircon)
+        light_action = automation.actions.get(device=light)
+        self.assertEqual(
+            aircon_action.trigger.conditions.get().config["device_id"],
+            aircon.pk,
+        )
+        self.assertEqual(
+            light_action.trigger.conditions.get().config["device_id"],
+            light.pk,
+        )
+        self.assertNotEqual(aircon_action.trigger_id, light_action.trigger_id)
+
     def test_new_trigger_set_defaults_to_enabled_when_checkbox_is_omitted(self):
         device = Device.objects.create(
             device_uid="default-trigger-light",

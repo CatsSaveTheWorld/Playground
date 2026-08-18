@@ -134,7 +134,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                 {% for block in execution_blocks %}
                 {% with tf=block.trigger_form %}
                 <div class="trigger-set{% if tf.DELETE.value %} pending-delete{% endif %}" data-set-index="{{ block.index }}">
-                    {{ tf.id }}<span class="hidden">{{ tf.DELETE }}</span>
+                    {{ tf.id }}{{ tf.set_key }}<span class="hidden">{{ tf.DELETE }}</span>
                     <div class="trigger-set__header">
                         <div class="trigger-set__heading"><span>TRIGGER SET</span><strong>트리거 세트 {{ forloop.counter }}</strong></div>
                         <button type="button" class="button remove-button" onclick="removeTriggerSet(this)">세트 삭제</button>
@@ -153,7 +153,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                         <div class="condition-list">
                             {% for cf in block.conditions %}
                             <div class="condition-card{% if cf.DELETE.value %} pending-delete{% endif %}">
-                                {{ cf.id }}{{ cf.trigger_index }}{{ cf.action_index }}<span class="hidden">{{ cf.DELETE }}</span>
+                                {{ cf.id }}{{ cf.trigger_key }}{{ cf.trigger_index }}{{ cf.action_index }}<span class="hidden">{{ cf.DELETE }}</span>
                                 <div class="condition-card__header">
                                     <strong>실행 조건 {{ forloop.counter }}</strong>
                                     <button type="button" class="button remove-button" onclick="removeCondition(this)">삭제</button>
@@ -213,7 +213,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                         <div class="action-list">
                             {% for af in block.actions %}
                             <div class="action-card{% if af.DELETE.value %} pending-delete{% endif %}">
-                                {{ af.id }}{{ af.trigger_index }}<span class="hidden">{{ af.DELETE }}</span>
+                                {{ af.id }}{{ af.trigger_key }}{{ af.trigger_index }}<span class="hidden">{{ af.DELETE }}</span>
                                 <div class="action-card__header">
                                     <strong>실행 동작 {{ forloop.counter }}</strong>
                                     <button type="button" class="button remove-button" onclick="removeAction(this)">삭제</button>
@@ -249,7 +249,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
 
     <template id="trigger-set-empty-form">
         <div class="trigger-set" data-new-form="true">
-            {{ trigger_formset.empty_form.id }}<span class="hidden">{{ trigger_formset.empty_form.DELETE }}</span>
+            {{ trigger_formset.empty_form.id }}{{ trigger_formset.empty_form.set_key }}<span class="hidden">{{ trigger_formset.empty_form.DELETE }}</span>
             <div class="trigger-set__header">
                 <div class="trigger-set__heading"><span>TRIGGER SET</span><strong>새 트리거 세트</strong></div>
                 <button type="button" class="button remove-button" onclick="removeTriggerSet(this)">세트 삭제</button>
@@ -274,7 +274,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
 
     <template id="action-empty-form">
         <div class="action-card" data-new-form="true">
-            {{ action_formset.empty_form.id }}{{ action_formset.empty_form.trigger_index }}<span class="hidden">{{ action_formset.empty_form.DELETE }}</span>
+            {{ action_formset.empty_form.id }}{{ action_formset.empty_form.trigger_key }}{{ action_formset.empty_form.trigger_index }}<span class="hidden">{{ action_formset.empty_form.DELETE }}</span>
             <div class="action-card__header">
                 <strong>새 실행 동작</strong>
                 <button type="button" class="button remove-button" onclick="removeAction(this)">삭제</button>
@@ -292,7 +292,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
 
     <template id="condition-empty-form">
         <div class="condition-card" data-new-form="true">
-            {{ condition_formset.empty_form.id }}{{ condition_formset.empty_form.trigger_index }}{{ condition_formset.empty_form.action_index }}<span class="hidden">{{ condition_formset.empty_form.DELETE }}</span>
+            {{ condition_formset.empty_form.id }}{{ condition_formset.empty_form.trigger_key }}{{ condition_formset.empty_form.trigger_index }}{{ condition_formset.empty_form.action_index }}<span class="hidden">{{ condition_formset.empty_form.DELETE }}</span>
             <div class="condition-card__header">
                 <strong>새 실행 조건</strong>
                 <button type="button" class="button remove-button" onclick="removeCondition(this)">삭제</button>
@@ -442,13 +442,38 @@ function bindTriggerSet(card) {
     card.querySelectorAll('.action-card').forEach(bindAction);
 }
 
-function syncChildTriggerIndexes() {
+let setKeyFallbackCounter = 0;
+
+function createSetKey() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return `set-${window.crypto.randomUUID()}`;
+    }
+    setKeyFallbackCounter += 1;
+    return `set-${Date.now().toString(36)}-${setKeyFallbackCounter}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function ensureSetKey(setCard) {
+    const keyField = ownField(setCard, 'triggers', 'set_key');
+    if (!keyField) return '';
+    if (!keyField.value) keyField.value = createSetKey();
+    setCard.dataset.setKey = keyField.value;
+    return keyField.value;
+}
+
+function syncChildOwners() {
     document.querySelectorAll('#trigger-set-list > .trigger-set').forEach(setCard => {
         const triggerIndex = formIndex(setCard, 'triggers');
         if (triggerIndex === null) return;
+        const setKey = ensureSetKey(setCard);
         setCard.dataset.setIndex = triggerIndex;
-        setCard.querySelectorAll('.condition-card input[name$="-trigger_index"], .action-card input[name$="-trigger_index"]').forEach(input => {
-            input.value = triggerIndex;
+
+        setCard.querySelectorAll('.condition-card, .action-card').forEach(childCard => {
+            const triggerKeyField = childCard.querySelector('input[name$="-trigger_key"]');
+            if (triggerKeyField) triggerKeyField.value = setKey;
+            // Keep the old index field synchronized only for backward
+            // compatibility. Server-side ownership prefers trigger_key.
+            const triggerIndexField = childCard.querySelector('input[name$="-trigger_index"]');
+            if (triggerIndexField) triggerIndexField.value = triggerIndex;
         });
     });
 }
@@ -488,7 +513,7 @@ function addTriggerSet() {
     const operator = ownField(card, 'triggers', 'condition_operator');
     if (operator && !operator.value) operator.value = 'and';
     bindTriggerSet(card);
-    syncChildTriggerIndexes();
+    syncChildOwners();
     addCondition(card.querySelector('.condition-add-button'));
     addAction(card.querySelector('.action-add-button'));
     refreshSetHeadings();
@@ -505,6 +530,9 @@ function addCondition(button) {
     list.insertAdjacentHTML('beforeend', html);
     total.value = index + 1;
     const conditionCard = list.lastElementChild;
+    const setKey = ensureSetKey(setCard);
+    const triggerKeyField = conditionCard.querySelector('input[name$="-trigger_key"]');
+    if (triggerKeyField) triggerKeyField.value = setKey;
     const triggerIndexField = conditionCard.querySelector('input[name$="-trigger_index"]');
     if (triggerIndexField) triggerIndexField.value = triggerIndex;
     bindCondition(conditionCard);
@@ -522,6 +550,9 @@ function addAction(button) {
     list.insertAdjacentHTML('beforeend', html);
     total.value = index + 1;
     const actionCard = list.lastElementChild;
+    const setKey = ensureSetKey(setCard);
+    const triggerKeyField = actionCard.querySelector('input[name$="-trigger_key"]');
+    if (triggerKeyField) triggerKeyField.value = setKey;
     const triggerIndexField = actionCard.querySelector('input[name$="-trigger_index"]');
     if (triggerIndexField) triggerIndexField.value = triggerIndex;
     bindAction(actionCard);
@@ -549,7 +580,7 @@ function renumberNewTriggerSets() {
         if (oldIndex !== null) renamePrefixWithin(card, 'triggers', oldIndex, newIndex);
     });
     document.getElementById('id_triggers-TOTAL_FORMS').value = initial + newSets.length;
-    syncChildTriggerIndexes();
+    syncChildOwners();
 }
 
 function renumberNewConditions() {
@@ -561,7 +592,7 @@ function renumberNewConditions() {
         if (oldIndex !== null) renamePrefixWithin(card, 'conditions', oldIndex, newIndex);
     });
     document.getElementById('id_conditions-TOTAL_FORMS').value = initial + newCards.length;
-    syncChildTriggerIndexes();
+    syncChildOwners();
 }
 
 function renumberNewActions() {
@@ -573,7 +604,7 @@ function renumberNewActions() {
         if (oldIndex !== null) renamePrefixWithin(card, 'actions', oldIndex, newIndex);
     });
     document.getElementById('id_actions-TOTAL_FORMS').value = initial + newCards.length;
-    syncChildTriggerIndexes();
+    syncChildOwners();
 }
 
 function markDeleted(card, prefix) {
@@ -640,8 +671,10 @@ function removeTriggerSet(button) {
     refreshSetHeadings();
 }
 
+document.getElementById('automation-form')?.addEventListener('submit', () => syncChildOwners());
+
 document.querySelectorAll('#trigger-set-list > .trigger-set').forEach(bindTriggerSet);
-syncChildTriggerIndexes();
+syncChildOwners();
 refreshSetHeadings();
 if (!document.querySelector('#trigger-set-list > .trigger-set')) {
     addTriggerSet();

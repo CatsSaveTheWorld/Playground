@@ -77,6 +77,53 @@ def _active_form_indexes(formset, value_key=None):
     return indexes
 
 
+def _clean_owner_key(value):
+    return str(value or "").strip()
+
+
+def _persisted_set_key(trigger_id):
+    return f"trigger-{trigger_id}"
+
+
+def _trigger_owner_token(form, form_index):
+    key = _clean_owner_key(form.cleaned_data.get("set_key"))
+    if key:
+        return f"key:{key}"
+    return f"index:{form_index}"
+
+
+def _action_owner_token(form, form_index, set_indexes):
+    key = _clean_owner_key(form.cleaned_data.get("trigger_key"))
+    if key:
+        return f"key:{key}"
+    trigger_index = form.cleaned_data.get("trigger_index")
+    if trigger_index is None and form_index in set_indexes:
+        # v4 compatibility: one action occupied the same form index as its set.
+        trigger_index = form_index
+    if trigger_index is None:
+        return None
+    return f"index:{trigger_index}"
+
+
+def _condition_owner_token(form):
+    key = _clean_owner_key(form.cleaned_data.get("trigger_key"))
+    if key:
+        return f"key:{key}"
+    trigger_index = form.cleaned_data.get("trigger_index")
+    if trigger_index is None:
+        trigger_index = form.cleaned_data.get("action_index")
+    if trigger_index is None:
+        return None
+    return f"index:{trigger_index}"
+
+
+def _bound_owner_key(form, field_name):
+    try:
+        return _clean_owner_key(form[field_name].value())
+    except KeyError:
+        return ""
+
+
 def _action_trigger_index(form):
     raw = form["trigger_index"].value()
     try:
@@ -88,13 +135,18 @@ def _action_trigger_index(form):
 def _trigger_sets_have_actions(trigger_formset, action_formset):
     """Require one or more actions under every active TriggerSet.
 
-    v4 POSTs did not contain ``actions-N-trigger_index`` because the action
-    index was implicitly identical to the trigger index. Keep that one-action
-    shape as a compatibility fallback while the v5 editor always posts the
-    explicit owner index.
+    Current editor ownership is keyed by a stable ``set_key``/``trigger_key``
+    pair. Index ownership is accepted only as a compatibility path for older
+    POST payloads.
     """
     set_indexes = _active_form_indexes(trigger_formset)
-    counts = {index: 0 for index in set_indexes}
+    owner_by_index = {
+        index: _trigger_owner_token(trigger_formset.forms[index], index)
+        for index in set_indexes
+    }
+    owner_tokens = list(owner_by_index.values())
+    duplicate_owners = len(owner_tokens) != len(set(owner_tokens))
+    counts = {owner: 0 for owner in owner_tokens}
     invalid_action_forms = []
     active_actions = 0
 
@@ -103,21 +155,23 @@ def _trigger_sets_have_actions(trigger_formset, action_formset):
         if not cleaned or cleaned.get("DELETE") or not cleaned.get("action_type"):
             continue
         active_actions += 1
-        trigger_index = cleaned.get("trigger_index")
-        if trigger_index is None and form_index in set_indexes:
-            # v4 compatibility: exactly one action occupied the same form
-            # index as its TriggerSet.
-            trigger_index = form_index
-        if trigger_index not in counts:
+        owner = _action_owner_token(form, form_index, set_indexes)
+        if owner not in counts:
             invalid_action_forms.append(form_index + 1)
             continue
-        counts[trigger_index] += 1
+        counts[owner] += 1
 
-    missing = [index + 1 for index, count in counts.items() if count == 0]
+    missing = [
+        index + 1
+        for index, owner in owner_by_index.items()
+        if counts.get(owner, 0) == 0
+    ]
     errors = []
     if not set_indexes:
         errors.append("트리거 세트를 하나 이상 등록하세요.")
-    elif missing:
+    if duplicate_owners:
+        errors.append("트리거 세트의 내부 식별자가 중복되었습니다. 페이지를 새로고침한 뒤 다시 저장하세요.")
+    if missing:
         errors.append(
             "각 트리거 세트에는 실행 동작이 하나 이상 필요합니다. "
             f"동작이 없는 세트: {', '.join(map(str, missing))}"
@@ -148,36 +202,38 @@ def _condition_trigger_index(form):
 
 def _trigger_sets_have_conditions(trigger_formset, condition_formset):
     set_indexes = _active_form_indexes(trigger_formset)
-    counts = {index: 0 for index in set_indexes}
-    schedule_counts = {index: 0 for index in set_indexes}
-    source_counts = {index: 0 for index in set_indexes}
+    owner_by_index = {
+        index: _trigger_owner_token(trigger_formset.forms[index], index)
+        for index in set_indexes
+    }
+    counts = {owner: 0 for owner in owner_by_index.values()}
+    schedule_counts = {owner: 0 for owner in owner_by_index.values()}
+    source_counts = {owner: 0 for owner in owner_by_index.values()}
 
     for form in condition_formset.forms:
         cleaned = form.cleaned_data
         if not cleaned or cleaned.get("DELETE") or not cleaned.get("condition_type"):
             continue
-        index = cleaned.get("trigger_index")
-        if index is None:
-            index = cleaned.get("action_index")
-        if index not in counts:
+        owner = _condition_owner_token(form)
+        if owner not in counts:
             continue
-        counts[index] += 1
+        counts[owner] += 1
         condition_type = cleaned.get("condition_type")
         if condition_type == AutomationCondition.ConditionType.SCHEDULE:
-            schedule_counts[index] += 1
+            schedule_counts[owner] += 1
             if schedule_is_event_source(cleaned.get("config") or {}):
-                source_counts[index] += 1
+                source_counts[owner] += 1
         elif condition_type in {
             AutomationCondition.ConditionType.DEVICE_STATE,
             AutomationCondition.ConditionType.MQTT_EVENT,
             AutomationCondition.ConditionType.EVENT_VALUE,
         }:
-            source_counts[index] += 1
+            source_counts[owner] += 1
 
     # Backward-compatible POSTs from the v3 editor may still carry a legacy
-    # trigger_type/config instead of an explicit source condition. Treat that
-    # source as one condition; _replace_children() converts it to v5 data.
+    # trigger_type/config instead of an explicit source condition.
     for index in set_indexes:
+        owner = owner_by_index[index]
         trigger_cleaned = trigger_formset.forms[index].cleaned_data
         legacy_type = trigger_cleaned.get("trigger_type")
         if legacy_type in {
@@ -185,16 +241,26 @@ def _trigger_sets_have_conditions(trigger_formset, condition_formset):
             AutomationTrigger.TriggerType.MQTT_EVENT,
             AutomationTrigger.TriggerType.DEVICE_STATE,
         }:
-            counts[index] += 1
-            source_counts[index] += 1
+            counts[owner] += 1
+            source_counts[owner] += 1
             if legacy_type == AutomationTrigger.TriggerType.TIME:
-                schedule_counts[index] += 1
+                schedule_counts[owner] += 1
 
-    missing = [index + 1 for index, count in counts.items() if count == 0]
-    too_many_schedules = [
-        index + 1 for index, count in schedule_counts.items() if count > 1
+    missing = [
+        index + 1
+        for index, owner in owner_by_index.items()
+        if counts.get(owner, 0) == 0
     ]
-    no_source = [index + 1 for index, count in source_counts.items() if count == 0]
+    too_many_schedules = [
+        index + 1
+        for index, owner in owner_by_index.items()
+        if schedule_counts.get(owner, 0) > 1
+    ]
+    no_source = [
+        index + 1
+        for index, owner in owner_by_index.items()
+        if source_counts.get(owner, 0) == 0
+    ]
     errors = []
     if missing:
         errors.append(
@@ -245,6 +311,8 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
     automation.actions.all().delete()  # legacy actions without a trigger
 
     trigger_by_form_index = {}
+    trigger_by_owner = {}
+    set_indexes = set(active_indexes)
     for form_index in active_indexes:
         row = trigger_rows[form_index]
         trigger = AutomationTrigger.objects.create(
@@ -256,17 +324,17 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
             last_result=False,
         )
         trigger_by_form_index[form_index] = trigger
+        trigger_by_owner[_trigger_owner_token(
+            trigger_formset.forms[form_index], form_index
+        )] = trigger
 
     action_order_by_trigger = {}
     for form_index, form in enumerate(action_formset.forms):
         cleaned = form.cleaned_data
         if not cleaned or cleaned.get("DELETE") or not cleaned.get("action_type"):
             continue
-        trigger_index = cleaned.get("trigger_index")
-        if trigger_index is None and form_index in trigger_by_form_index:
-            # v4 compatibility: action form index == TriggerSet form index.
-            trigger_index = form_index
-        trigger = trigger_by_form_index.get(trigger_index)
+        owner = _action_owner_token(form, form_index, set_indexes)
+        trigger = trigger_by_owner.get(owner)
         if trigger is None:
             continue
         order = action_order_by_trigger.get(trigger.pk, 0) + 1
@@ -288,10 +356,8 @@ def _replace_children(automation, trigger_formset, condition_formset, action_for
         cleaned = form.cleaned_data
         if not cleaned or cleaned.get("DELETE") or not cleaned.get("condition_type"):
             continue
-        trigger_index = cleaned.get("trigger_index")
-        if trigger_index is None:
-            trigger_index = cleaned.get("action_index")
-        trigger = trigger_by_form_index.get(trigger_index)
+        owner = _condition_owner_token(form)
+        trigger = trigger_by_owner.get(owner)
         if trigger is None:
             continue
         order = condition_order_by_trigger.get(trigger.pk, 0) + 1
@@ -371,37 +437,71 @@ def _build_execution_blocks(trigger_formset, action_formset, condition_formset):
         if trigger_form.instance.pk
     }
 
+    owner_to_index = {}
+    for index, trigger_form in enumerate(trigger_formset.forms):
+        if not trigger_form.is_bound and trigger_form.instance.pk:
+            set_key = _persisted_set_key(trigger_form.instance.pk)
+            trigger_form.fields["set_key"].initial = set_key
+        else:
+            set_key = _bound_owner_key(trigger_form, "set_key")
+        if set_key:
+            owner_to_index[f"key:{set_key}"] = index
+        else:
+            owner_to_index[f"index:{index}"] = index
+
     actions_by_trigger_index = {}
     for form_index, action_form in enumerate(action_formset.forms):
+        owner = None
         if (
             not action_form.is_bound
             and action_form.instance.pk
             and action_form.instance.trigger_id
         ):
-            trigger_index = trigger_index_by_id.get(action_form.instance.trigger_id)
+            trigger_id = action_form.instance.trigger_id
+            set_key = _persisted_set_key(trigger_id)
+            action_form.fields["trigger_key"].initial = set_key
+            trigger_index = trigger_index_by_id.get(trigger_id)
             action_form.fields["trigger_index"].initial = trigger_index
+            owner = f"key:{set_key}"
         else:
-            trigger_index = _action_trigger_index(action_form)
-            if trigger_index is None and form_index < len(trigger_formset.forms):
-                # Render old v4 POSTs that lack the explicit owner field.
-                trigger_index = form_index
+            trigger_key = _bound_owner_key(action_form, "trigger_key")
+            if trigger_key:
+                owner = f"key:{trigger_key}"
+            else:
+                trigger_index = _action_trigger_index(action_form)
+                if trigger_index is None and form_index < len(trigger_formset.forms):
+                    # Render old v4 POSTs that lack the explicit owner field.
+                    trigger_index = form_index
+                if trigger_index is not None:
+                    owner = f"index:{trigger_index}"
+        trigger_index = owner_to_index.get(owner)
         if trigger_index is None:
             continue
         actions_by_trigger_index.setdefault(trigger_index, []).append(action_form)
 
     conditions_by_trigger_index = {}
     for condition_form in condition_formset.forms:
+        owner = None
         if (
             not condition_form.is_bound
             and condition_form.instance.pk
             and condition_form.instance.trigger_id
         ):
-            trigger_index = trigger_index_by_id.get(
-                condition_form.instance.trigger_id
-            )
+            trigger_id = condition_form.instance.trigger_id
+            set_key = _persisted_set_key(trigger_id)
+            condition_form.fields["trigger_key"].initial = set_key
+            trigger_index = trigger_index_by_id.get(trigger_id)
             condition_form.fields["trigger_index"].initial = trigger_index
+            owner = f"key:{set_key}"
         else:
-            trigger_index = _condition_trigger_index(condition_form)
+            trigger_key = _bound_owner_key(condition_form, "trigger_key")
+            if trigger_key:
+                owner = f"key:{trigger_key}"
+            else:
+                trigger_index = _condition_trigger_index(condition_form)
+                if trigger_index is not None:
+                    owner = f"index:{trigger_index}"
+        trigger_index = owner_to_index.get(owner)
         if trigger_index is None:
             continue
         conditions_by_trigger_index.setdefault(trigger_index, []).append(
