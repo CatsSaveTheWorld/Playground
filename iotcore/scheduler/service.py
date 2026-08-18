@@ -14,7 +14,8 @@ from ..models import (
     DeviceState,
 )
 from ..room_entry.service import RoomEntryService
-from .calculator import calculate_next_run
+from .calculator import calculate_next_run, calculate_next_schedule
+from .constants import MATCHED_ACTION_IDS_KEY
 
 
 _MISSING = object()
@@ -89,16 +90,40 @@ class AutomationService:
         return f"{CANONICAL_STATE_PREFIX}/{device.device_uid}/state"
 
     @classmethod
+    def _schedule_condition(cls, trigger):
+        if trigger.trigger_type != AutomationTrigger.TriggerType.SET:
+            return None
+        return (
+            trigger.conditions
+            .filter(condition_type=AutomationCondition.ConditionType.SCHEDULE)
+            .order_by("order", "id")
+            .first()
+        )
+
+    @classmethod
     def recalculate_trigger(cls, trigger, after=None):
+        previous_next = trigger.next_run_at
         trigger.next_run_at = None
-        if (
-            trigger.enabled
-            and trigger.automation.enabled
-            and trigger.trigger_type == AutomationTrigger.TriggerType.TIME
-        ):
-            trigger.next_run_at = calculate_next_run(trigger, after=after)
-            if trigger.next_run_at is None:
-                trigger.enabled = False
+        if trigger.enabled and trigger.automation.enabled:
+            if trigger.trigger_type == AutomationTrigger.TriggerType.SET:
+                schedule_condition = cls._schedule_condition(trigger)
+                if schedule_condition is not None:
+                    trigger.next_run_at = calculate_next_schedule(
+                        schedule_condition.config or {},
+                        after=after,
+                        previous_next=previous_next,
+                    )
+            elif trigger.trigger_type == AutomationTrigger.TriggerType.TIME:
+                trigger.next_run_at = calculate_next_schedule(
+                    trigger.config or {},
+                    after=after,
+                    previous_next=previous_next,
+                )
+                # Legacy one-shot triggers used to disable themselves when the
+                # schedule expired. Current SET rows remain enabled because the
+                # set may have other event sources besides its schedule.
+                if trigger.next_run_at is None:
+                    trigger.enabled = False
         trigger.save(update_fields=["enabled", "next_run_at", "updated_at"])
         return trigger.next_run_at
 
@@ -106,6 +131,57 @@ class AutomationService:
     def recalculate_automation(cls, automation, after=None):
         for trigger in automation.triggers.select_related("automation"):
             cls.recalculate_trigger(trigger, after=after)
+            if trigger.trigger_type == AutomationTrigger.TriggerType.SET:
+                # Re-enabling an automation must re-arm each set from the
+                # current state instead of keeping a stale truth value from
+                # the period while the automation was disabled.
+                cls.refresh_trigger_result(trigger, now=after)
+
+    @classmethod
+    def refresh_trigger_result(cls, trigger, now=None):
+        """Synchronize a set's resting truth value without executing it.
+
+        This prevents a newly saved set whose state conditions are already
+        true from firing merely because the next unrelated state report
+        arrives. Transient conditions (schedule/MQTT/changed) are false while
+        the set is resting.
+        """
+        if trigger.trigger_type != AutomationTrigger.TriggerType.SET:
+            return False
+        now = now or timezone.now()
+        conditions = list(trigger.conditions.order_by("order", "id"))
+        result = cls._condition_list_matches(
+            conditions,
+            now,
+            trigger_payload={},
+            condition_operator=trigger.condition_operator,
+            resting=True,
+            empty_matches=False,
+        )
+        if trigger.last_result != result:
+            trigger.last_result = result
+            trigger.save(update_fields=["last_result", "updated_at"])
+        return result
+
+    @classmethod
+    def refresh_all_trigger_results(cls, now=None):
+        """Synchronize all active SET rows without executing actions.
+
+        Retained MQTT/state synchronization uses this to ensure a deployed or
+        restarted process does not treat an already-true condition as a fresh
+        FALSE -> TRUE edge on the first live report.
+        """
+        now = now or timezone.now()
+        for trigger in (
+            AutomationTrigger.objects
+            .filter(
+                trigger_type=AutomationTrigger.TriggerType.SET,
+                enabled=True,
+                automation__enabled=True,
+            )
+            .select_related("automation")
+        ):
+            cls.refresh_trigger_result(trigger, now=now)
 
     @classmethod
     def enqueue_due(cls, now=None):
@@ -113,7 +189,10 @@ class AutomationService:
         enqueued = []
         due_ids = list(
             AutomationTrigger.objects.filter(
-                trigger_type=AutomationTrigger.TriggerType.TIME,
+                trigger_type__in=[
+                    AutomationTrigger.TriggerType.SET,
+                    AutomationTrigger.TriggerType.TIME,
+                ],
                 enabled=True,
                 automation__enabled=True,
                 next_run_at__isnull=False,
@@ -138,36 +217,52 @@ class AutomationService:
                     continue
 
                 scheduled_for = trigger.next_run_at
-                automation_run = cls._enqueue_locked(
-                    trigger,
-                    now=now,
-                    scheduled_for=scheduled_for,
-                    trigger_payload={
-                        "trigger_id": trigger.id,
-                        "type": "time",
-                    },
-                )
-                schedule_type = (trigger.config or {}).get("schedule_type")
-                trigger.last_triggered_at = now
-                trigger.next_run_at = calculate_next_run(trigger, after=now)
-                if schedule_type == AutomationTrigger.ScheduleType.ONCE:
-                    trigger.enabled = False
-                trigger.save(
-                    update_fields=[
-                        "last_triggered_at",
-                        "next_run_at",
-                        "enabled",
-                        "updated_at",
-                    ]
-                )
+                if trigger.trigger_type == AutomationTrigger.TriggerType.SET:
+                    schedule_condition = cls._schedule_condition(trigger)
+                    if schedule_condition is None:
+                        trigger.next_run_at = None
+                        trigger.save(update_fields=["next_run_at", "updated_at"])
+                        continue
+                    automation_run = cls._enqueue_locked(
+                        trigger,
+                        now=now,
+                        scheduled_for=scheduled_for,
+                        trigger_payload={
+                            "trigger_id": trigger.id,
+                            "type": "schedule",
+                            "source_condition_id": schedule_condition.id,
+                        },
+                    )
+                    trigger.next_run_at = calculate_next_schedule(
+                        schedule_condition.config or {},
+                        after=now,
+                        previous_next=scheduled_for,
+                    )
+                    trigger.save(update_fields=["next_run_at", "updated_at"])
+                else:
+                    # Legacy TIME trigger path.
+                    automation_run = cls._enqueue_locked(
+                        trigger,
+                        now=now,
+                        scheduled_for=scheduled_for,
+                        trigger_payload={"trigger_id": trigger.id, "type": "time"},
+                    )
+                    schedule_type = (trigger.config or {}).get("schedule_type")
+                    trigger.last_triggered_at = now
+                    trigger.next_run_at = calculate_next_run(trigger, after=now)
+                    if schedule_type == AutomationTrigger.ScheduleType.ONCE:
+                        trigger.enabled = False
+                    trigger.save(update_fields=[
+                        "last_triggered_at", "next_run_at", "enabled", "updated_at"
+                    ])
+
                 if automation_run is not None:
                     enqueued.append(automation_run)
-
         return enqueued
 
     @classmethod
     def process_event(cls, topic, payload, now=None):
-        """Process a live MQTT message as a broad event/state-change trigger."""
+        """Process a live MQTT message and re-evaluate affected trigger sets."""
         now = now or timezone.now()
         previous_raw = cls._update_device_state(topic, payload)
         device = cls._resolve_device_for_topic(topic)
@@ -191,11 +286,14 @@ class AutomationService:
             previous_raw,
             require_previous=True,
         )
-        device_changed_keys = cls._changed_keys(
-            normalized_payload,
-            previous_device,
-            require_previous=True,
-        ) if device is not None else set()
+        device_changed_keys = (
+            cls._changed_keys(
+                normalized_payload,
+                previous_device,
+                require_previous=True,
+            )
+            if device is not None else set()
+        )
 
         if device is not None:
             RoomEntryService.record_contact_change(
@@ -238,10 +336,7 @@ class AutomationService:
         source="control",
         source_event_id=None,
     ):
-        """
-        Update IoTCore's canonical last-known state after a successful local
-        control or another non-MQTT observation, then evaluate state triggers.
-        """
+        """Update canonical last-known state and evaluate affected sets."""
         if device is None or not state_patch:
             return []
 
@@ -298,6 +393,7 @@ class AutomationService:
         trigger_ids = list(
             AutomationTrigger.objects.filter(
                 trigger_type__in=[
+                    AutomationTrigger.TriggerType.SET,
                     AutomationTrigger.TriggerType.MQTT_EVENT,
                     AutomationTrigger.TriggerType.DEVICE_STATE,
                 ],
@@ -314,32 +410,39 @@ class AutomationService:
                     .select_related("automation")
                     .get(pk=trigger_id)
                 )
-                config = trigger.config or {}
 
-                if trigger.trigger_type == AutomationTrigger.TriggerType.MQTT_EVENT:
-                    if not mqtt.topic_matches_sub(
-                        str(config.get("topic", "")),
-                        topic,
+                if trigger.trigger_type == AutomationTrigger.TriggerType.SET:
+                    if not cls._set_has_event_source(
+                        trigger,
+                        topic=topic,
+                        device=device,
+                        device_changed_keys=device_changed_keys,
+                        trigger_payload=trigger_payload,
                     ):
                         continue
-                    # Compatibility for pre-refactor rows until migration runs.
-                    if any(key in config for key in ("field", "operator", "value")):
-                        field = config.get("field") or "value"
-                        current = get_nested_value(payload, field)
-                        if not compare_value(
-                            config.get("operator") or "eq",
-                            current,
-                            config.get("value"),
-                            previous.get(field, _MISSING),
-                        ):
-                            continue
-                elif trigger.trigger_type == AutomationTrigger.TriggerType.DEVICE_STATE:
-                    if device is None or not device_changed_keys:
-                        continue
-                    if not cls._config_targets_device(config, device):
-                        continue
                 else:
-                    continue
+                    # Legacy trigger compatibility.
+                    config = trigger.config or {}
+                    if trigger.trigger_type == AutomationTrigger.TriggerType.MQTT_EVENT:
+                        if not mqtt.topic_matches_sub(str(config.get("topic", "")), topic):
+                            continue
+                        if any(key in config for key in ("field", "operator", "value")):
+                            field = config.get("field") or "value"
+                            current = get_nested_value(payload, field)
+                            if not compare_value(
+                                config.get("operator") or "eq",
+                                current,
+                                config.get("value"),
+                                previous.get(field, _MISSING),
+                            ):
+                                continue
+                    elif trigger.trigger_type == AutomationTrigger.TriggerType.DEVICE_STATE:
+                        if device is None or not device_changed_keys:
+                            continue
+                        if not cls._config_targets_device(config, device):
+                            continue
+                    else:
+                        continue
 
                 automation_run = cls._enqueue_locked(
                     trigger,
@@ -348,13 +451,66 @@ class AutomationService:
                     trigger_payload=trigger_payload,
                 )
                 if automation_run is not None:
-                    trigger.last_triggered_at = now
-                    trigger.save(
-                        update_fields=["last_triggered_at", "updated_at"]
-                    )
                     enqueued.append(automation_run)
-
         return enqueued
+
+    @classmethod
+    def _set_has_event_source(
+        cls,
+        trigger,
+        *,
+        topic,
+        device,
+        device_changed_keys,
+        trigger_payload,
+    ):
+        for condition in trigger.conditions.order_by("order", "id"):
+            config = condition.config or {}
+            if condition.condition_type == AutomationCondition.ConditionType.MQTT_EVENT:
+                pattern = str(config.get("topic") or "")
+                if pattern and mqtt.topic_matches_sub(pattern, topic):
+                    return True
+            elif condition.condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
+                if cls._device_condition_was_affected(
+                    config,
+                    topic=topic,
+                    device=device,
+                    device_changed_keys=device_changed_keys,
+                    trigger_payload=trigger_payload,
+                ):
+                    return True
+            elif condition.condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
+                # Legacy event-value conditions have no source address of their
+                # own. New data is migrated to MQTT_EVENT, so avoid waking a
+                # set on every unrelated MQTT message here.
+                continue
+        return False
+
+    @classmethod
+    def _device_condition_was_affected(
+        cls,
+        config,
+        *,
+        topic,
+        device,
+        device_changed_keys,
+        trigger_payload,
+    ):
+        configured_device = cls._device_from_config(config)
+        if configured_device is not None:
+            if device is None or configured_device.pk != device.pk:
+                return False
+            changed = set(device_changed_keys or [])
+        else:
+            state_topic = str(config.get("topic") or "")
+            if not state_topic or state_topic != topic:
+                return False
+            changed = set(trigger_payload.get("changed_keys") or [])
+
+        key = str(config.get("key") or "")
+        if key == "*":
+            return bool(changed)
+        return bool(key) and key in changed
 
     @classmethod
     def _enqueue_locked(
@@ -365,115 +521,394 @@ class AutomationService:
         source_event_id=None,
         trigger_payload=None,
     ):
-        automation = Automation.objects.select_for_update().get(
-            pk=trigger.automation_id
+        if trigger.trigger_type == AutomationTrigger.TriggerType.SET:
+            return cls._enqueue_set_locked(
+                trigger,
+                now=now,
+                scheduled_for=scheduled_for,
+                source_event_id=source_event_id,
+                trigger_payload=trigger_payload,
+            )
+        return cls._enqueue_legacy_locked(
+            trigger,
+            now=now,
+            scheduled_for=scheduled_for,
+            source_event_id=source_event_id,
+            trigger_payload=trigger_payload,
         )
-        if not automation.enabled:
+
+    @classmethod
+    def _enqueue_set_locked(
+        cls,
+        trigger,
+        *,
+        now,
+        scheduled_for=None,
+        source_event_id=None,
+        trigger_payload=None,
+    ):
+        automation = Automation.objects.select_for_update().get(pk=trigger.automation_id)
+        if not automation.enabled or not trigger.enabled:
             return None
-        if (
-            automation.cooldown_seconds
-            and automation.last_triggered_at
-            and (now - automation.last_triggered_at).total_seconds()
-            < automation.cooldown_seconds
-        ):
+
+        try:
+            action = trigger.action
+        except Exception:
+            action = None
+        conditions = list(trigger.conditions.order_by("order", "id"))
+        if action is None or not conditions:
             return None
-        if not cls._conditions_match(
-            automation,
+
+        previous_result = bool(trigger.last_result)
+        current_result = cls._condition_list_matches(
+            conditions,
             now,
             trigger_payload=trigger_payload,
-        ):
+            condition_operator=trigger.condition_operator,
+            resting=False,
+            empty_matches=False,
+        )
+        resting_result = cls._condition_list_matches(
+            conditions,
+            now,
+            trigger_payload=trigger_payload,
+            condition_operator=trigger.condition_operator,
+            resting=True,
+            empty_matches=False,
+        )
+
+        def save_resting_result():
+            if trigger.last_result != resting_result:
+                trigger.last_result = resting_result
+                trigger.save(update_fields=["last_result", "updated_at"])
+
+        # Trigger-set semantics: execute only on FALSE -> TRUE. The stored
+        # value is the truth value after transient event conditions subside.
+        if not current_result or previous_result:
+            save_resting_result()
             return None
+
+        if (
+            automation.cooldown_seconds
+            and trigger.last_triggered_at
+            and (now - trigger.last_triggered_at).total_seconds()
+            < automation.cooldown_seconds
+        ):
+            save_resting_result()
+            return None
+
+        run_payload = dict(trigger_payload or {})
+        run_payload["trigger_id"] = trigger.pk
+        run_payload[MATCHED_ACTION_IDS_KEY] = [action.pk]
 
         if scheduled_for is not None:
             automation_run, created = AutomationRun.objects.get_or_create(
-                automation=automation,
+                trigger=trigger,
                 scheduled_for=scheduled_for,
-                defaults={"trigger_payload": trigger_payload or {}},
+                defaults={
+                    "automation": automation,
+                    "trigger_payload": run_payload,
+                },
             )
         else:
             automation_run, created = AutomationRun.objects.get_or_create(
-                automation=automation,
+                trigger=trigger,
                 source_event_id=source_event_id,
-                defaults={"trigger_payload": trigger_payload or {}},
+                defaults={
+                    "automation": automation,
+                    "trigger_payload": run_payload,
+                },
             )
         if not created:
+            save_resting_result()
             return None
 
+        trigger.last_result = resting_result
+        trigger.last_triggered_at = now
+        trigger.save(update_fields=["last_result", "last_triggered_at", "updated_at"])
         automation.last_triggered_at = now
         automation.save(update_fields=["last_triggered_at", "updated_at"])
         return automation_run
 
     @classmethod
+    def _enqueue_legacy_locked(
+        cls,
+        trigger,
+        *,
+        now,
+        scheduled_for=None,
+        source_event_id=None,
+        trigger_payload=None,
+    ):
+        """Pre-0020 execution semantics retained for compatibility/tests."""
+        automation = Automation.objects.select_for_update().get(pk=trigger.automation_id)
+        if not automation.enabled:
+            return None
+
+        try:
+            action = trigger.action
+        except Exception:
+            action = None
+
+        cooldown_anchor = trigger.last_triggered_at if action is not None else automation.last_triggered_at
+        if (
+            automation.cooldown_seconds
+            and cooldown_anchor
+            and (now - cooldown_anchor).total_seconds() < automation.cooldown_seconds
+        ):
+            return None
+
+        run_payload = dict(trigger_payload or {})
+        run_payload["trigger_id"] = trigger.pk
+        if action is not None:
+            conditions = list(
+                action.conditions
+                .filter(automation_id=automation.pk)
+                .order_by("order", "id")
+            )
+            if not cls._condition_list_matches(
+                conditions,
+                now,
+                trigger_payload=trigger_payload,
+            ):
+                return None
+            run_payload[MATCHED_ACTION_IDS_KEY] = [action.pk]
+        else:
+            matched_action_ids = cls._matching_action_ids(
+                automation,
+                now,
+                trigger_payload=trigger_payload,
+            )
+            if matched_action_ids == []:
+                return None
+            if matched_action_ids is None:
+                if not cls._conditions_match(
+                    automation,
+                    now,
+                    trigger_payload=trigger_payload,
+                ):
+                    return None
+            else:
+                run_payload[MATCHED_ACTION_IDS_KEY] = matched_action_ids
+
+        if scheduled_for is not None:
+            if action is None:
+                existing = AutomationRun.objects.filter(
+                    automation=automation,
+                    scheduled_for=scheduled_for,
+                ).first()
+                if existing is not None:
+                    return None
+            automation_run, created = AutomationRun.objects.get_or_create(
+                trigger=trigger,
+                scheduled_for=scheduled_for,
+                defaults={"automation": automation, "trigger_payload": run_payload},
+            )
+        else:
+            if action is None:
+                existing = AutomationRun.objects.filter(
+                    automation=automation,
+                    source_event_id=source_event_id,
+                ).first()
+                if existing is not None:
+                    return None
+            automation_run, created = AutomationRun.objects.get_or_create(
+                trigger=trigger,
+                source_event_id=source_event_id,
+                defaults={"automation": automation, "trigger_payload": run_payload},
+            )
+        if not created:
+            return None
+
+        trigger.last_triggered_at = now
+        trigger.save(update_fields=["last_triggered_at", "updated_at"])
+        automation.last_triggered_at = now
+        automation.save(update_fields=["last_triggered_at", "updated_at"])
+        return automation_run
+
+    @classmethod
+    def _matching_action_ids(cls, automation, now, trigger_payload=None):
+        actions = list(
+            automation.actions
+            .prefetch_related("conditions")
+            .order_by("order", "id")
+        )
+        if not actions:
+            return None
+
+        legacy_conditions = list(
+            automation.conditions
+            .filter(action__isnull=True, trigger__isnull=True)
+            .order_by("order", "id")
+        )
+        matched = []
+        for action in actions:
+            conditions = [
+                condition
+                for condition in action.conditions.all()
+                if condition.automation_id == automation.pk
+            ]
+            if legacy_conditions:
+                conditions.extend(legacy_conditions)
+            if cls._condition_list_matches(
+                conditions,
+                now,
+                trigger_payload=trigger_payload,
+            ):
+                matched.append(action.pk)
+        return matched
+
+    @classmethod
     def _conditions_match(cls, automation, now, trigger_payload=None):
+        conditions = automation.conditions.filter(
+            action__isnull=True,
+            trigger__isnull=True,
+        ).order_by("order", "id")
+        return cls._condition_list_matches(
+            conditions,
+            now,
+            trigger_payload=trigger_payload,
+        )
+
+    @classmethod
+    def _condition_list_matches(
+        cls,
+        conditions,
+        now,
+        trigger_payload=None,
+        *,
+        condition_operator=AutomationTrigger.ConditionOperator.AND,
+        resting=False,
+        empty_matches=True,
+    ):
+        conditions = list(conditions)
+        if not conditions:
+            return empty_matches
+        results = [
+            cls._condition_matches(
+                condition,
+                now,
+                trigger_payload=trigger_payload,
+                resting=resting,
+            )
+            for condition in conditions
+        ]
+        if condition_operator == AutomationTrigger.ConditionOperator.OR:
+            return any(results)
+        return all(results)
+
+    @classmethod
+    def _condition_matches(
+        cls,
+        condition,
+        now,
+        trigger_payload=None,
+        *,
+        resting=False,
+    ):
         local_now = timezone.localtime(now)
         trigger_payload = trigger_payload or {}
+        config = condition.config or {}
 
-        for condition in automation.conditions.all():
-            config = condition.config or {}
+        if condition.condition_type == AutomationCondition.ConditionType.SCHEDULE:
+            if resting:
+                return False
+            try:
+                source_condition_id = int(trigger_payload.get("source_condition_id"))
+            except (TypeError, ValueError):
+                return False
+            return source_condition_id == condition.pk
 
-            if condition.condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
-                start = parse_time(str(config.get("start", "")))
-                end = parse_time(str(config.get("end", "")))
-                if start is None or end is None:
-                    return False
-                weekdays = config.get("weekdays") or list(range(7))
-                if local_now.weekday() not in {int(day) for day in weekdays}:
-                    return False
-                current = local_now.time().replace(tzinfo=None)
-                inside = start <= current <= end if start <= end else (
-                    current >= start or current <= end
-                )
-                if not inside:
-                    return False
+        if condition.condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
+            start = parse_time(str(config.get("start", "")))
+            end = parse_time(str(config.get("end", "")))
+            if start is None or end is None:
+                return False
+            weekdays = config.get("weekdays") or list(range(7))
+            if local_now.weekday() not in {int(day) for day in weekdays}:
+                return False
+            current = local_now.time().replace(tzinfo=None)
+            return start <= current <= end if start <= end else (
+                current >= start or current <= end
+            )
 
-            elif condition.condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
-                field = config.get("field") or "value"
-                current = get_nested_value(
-                    trigger_payload.get("payload", {}),
-                    field,
-                )
-                previous = (trigger_payload.get("previous") or {}).get(
-                    field,
-                    _MISSING,
-                )
-                if not compare_value(
-                    config.get("operator") or "eq",
-                    current,
-                    config.get("value"),
-                    previous,
-                ):
-                    return False
+        if condition.condition_type == AutomationCondition.ConditionType.MQTT_EVENT:
+            if resting:
+                return False
+            pattern = str(config.get("topic") or "")
+            event_topic = str(trigger_payload.get("topic") or "")
+            if not pattern or not event_topic or not mqtt.topic_matches_sub(pattern, event_topic):
+                return False
+            operator = config.get("operator") or "received"
+            if operator == "received":
+                return True
+            field = config.get("field") or "value"
+            current = get_nested_value(trigger_payload.get("payload", {}), field)
+            previous = (trigger_payload.get("previous") or {}).get(field, _MISSING)
+            return compare_value(operator, current, config.get("value"), previous)
 
-            elif condition.condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
-                device = cls._device_from_config(config)
-                state_topic = config.get("topic", "")
-                if device is not None:
-                    state_topic = cls.canonical_state_topic(device)
-                if not state_topic:
-                    return False
+        if condition.condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
+            if resting:
+                return False
+            field = config.get("field") or "value"
+            current = get_nested_value(trigger_payload.get("payload", {}), field)
+            previous = (trigger_payload.get("previous") or {}).get(field, _MISSING)
+            return compare_value(
+                config.get("operator") or "eq",
+                current,
+                config.get("value"),
+                previous,
+            )
 
-                key = config.get("key", "")
-                state = DeviceState.objects.filter(
-                    topic=state_topic,
-                    key=key,
-                ).first()
-                current = state.value if state is not None else _MISSING
-                previous = cls._condition_previous_value(
-                    config=config,
-                    device=device,
-                    state_topic=state_topic,
-                    key=key,
+        if condition.condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
+            operator = config.get("operator") or "eq"
+            key = config.get("key", "")
+            device = cls._device_from_config(config)
+            state_topic = config.get("topic", "")
+            if device is not None:
+                state_topic = cls.canonical_state_topic(device)
+            if not state_topic:
+                return False
+
+            # changed/changed_to are transient edge conditions. A wildcard key
+            # is used only by the migration to represent legacy "any state of
+            # this device changed" triggers without reintroducing a separate
+            # watcher field in the UI.
+            if operator in {"changed", "changed_to"} and resting:
+                return False
+            if key == "*":
+                if operator != "changed":
+                    return False
+                return cls._device_condition_was_affected(
+                    config,
+                    topic=str(trigger_payload.get("topic") or ""),
+                    device=cls._device_from_event_payload(trigger_payload),
+                    device_changed_keys=set(trigger_payload.get("device_changed_keys") or []),
                     trigger_payload=trigger_payload,
                 )
-                if not compare_value(
-                    config.get("operator") or "eq",
-                    current,
-                    config.get("value"),
-                    previous,
-                ):
-                    return False
 
-        return True
+            state = DeviceState.objects.filter(topic=state_topic, key=key).first()
+            current = state.value if state is not None else _MISSING
+            previous = cls._condition_previous_value(
+                config=config,
+                device=device,
+                state_topic=state_topic,
+                key=key,
+                trigger_payload=trigger_payload,
+            )
+            return compare_value(operator, current, config.get("value"), previous)
+
+        return False
+
+    @classmethod
+    def _device_from_event_payload(cls, trigger_payload):
+        device_id = trigger_payload.get("device_id")
+        if device_id:
+            return Device.objects.filter(pk=device_id).first()
+        device_uid = trigger_payload.get("device_uid")
+        if device_uid:
+            return Device.objects.filter(device_uid=device_uid).first()
+        return None
 
     @classmethod
     def update_device_state(cls, topic, payload):
@@ -487,6 +922,9 @@ class AutomationService:
                     canonical_topic,
                     cls._normalize_device_payload(payload),
                 )
+        # Retained/current-state synchronization is intentionally non-firing,
+        # but it must still keep SET edge state aligned with the state cache.
+        cls.refresh_all_trigger_results()
         return previous
 
     @staticmethod
@@ -597,10 +1035,7 @@ class AutomationService:
                     _MISSING,
                 )
         if trigger_payload.get("topic") == state_topic:
-            return (trigger_payload.get("previous") or {}).get(
-                key,
-                _MISSING,
-            )
+            return (trigger_payload.get("previous") or {}).get(key, _MISSING)
         return _MISSING
 
 

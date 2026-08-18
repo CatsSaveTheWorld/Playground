@@ -214,6 +214,13 @@ class AutomationAction(models.Model):
         on_delete=models.CASCADE,
         related_name="actions",
     )
+    trigger = models.OneToOneField(
+        "AutomationTrigger",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        related_name="action",
+    )
     order = models.PositiveIntegerField(default=1)
     action_type = models.CharField(max_length=20, choices=ActionType.choices)
     device = models.ForeignKey(
@@ -249,9 +256,17 @@ class AutomationAction(models.Model):
 
 class AutomationTrigger(models.Model):
     class TriggerType(models.TextChoices):
-        TIME = "time", "예약 시간"
-        MQTT_EVENT = "mqtt_event", "MQTT 이벤트"
-        DEVICE_STATE = "device_state", "기기 상태 변화"
+        # SET is the current model: one trigger set owns 1..N conditions and
+        # exactly one action.  The legacy types remain for migration/runtime
+        # compatibility with installations that have not applied 0020 yet.
+        SET = "set", "트리거 세트"
+        TIME = "time", "예약 시간 (기존)"
+        MQTT_EVENT = "mqtt_event", "MQTT 이벤트 (기존)"
+        DEVICE_STATE = "device_state", "기기 상태 변화 (기존)"
+
+    class ConditionOperator(models.TextChoices):
+        AND = "and", "모든 조건 만족 (AND)"
+        OR = "or", "하나 이상 만족 (OR)"
 
     class ScheduleType(models.TextChoices):
         ONCE = "once", "한 번"
@@ -264,9 +279,21 @@ class AutomationTrigger(models.Model):
         on_delete=models.CASCADE,
         related_name="triggers",
     )
-    trigger_type = models.CharField(max_length=20, choices=TriggerType.choices)
+    trigger_type = models.CharField(
+        max_length=20,
+        choices=TriggerType.choices,
+        default=TriggerType.SET,
+    )
     config = models.JSONField(default=dict)
     enabled = models.BooleanField(default=True)
+    condition_operator = models.CharField(
+        max_length=3,
+        choices=ConditionOperator.choices,
+        default=ConditionOperator.AND,
+    )
+    # Resting truth value of this set.  Runtime uses it to fire only on a
+    # FALSE -> TRUE transition for persistent state conditions.
+    last_result = models.BooleanField(default=False)
     next_run_at = models.DateTimeField(blank=True, null=True, db_index=True)
     last_triggered_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -281,13 +308,31 @@ class AutomationTrigger(models.Model):
 
 class AutomationCondition(models.Model):
     class ConditionType(models.TextChoices):
+        SCHEDULE = "schedule", "예약 시간"
         TIME_WINDOW = "time_window", "시간대"
         DEVICE_STATE = "device_state", "기기 상태"
-        EVENT_VALUE = "event_value", "트리거 데이터"
+        MQTT_EVENT = "mqtt_event", "MQTT 이벤트"
+        # Kept only for old rows/tests.  Migration 0020 converts event-value
+        # conditions that belonged to MQTT triggers into MQTT_EVENT.
+        EVENT_VALUE = "event_value", "트리거 데이터 (기존)"
 
     automation = models.ForeignKey(
         Automation,
         on_delete=models.CASCADE,
+        related_name="conditions",
+    )
+    action = models.ForeignKey(
+        AutomationAction,
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        related_name="conditions",
+    )
+    trigger = models.ForeignKey(
+        AutomationTrigger,
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
         related_name="conditions",
     )
     condition_type = models.CharField(max_length=20, choices=ConditionType.choices)
@@ -298,13 +343,17 @@ class AutomationCondition(models.Model):
         ordering = ["order", "id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["automation", "order"],
-                name="unique_automation_condition_order",
+                fields=["trigger", "order"],
+                name="unique_automation_trigger_condition_order",
             ),
         ]
 
     def __str__(self):
-        return f"{self.automation} 조건 #{self.order}"
+        if self.trigger_id:
+            return f"{self.automation} 트리거 세트 #{self.trigger_id} 조건 #{self.order}"
+        if self.action_id:
+            return f"{self.automation} 기존 동작 조건 #{self.order}"
+        return f"{self.automation} 기존 전역 조건 #{self.order}"
 
 
 class DeviceState(models.Model):
@@ -404,6 +453,13 @@ class AutomationRun(models.Model):
         null=True,
         related_name="automation_runs",
     )
+    trigger = models.ForeignKey(
+        AutomationTrigger,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="runs",
+    )
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
@@ -422,12 +478,12 @@ class AutomationRun(models.Model):
         ordering = ["-created_at"]
         constraints = [
             models.UniqueConstraint(
-                fields=["automation", "scheduled_for"],
-                name="unique_automation_run_time_v2",
+                fields=["trigger", "scheduled_for"],
+                name="unique_automation_trigger_run_time",
             ),
             models.UniqueConstraint(
-                fields=["automation", "source_event_id"],
-                name="unique_automation_source_event_v2",
+                fields=["trigger", "source_event_id"],
+                name="unique_automation_trigger_source_event",
             ),
         ]
 

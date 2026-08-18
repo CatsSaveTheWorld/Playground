@@ -12,6 +12,7 @@ from ..models import (
     AutomationRun,
     SequenceRun,
 )
+from .constants import MATCHED_ACTION_IDS_KEY
 
 
 class AutomationExecutor:
@@ -48,6 +49,24 @@ class AutomationExecutor:
         )
         if not actions:
             return cls._finish(automation_run, False, "등록된 실행 동작이 없습니다.")
+
+        matched_action_ids = (automation_run.trigger_payload or {}).get(
+            MATCHED_ACTION_IDS_KEY
+        )
+        if isinstance(matched_action_ids, list):
+            matched_ids = set()
+            for action_id in matched_action_ids:
+                try:
+                    matched_ids.add(int(action_id))
+                except (TypeError, ValueError):
+                    continue
+            actions = [action for action in actions if action.pk in matched_ids]
+            if not actions:
+                return cls._finish(
+                    automation_run,
+                    True,
+                    "조건을 만족한 실행 동작이 없습니다.",
+                )
 
         try:
             for action in actions:

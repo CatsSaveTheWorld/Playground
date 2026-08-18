@@ -6,7 +6,7 @@
         <div>
             <p class="iot-eyebrow">SCHEDULES</p>
             <h1>예약 실행 목록</h1>
-            <p>시간·MQTT·기기 상태 변화를 트리거로 조건을 검사한 뒤 기기 동작과 시퀀스를 실행합니다.</p>
+            <p>트리거 세트마다 조건을 AND/OR로 평가하고, 전체 결과가 FALSE에서 TRUE로 바뀌는 순간 해당 세트의 동작을 실행합니다.</p>
         </div>
         <div class="iot-page-actions">
             <a class="iot-button" href="{% url 'iotcore:automation_group_manage' %}">그룹 관리</a>
@@ -26,7 +26,7 @@
                     type="search"
                     name="q"
                     value="{{ query }}"
-                    placeholder="이름·트리거·조건·동작·기기 검색">
+                    placeholder="이름·조건·동작·기기 검색">
                 <button class="iot-button" type="submit">적용</button>
                 {% if query %}<a class="iot-button iot-button--quiet" href="{{ clear_search_url }}">검색 초기화</a>{% endif %}
             </div>
@@ -41,7 +41,7 @@
                     </select>
                 </label>
                 <label class="iot-list-filter">
-                    <span>트리거</span>
+                    <span>조건 종류</span>
                     <select class="iot-list-select" name="trigger">
                         <option value="all" {% if current_trigger == "all" %}selected{% endif %}>전체</option>
                         {% for value, label in trigger_choices %}
@@ -113,7 +113,7 @@
                         </div>
                     </div>
                     <p class="iot-entity-card__description">
-                        <strong>트리거</strong> {{ automation.summary }}<br>
+                        <strong>트리거 세트</strong> {{ automation.summary }}<br>
                         <strong>조건</strong> {{ automation.condition_summary }}<br>
                         <strong>동작</strong> {{ automation.action_summary }}
                     </p>
@@ -140,14 +140,14 @@
     {% else %}
     <section class="iot-panel iot-empty-panel">
         <h2>조건에 맞는 예약 실행이 없습니다.</h2>
-        <p>검색어, 상태, 트리거 또는 그룹 필터를 변경해보세요.</p>
+        <p>검색어, 상태, 조건 종류 또는 그룹 필터를 변경해보세요.</p>
         <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_list' %}">전체 예약 실행 보기</a>
     </section>
     {% endif %}
     {% else %}
     <section class="iot-panel iot-empty-panel">
         <h2>등록된 예약 실행이 없습니다.</h2>
-        <p>예약 또는 이벤트 트리거와 실행 동작을 구성하세요.</p>
+        <p>조건과 실행 동작을 묶은 트리거 세트를 구성하세요.</p>
         <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}">첫 예약 실행 만들기</a>
     </section>
     {% endif %}

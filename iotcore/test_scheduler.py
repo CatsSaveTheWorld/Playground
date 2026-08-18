@@ -32,6 +32,7 @@ from .models import (
 )
 from .scheduler.calculator import calculate_next_run, describe_trigger
 from .scheduler.executor import AutomationExecutor
+from .scheduler.constants import MATCHED_ACTION_IDS_KEY
 from .scheduler.service import AutomationService
 
 
@@ -593,6 +594,328 @@ class AutomationServiceTests(TestCase):
             AutomationService._conditions_match(self.automation, now)
         )
 
+    def test_action_conditions_are_evaluated_independently(self):
+        light = Device.objects.create(
+            device_uid="rule-light",
+            name="규칙 전등",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        aircon = Device.objects.create(
+            device_uid="rule-aircon",
+            name="규칙 에어컨",
+            device_type="aircon",
+            protocol=Device.Protocol.IR,
+            location="방",
+        )
+        light_action = AutomationAction.objects.create(
+            automation=self.automation,
+            order=1,
+            action_type=AutomationAction.ActionType.DEVICE,
+            device=light,
+            function="power_off",
+        )
+        aircon_action = AutomationAction.objects.create(
+            automation=self.automation,
+            order=2,
+            action_type=AutomationAction.ActionType.DEVICE,
+            device=aircon,
+            function="power_off",
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            action=light_action,
+            order=1,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            config={
+                "device_id": light.pk,
+                "device_uid": light.device_uid,
+                "key": "power",
+                "operator": "eq",
+                "value": True,
+            },
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            action=aircon_action,
+            order=1,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            config={
+                "device_id": aircon.pk,
+                "device_uid": aircon.device_uid,
+                "key": "power",
+                "operator": "eq",
+                "value": True,
+            },
+        )
+        AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.MQTT_EVENT,
+            config={"topic": "iotcore/test/rule"},
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(light),
+            {"power": False},
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(aircon),
+            {"power": True},
+        )
+
+        runs = AutomationService.process_event(
+            "iotcore/test/rule",
+            {"event_id": "independent-rules-1", "value": 1},
+        )
+
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(
+            runs[0].trigger_payload[MATCHED_ACTION_IDS_KEY],
+            [aircon_action.pk],
+        )
+
+    def test_multiple_conditions_inside_one_action_use_and(self):
+        aircon = Device.objects.create(
+            device_uid="and-aircon",
+            name="AND 에어컨",
+            device_type="aircon",
+            protocol=Device.Protocol.IR,
+            location="방",
+        )
+        action = AutomationAction.objects.create(
+            automation=self.automation,
+            order=1,
+            action_type=AutomationAction.ActionType.DEVICE,
+            device=aircon,
+            function="power_off",
+        )
+        for order, key, value in [
+            (1, "power", True),
+            (2, "mode", "fan"),
+        ]:
+            AutomationCondition.objects.create(
+                automation=self.automation,
+                action=action,
+                order=order,
+                condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+                config={
+                    "device_id": aircon.pk,
+                    "device_uid": aircon.device_uid,
+                    "key": key,
+                    "operator": "eq",
+                    "value": value,
+                },
+            )
+        AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.MQTT_EVENT,
+            config={"topic": "iotcore/test/and"},
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(aircon),
+            {"power": True, "mode": "cool"},
+        )
+
+        ignored = AutomationService.process_event(
+            "iotcore/test/and",
+            {"event_id": "and-rules-1", "value": 1},
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(aircon),
+            {"mode": "fan"},
+        )
+        matched = AutomationService.process_event(
+            "iotcore/test/and",
+            {"event_id": "and-rules-2", "value": 1},
+        )
+
+        self.assertEqual(ignored, [])
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(
+            matched[0].trigger_payload[MATCHED_ACTION_IDS_KEY],
+            [action.pk],
+        )
+
+    def test_trigger_set_and_runs_only_on_false_to_true_and_rearms(self):
+        sensor = Device.objects.create(
+            device_uid="set-and-temp",
+            name="AND 온도 센서",
+            device_type="sensor",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        aircon = Device.objects.create(
+            device_uid="set-and-aircon",
+            name="AND 에어컨",
+            device_type="aircon",
+            protocol=Device.Protocol.IR,
+            location="방",
+        )
+        trigger = AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.SET,
+            condition_operator=AutomationTrigger.ConditionOperator.AND,
+        )
+        AutomationAction.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=1,
+            action_type=AutomationAction.ActionType.DEVICE,
+            device=aircon,
+            function="power_off",
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=1,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            config={
+                "device_id": sensor.pk,
+                "device_uid": sensor.device_uid,
+                "key": "temperature",
+                "operator": "lt",
+                "value": 24,
+            },
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=2,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            config={
+                "device_id": aircon.pk,
+                "device_uid": aircon.device_uid,
+                "key": "power",
+                "operator": "eq",
+                "value": True,
+            },
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(sensor),
+            {"temperature": 25},
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(aircon),
+            {"power": True},
+        )
+        AutomationService.refresh_trigger_result(trigger)
+
+        first = AutomationService.record_device_state(sensor, {"temperature": 23})
+        still_true = AutomationService.record_device_state(sensor, {"temperature": 22})
+        rearm = AutomationService.record_device_state(aircon, {"power": False})
+        second = AutomationService.record_device_state(aircon, {"power": True})
+
+        self.assertEqual(len(first), 1)
+        self.assertEqual(still_true, [])
+        self.assertEqual(rearm, [])
+        self.assertEqual(len(second), 1)
+        self.assertEqual(AutomationRun.objects.filter(trigger=trigger).count(), 2)
+
+    def test_trigger_set_or_runs_once_until_all_conditions_are_false(self):
+        first_device = Device.objects.create(
+            device_uid="set-or-first",
+            name="OR 조건 1",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        second_device = Device.objects.create(
+            device_uid="set-or-second",
+            name="OR 조건 2",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        trigger = AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.SET,
+            condition_operator=AutomationTrigger.ConditionOperator.OR,
+        )
+        AutomationAction.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=1,
+            action_type=AutomationAction.ActionType.SEQUENCE,
+            sequence=self.sequence,
+        )
+        for order, device in enumerate((first_device, second_device), start=1):
+            AutomationCondition.objects.create(
+                automation=self.automation,
+                trigger=trigger,
+                order=order,
+                condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+                config={
+                    "device_id": device.pk,
+                    "device_uid": device.device_uid,
+                    "key": "power",
+                    "operator": "eq",
+                    "value": True,
+                },
+            )
+            AutomationService.update_device_state(
+                AutomationService.canonical_state_topic(device),
+                {"power": False},
+            )
+        AutomationService.refresh_trigger_result(trigger)
+
+        first = AutomationService.record_device_state(first_device, {"power": True})
+        second_becomes_true = AutomationService.record_device_state(second_device, {"power": True})
+        first_becomes_false = AutomationService.record_device_state(first_device, {"power": False})
+        all_false = AutomationService.record_device_state(second_device, {"power": False})
+        after_rearm = AutomationService.record_device_state(first_device, {"power": True})
+
+        self.assertEqual(len(first), 1)
+        self.assertEqual(second_becomes_true, [])
+        self.assertEqual(first_becomes_false, [])
+        self.assertEqual(all_false, [])
+        self.assertEqual(len(after_rearm), 1)
+        self.assertEqual(AutomationRun.objects.filter(trigger=trigger).count(), 2)
+
+    def test_device_state_condition_only_wakes_for_its_own_key(self):
+        sensor = Device.objects.create(
+            device_uid="key-scoped-sensor",
+            name="키 범위 온습도 센서",
+            device_type="sensor",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        AutomationService.update_device_state(
+            AutomationService.canonical_state_topic(sensor),
+            {"temperature": 23, "humidity": 50},
+        )
+        trigger = AutomationTrigger.objects.create(
+            automation=self.automation,
+            trigger_type=AutomationTrigger.TriggerType.SET,
+            condition_operator=AutomationTrigger.ConditionOperator.AND,
+            last_result=False,
+        )
+        AutomationAction.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=1,
+            action_type=AutomationAction.ActionType.SEQUENCE,
+            sequence=self.sequence,
+        )
+        AutomationCondition.objects.create(
+            automation=self.automation,
+            trigger=trigger,
+            order=1,
+            condition_type=AutomationCondition.ConditionType.DEVICE_STATE,
+            config={
+                "device_id": sensor.pk,
+                "device_uid": sensor.device_uid,
+                "key": "temperature",
+                "operator": "lt",
+                "value": 24,
+            },
+        )
+
+        humidity_only = AutomationService.record_device_state(sensor, {"humidity": 51})
+        temperature_change = AutomationService.record_device_state(sensor, {"temperature": 22})
+
+        self.assertEqual(humidity_only, [])
+        self.assertEqual(len(temperature_change), 1)
+
     def test_long_nested_mqtt_state_key_is_stored(self):
         long_key = ".".join(["bridge"] * 24)
         payload = current = {}
@@ -701,7 +1024,7 @@ class AutomationExecutorTests(TestCase):
             location="방",
         )
         self.automation = Automation.objects.create(name="개별 동작 예약 실행")
-        AutomationAction.objects.create(
+        self.action = AutomationAction.objects.create(
             automation=self.automation,
             order=1,
             action_type=AutomationAction.ActionType.DEVICE,
@@ -718,6 +1041,35 @@ class AutomationExecutorTests(TestCase):
         self.assertEqual(automation_run.status, AutomationRun.Status.SUCCESS)
         self.assertEqual(automation_run.action_runs.count(), 1)
         execute.assert_called_once()
+
+    @patch.object(DeviceService, "execute_step", return_value=(True, "완료"))
+    def test_executor_runs_only_actions_matched_at_trigger_time(self, execute):
+        second_device = Device.objects.create(
+            device_uid="test-aircon",
+            name="테스트 에어컨",
+            device_type="aircon",
+            protocol=Device.Protocol.IR,
+            location="방",
+        )
+        second_action = AutomationAction.objects.create(
+            automation=self.automation,
+            order=2,
+            action_type=AutomationAction.ActionType.DEVICE,
+            device=second_device,
+            function="power_off",
+        )
+        automation_run = AutomationRun.objects.create(
+            automation=self.automation,
+            trigger_payload={MATCHED_ACTION_IDS_KEY: [second_action.pk]},
+        )
+
+        AutomationExecutor.run_next_pending()
+
+        automation_run.refresh_from_db()
+        self.assertEqual(automation_run.status, AutomationRun.Status.SUCCESS)
+        self.assertEqual(automation_run.action_runs.count(), 1)
+        execute.assert_called_once()
+        self.assertEqual(execute.call_args.args[0].device, second_device)
 
 
 class AutomationViewTests(TestCase):
@@ -736,10 +1088,10 @@ class AutomationViewTests(TestCase):
         self.assertEqual(response.context["trigger_formset"].total_form_count(), 0)
         self.assertEqual(response.context["condition_formset"].total_form_count(), 0)
         self.assertEqual(response.context["action_formset"].total_form_count(), 0)
-        self.assertContains(response, "+ 실행 트리거 추가")
-        self.assertContains(response, "+ 실행 동작 추가")
+        self.assertContains(response, "+ 트리거 세트 추가")
+        self.assertNotContains(response, "+ 실행 규칙 추가")
 
-    def test_create_saves_dynamically_added_trigger_and_action(self):
+    def test_create_saves_trigger_set_condition_and_action(self):
         device = Device.objects.create(
             device_uid="automation-light",
             name="예약 실행 전등",
@@ -757,16 +1109,18 @@ class AutomationViewTests(TestCase):
                 "triggers-INITIAL_FORMS": "0",
                 "triggers-MIN_NUM_FORMS": "0",
                 "triggers-MAX_NUM_FORMS": "1000",
-                "triggers-0-trigger_type": AutomationTrigger.TriggerType.MQTT_EVENT,
                 "triggers-0-enabled": "on",
-                "triggers-0-event_topic": "zigbee2mqtt/front_door",
-                "triggers-0-event_field": "contact",
-                "triggers-0-event_operator": "changed_to",
-                "triggers-0-event_value": "false",
-                "conditions-TOTAL_FORMS": "0",
+                "triggers-0-condition_operator": AutomationTrigger.ConditionOperator.AND,
+                "conditions-TOTAL_FORMS": "1",
                 "conditions-INITIAL_FORMS": "0",
                 "conditions-MIN_NUM_FORMS": "0",
                 "conditions-MAX_NUM_FORMS": "1000",
+                "conditions-0-trigger_index": "0",
+                "conditions-0-condition_type": AutomationCondition.ConditionType.MQTT_EVENT,
+                "conditions-0-mqtt_topic": "zigbee2mqtt/front_door",
+                "conditions-0-mqtt_field": "contact",
+                "conditions-0-mqtt_operator": "changed_to",
+                "conditions-0-mqtt_value": "false",
                 "actions-TOTAL_FORMS": "1",
                 "actions-INITIAL_FORMS": "0",
                 "actions-MIN_NUM_FORMS": "0",
@@ -780,13 +1134,99 @@ class AutomationViewTests(TestCase):
 
         self.assertRedirects(response, reverse("iotcore:schedule_list"))
         automation = Automation.objects.get(name="퇴근 예약 실행")
-        self.assertEqual(automation.triggers.count(), 1)
-        self.assertEqual(automation.conditions.count(), 0)
+        trigger = automation.triggers.get()
+        self.assertEqual(trigger.trigger_type, AutomationTrigger.TriggerType.SET)
+        self.assertEqual(trigger.condition_operator, AutomationTrigger.ConditionOperator.AND)
+        self.assertEqual(trigger.conditions.count(), 1)
+        condition = trigger.conditions.get()
+        self.assertEqual(condition.condition_type, AutomationCondition.ConditionType.MQTT_EVENT)
+        self.assertEqual(condition.config["topic"], "zigbee2mqtt/front_door")
         action = automation.actions.get()
+        self.assertEqual(action.trigger, trigger)
         self.assertEqual(action.device, device)
         self.assertEqual(action.function, "power_on")
 
-    def test_new_trigger_defaults_to_enabled_when_checkbox_is_omitted(self):
+    def test_create_saves_conditions_under_each_trigger_set(self):
+        light = Device.objects.create(
+            device_uid="rule-form-light",
+            name="규칙 폼 전등",
+            device_type="light",
+            protocol=Device.Protocol.ZIGBEE,
+            location="방",
+        )
+        aircon = Device.objects.create(
+            device_uid="rule-form-aircon",
+            name="규칙 폼 에어컨",
+            device_type="aircon",
+            protocol=Device.Protocol.IR,
+            location="방",
+        )
+        response = self.client.post(
+            reverse("iotcore:schedule_create"),
+            {
+                "name": "트리거 세트 조건 테스트",
+                "enabled": "on",
+                "cooldown_seconds": "0",
+                "triggers-TOTAL_FORMS": "2",
+                "triggers-INITIAL_FORMS": "0",
+                "triggers-MIN_NUM_FORMS": "0",
+                "triggers-MAX_NUM_FORMS": "1000",
+                "triggers-0-enabled": "on",
+                "triggers-0-condition_operator": AutomationTrigger.ConditionOperator.AND,
+                "triggers-1-enabled": "on",
+                "triggers-1-condition_operator": AutomationTrigger.ConditionOperator.OR,
+                "conditions-TOTAL_FORMS": "2",
+                "conditions-INITIAL_FORMS": "0",
+                "conditions-MIN_NUM_FORMS": "0",
+                "conditions-MAX_NUM_FORMS": "1000",
+                "conditions-0-trigger_index": "0",
+                "conditions-0-condition_type": AutomationCondition.ConditionType.DEVICE_STATE,
+                "conditions-0-state_device": str(light.pk),
+                "conditions-0-state_key": "power",
+                "conditions-0-state_operator": "eq",
+                "conditions-0-state_value": "true",
+                "conditions-1-trigger_index": "1",
+                "conditions-1-condition_type": AutomationCondition.ConditionType.DEVICE_STATE,
+                "conditions-1-state_device": str(aircon.pk),
+                "conditions-1-state_key": "power",
+                "conditions-1-state_operator": "eq",
+                "conditions-1-state_value": "true",
+                "actions-TOTAL_FORMS": "2",
+                "actions-INITIAL_FORMS": "0",
+                "actions-MIN_NUM_FORMS": "0",
+                "actions-MAX_NUM_FORMS": "1000",
+                "actions-0-action_type": AutomationAction.ActionType.DEVICE,
+                "actions-0-device": str(light.pk),
+                "actions-0-function": "power_off",
+                "actions-0-delay": "0",
+                "actions-1-action_type": AutomationAction.ActionType.DEVICE,
+                "actions-1-device": str(aircon.pk),
+                "actions-1-function": "power_off",
+                "actions-1-delay": "0",
+            },
+        )
+
+        self.assertRedirects(response, reverse("iotcore:schedule_list"))
+        automation = Automation.objects.get(name="트리거 세트 조건 테스트")
+        actions = list(automation.actions.order_by("order"))
+        self.assertEqual(len(actions), 2)
+        self.assertEqual(automation.triggers.count(), 2)
+        self.assertEqual(actions[0].trigger.condition_operator, AutomationTrigger.ConditionOperator.AND)
+        self.assertEqual(actions[1].trigger.condition_operator, AutomationTrigger.ConditionOperator.OR)
+        self.assertEqual(actions[0].trigger.conditions.count(), 1)
+        self.assertEqual(actions[1].trigger.conditions.count(), 1)
+        self.assertEqual(actions[0].conditions.count(), 0)
+        self.assertEqual(actions[1].conditions.count(), 0)
+        self.assertEqual(
+            actions[0].trigger.conditions.get().config["device_id"],
+            light.pk,
+        )
+        self.assertEqual(
+            actions[1].trigger.conditions.get().config["device_id"],
+            aircon.pk,
+        )
+
+    def test_new_trigger_set_defaults_to_enabled_when_checkbox_is_omitted(self):
         device = Device.objects.create(
             device_uid="default-trigger-light",
             name="기본 활성화 전등",
@@ -805,13 +1245,15 @@ class AutomationViewTests(TestCase):
                 "triggers-INITIAL_FORMS": "0",
                 "triggers-MIN_NUM_FORMS": "0",
                 "triggers-MAX_NUM_FORMS": "1000",
-                "triggers-0-trigger_type": AutomationTrigger.TriggerType.TIME,
-                "triggers-0-schedule_type": AutomationTrigger.ScheduleType.ONCE,
-                "triggers-0-run_at": run_at.strftime("%Y-%m-%dT%H:%M"),
-                "conditions-TOTAL_FORMS": "0",
+                "triggers-0-condition_operator": AutomationTrigger.ConditionOperator.AND,
+                "conditions-TOTAL_FORMS": "1",
                 "conditions-INITIAL_FORMS": "0",
                 "conditions-MIN_NUM_FORMS": "0",
                 "conditions-MAX_NUM_FORMS": "1000",
+                "conditions-0-trigger_index": "0",
+                "conditions-0-condition_type": AutomationCondition.ConditionType.SCHEDULE,
+                "conditions-0-schedule_type": AutomationTrigger.ScheduleType.ONCE,
+                "conditions-0-run_at": run_at.strftime("%Y-%m-%dT%H:%M"),
                 "actions-TOTAL_FORMS": "1",
                 "actions-INITIAL_FORMS": "0",
                 "actions-MIN_NUM_FORMS": "0",
@@ -828,7 +1270,9 @@ class AutomationViewTests(TestCase):
             automation__name="기본 활성화 테스트"
         )
         self.assertTrue(trigger.enabled)
+        self.assertEqual(trigger.trigger_type, AutomationTrigger.TriggerType.SET)
         self.assertIsNotNone(trigger.next_run_at)
+        self.assertEqual(trigger.conditions.count(), 1)
 
     def test_list_card_opens_edit_without_edit_button(self):
         automation = Automation.objects.create(name="카드 예약 실행")
