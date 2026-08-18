@@ -23,11 +23,34 @@
 .field > label { display: block; color: var(--iot-muted); margin-bottom: 8px; font-size: 11px; font-weight: 650; }
 input[type=text], input[type=number], input[type=datetime-local], input[type=time], select, textarea { width: 100%; padding: 10px; color: #fff; background: #000; border: 1px solid var(--iot-border); }
 input[type=checkbox], input[type=radio] { margin-right: 8px; }
-.weekdays ul, ul[id$="weekdays"] { display: flex; list-style: none; padding: 0; gap: 14px; flex-wrap: wrap; }
-.schedule-time-mode ul, ul[id$="schedule_time_mode"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); list-style: none; padding: 0; margin: 0; gap: 8px; }
-.schedule-time-mode li { min-width: 0; }
-.schedule-time-mode label { display: flex; align-items: center; min-height: 42px; padding: 0 12px; border: 1px solid var(--iot-border-soft); color: var(--iot-text); cursor: pointer; }
-.schedule-time-mode label:has(input:checked) { border-color: var(--iot-accent); color: var(--iot-accent); }
+
+/* CheckboxSelectMultiple is rendered as either <div> or <ul> depending on Django version. */
+.weekdays > div[id$="weekdays"], .weekdays > ul[id$="weekdays"] {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; list-style: none; padding: 0; margin: 0;
+}
+.weekdays > div[id$="weekdays"] > div, .weekdays > ul[id$="weekdays"] > li { margin: 0; }
+.weekdays label { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: var(--iot-text); cursor: pointer; white-space: nowrap; }
+.automation-form-content .weekdays input[type="checkbox"] {
+    width: 14px; height: 14px; min-width: 14px; min-height: 14px; padding: 0; margin: 0; flex: 0 0 14px; accent-color: var(--iot-accent);
+}
+
+/* Compact two-option segmented selector for schedule time mode. */
+.schedule-time-mode > div[id$="schedule_time_mode"], .schedule-time-mode > ul[id$="schedule_time_mode"] {
+    display: inline-flex; align-items: stretch; width: auto; max-width: 100%; gap: 6px; list-style: none; padding: 0; margin: 0;
+}
+.schedule-time-mode > div[id$="schedule_time_mode"] > div, .schedule-time-mode > ul[id$="schedule_time_mode"] > li { margin: 0; min-width: 0; }
+.schedule-time-mode label {
+    position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 108px; min-height: 36px;
+    padding: 7px 14px; margin: 0; border: 1px solid var(--iot-border-soft); background: #000; color: var(--iot-text);
+    font-size: 12px; font-weight: 650; line-height: 1.2; cursor: pointer; white-space: nowrap;
+}
+.automation-form-content .schedule-time-mode input[type="radio"] {
+    position: absolute; inline-size: 1px !important; block-size: 1px !important; min-width: 0 !important; min-height: 0 !important;
+    padding: 0 !important; margin: -1px !important; border: 0 !important; opacity: 0; overflow: hidden; pointer-events: none;
+}
+.schedule-time-mode label:hover { border-color: var(--iot-border); color: var(--iot-accent); }
+.schedule-time-mode label:has(input:checked) { border-color: var(--iot-accent); background: rgba(0, 255, 210, .06); color: var(--iot-accent); }
+.schedule-time-mode label:has(input:focus-visible) { outline: 1px solid var(--iot-accent); outline-offset: 2px; }
 .schedule-window-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .schedule-window-grid .field { margin-bottom: 0; }
 .schedule-window-no-end { margin-top: 14px; }
@@ -58,6 +81,9 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
     .automation-form-content .set-subsection__header { align-items: flex-start; flex-direction: column; gap: 5px; }
     .automation-form-content .set-subsection__header p { text-align: left; }
     .automation-form-content .schedule-window-grid { grid-template-columns: minmax(0, 1fr); }
+    .automation-form-content .weekdays > div[id$="weekdays"], .automation-form-content .weekdays > ul[id$="weekdays"] { gap: 10px 12px; }
+    .automation-form-content .schedule-time-mode > div[id$="schedule_time_mode"], .automation-form-content .schedule-time-mode > ul[id$="schedule_time_mode"] { display: flex; width: fit-content; max-width: 100%; }
+    .automation-form-content .schedule-time-mode label { min-width: 96px; }
     .automation-form-content input[type=text], .automation-form-content input[type=number],
     .automation-form-content input[type=datetime-local], .automation-form-content input[type=time],
     .automation-form-content select, .automation-form-content textarea { min-width: 0; max-width: 100%; width: 100%; }
