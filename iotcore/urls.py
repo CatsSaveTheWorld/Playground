@@ -265,24 +265,9 @@ urlpatterns = [
     path("pc/power_off/", pc.pc_power_off, name="pc_power_off"),
 
     path(
-        "electric_fan/power_cycle/",
-        electric_fan.electricfan_power_cycle,
-        name="electricfan_power_cycle",
-    ),
-    path(
-        "electric_fan/stop/",
-        electric_fan.electricfan_stop,
-        name="electricfan_stop",
-    ),
-    path(
-        "electric_fan/fan_way_toggle/",
-        electric_fan.electricfan_fan_way_toggle,
-        name="electricfan_fan_way_toggle",
-    ),
-    path(
-        "electric_fan/timer_add_30m/",
-        electric_fan.electricfan_timer_add_30m,
-        name="electricfan_timer_add_30m",
+        "electric_fan/control/",
+        electric_fan.electricfan_control,
+        name="electricfan_control",
     ),
 
     path(

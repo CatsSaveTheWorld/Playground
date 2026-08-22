@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from ...infrastructure.zigbee.client import ZigbeeClient
 from ...infrastructure.music_assistant.client import MusicAssistantClient
 from ...infrastructure.remote_tasks.client import RemoteTaskClient
+from ...infrastructure.tuya.client import TuyaClient
 
 
 class DeviceService:
@@ -32,6 +33,17 @@ class DeviceService:
                     parameters,
                 )
             return success, message
+        if device.device_type == "electric_fan":
+            fan_value = None
+            if step.function == "set_speed":
+                fan_value = parameters.get("speed")
+            elif step.function == "set_horizontal_angle":
+                fan_value = parameters.get("horizontal_angle")
+            return DeviceService.control(
+                device.id,
+                step.function,
+                fan_value=fan_value,
+            )
         if device.device_type == "light":
             return DeviceService.control(device.id, step.function)
         if device.device_type == "media_server":
@@ -73,6 +85,7 @@ class DeviceService:
         music_id=None,
         volume=None,
         repeat_mode=None,
+        fan_value=None,
     ) -> tuple:
 
         device = DeviceRepository.get_by_id(device_id)
@@ -132,6 +145,18 @@ class DeviceService:
                     repeat_mode=repeat_mode,
                 )
 
+        elif device.device_type == 'electric_fan':
+            if device.protocol != 'tuya':
+                return False, (
+                    "선풍기는 Tuya 프로토콜로 등록되어야 합니다. "
+                    f"(현재 {device.protocol})"
+                )
+            success, error_message = DeviceService.execute_electric_fan(
+                device=device,
+                motion=motion,
+                fan_value=fan_value,
+            )
+
         else:
             return False, f"지원하지 않는 기기 종류입니다. ({device.device_type})"
 
@@ -145,6 +170,7 @@ class DeviceService:
                     "music_id": music_id,
                     "volume": volume,
                     "repeat_mode": repeat_mode,
+                    "fan_value": fan_value,
                 },
             )
             return True, success_message or f"{device.name} 제어를 완료했습니다."
@@ -211,6 +237,25 @@ class DeviceService:
             return {"shuffle": False}
         if motion == "set_repeat" and parameters.get("repeat_mode"):
             return {"repeat_mode": parameters["repeat_mode"]}
+        if motion == "set_speed" and parameters.get("fan_value") is not None:
+            try:
+                return {"speed": int(parameters["fan_value"])}
+            except (TypeError, ValueError):
+                return {}
+        if motion == "vertical_swing_on":
+            return {"vertical_swing": True}
+        if motion == "vertical_swing_off":
+            return {"vertical_swing": False}
+        if motion == "horizontal_swing_on":
+            return {"horizontal_swing": True}
+        if motion == "horizontal_swing_off":
+            return {"horizontal_swing": False}
+        if motion == "set_horizontal_angle" and parameters.get("fan_value") is not None:
+            return {"horizontal_angle": str(parameters["fan_value"])}
+        if motion == "beep_on":
+            return {"beep": True}
+        if motion == "beep_off":
+            return {"beep": False}
         return {}
 
     @staticmethod
@@ -233,6 +278,62 @@ class DeviceService:
         if not controller:
             return False, "연결된 컨트롤러를 찾을 수 없습니다."
         return IRClient.send_ir_request(controller.ip_address, step.function)
+
+    @staticmethod
+    def execute_electric_fan(device, motion, fan_value=None):
+        """Send one of the confirmed Lumena DPS commands."""
+        command, error = DeviceService.prepare_electric_fan_command(
+            motion,
+            fan_value,
+        )
+        if error:
+            return False, error
+
+        dps_id, value = command
+        return TuyaClient.set_value(device.device_uid, dps_id, value)
+
+    @staticmethod
+    def prepare_electric_fan_command(motion, fan_value=None):
+        """Validate an action and return its typed ``(dps_id, value)``."""
+        fixed_commands = {
+            "power_on": (1, True),
+            "power_off": (1, False),
+            "vertical_swing_on": (4, True),
+            "vertical_swing_off": (4, False),
+            "horizontal_swing_on": (5, True),
+            "horizontal_swing_off": (5, False),
+            "beep_on": (13, True),
+            "beep_off": (13, False),
+        }
+        command = fixed_commands.get(motion)
+
+        if motion == "set_speed":
+            if isinstance(fan_value, bool):
+                return None, "풍속은 1부터 100 사이의 정수로 입력하세요."
+            if isinstance(fan_value, int):
+                speed = fan_value
+            elif isinstance(fan_value, str):
+                raw_speed = fan_value.strip()
+                if not raw_speed.isdecimal():
+                    return None, "풍속은 1부터 100 사이의 정수로 입력하세요."
+                speed = int(raw_speed)
+            else:
+                return None, "풍속은 1부터 100 사이의 정수로 입력하세요."
+            if not 1 <= speed <= 100:
+                return None, "풍속은 1부터 100 사이의 정수로 입력하세요."
+            command = (3, speed)
+
+        elif motion == "set_horizontal_angle":
+            if fan_value is None or isinstance(fan_value, bool):
+                return None, "좌우 회전 각도는 30, 60 또는 90으로 입력하세요."
+            angle = str(fan_value).strip()
+            if angle not in {"30", "60", "90"}:
+                return None, "좌우 회전 각도는 30, 60 또는 90으로 입력하세요."
+            command = (7, angle)
+
+        if command is None:
+            return None, f"지원하지 않는 선풍기 동작입니다. ({motion})"
+        return command, None
 
     @staticmethod
     def execute_light(device_id, motion):

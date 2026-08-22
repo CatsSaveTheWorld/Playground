@@ -318,6 +318,7 @@ class AutomationCondition(models.Model):
         TIME_WINDOW = "time_window", "시간대 (기존)"
         DEVICE_STATE = "device_state", "기기 상태"
         MQTT_EVENT = "mqtt_event", "MQTT 이벤트"
+        WEATHER = "weather", "현재 날씨"
         # Kept only for old rows/tests.  Migration 0020 converts event-value
         # conditions that belonged to MQTT triggers into MQTT_EVENT.
         EVENT_VALUE = "event_value", "트리거 데이터 (기존)"

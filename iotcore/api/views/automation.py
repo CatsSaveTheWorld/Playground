@@ -3,7 +3,7 @@ import json
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -226,6 +226,7 @@ def _trigger_sets_have_conditions(trigger_formset, condition_formset):
         elif condition_type in {
             AutomationCondition.ConditionType.DEVICE_STATE,
             AutomationCondition.ConditionType.MQTT_EVENT,
+            AutomationCondition.ConditionType.WEATHER,
             AutomationCondition.ConditionType.EVENT_VALUE,
         }:
             source_counts[owner] += 1
@@ -638,6 +639,7 @@ def automation_list(request):
         (AutomationCondition.ConditionType.TIME_WINDOW, "시간대"),
         (AutomationCondition.ConditionType.DEVICE_STATE, "기기 상태"),
         (AutomationCondition.ConditionType.MQTT_EVENT, "MQTT 이벤트"),
+        (AutomationCondition.ConditionType.WEATHER, "현재 날씨"),
     ]
     valid_triggers = {value for value, _ in trigger_choices}
     if trigger_filter != "all" and trigger_filter not in valid_triggers:
@@ -680,7 +682,15 @@ def automation_list(request):
     elif status == "disabled":
         queryset = queryset.filter(enabled=False)
     if trigger_filter != "all":
-        queryset = queryset.filter(conditions__condition_type=trigger_filter)
+        trigger_query = Q(conditions__condition_type=trigger_filter)
+        legacy_trigger_type = {
+            AutomationCondition.ConditionType.SCHEDULE: AutomationTrigger.TriggerType.TIME,
+            AutomationCondition.ConditionType.DEVICE_STATE: AutomationTrigger.TriggerType.DEVICE_STATE,
+            AutomationCondition.ConditionType.MQTT_EVENT: AutomationTrigger.TriggerType.MQTT_EVENT,
+        }.get(trigger_filter)
+        if legacy_trigger_type:
+            trigger_query |= Q(triggers__trigger_type=legacy_trigger_type)
+        queryset = queryset.filter(trigger_query)
     if action_filter != "all":
         queryset = queryset.filter(actions__action_type=action_filter)
 

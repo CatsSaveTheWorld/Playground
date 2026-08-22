@@ -173,22 +173,24 @@
             </article>
             {% endif %}
 
-            <article class="iot-panel iot-status-card iot-status-card--weather">
+            <article class="iot-panel iot-status-card iot-status-card--weather" data-weather-card>
                 <div class="iot-status-card__head">
                     <div>
                         <span class="iot-status-card__kicker">OUTDOOR WEATHER</span>
                         <h3>현재 날씨</h3>
                     </div>
                     {% if weather and weather.updated_at %}
-                        <span class="iot-status-card__subtle">
+                        <span class="iot-status-card__subtle" data-weather-updated-at>
                             {{ weather.updated_at|date:"H:i" }} 갱신
                         </span>
+                    {% else %}
+                        <span class="iot-status-card__subtle" data-weather-updated-at hidden></span>
                     {% endif %}
                 </div>
 
                 <div class="iot-weather-row">
                     <div class="iot-weather-current">
-                        <strong>
+                        <strong data-weather-temperature>
                             {% if weather %}
                                 {% if weather.temperature != None %}
                                     {{ weather.temperature|floatformat:1 }}°C
@@ -199,18 +201,18 @@
                                 --
                             {% endif %}
                         </strong>
-                        <span>
+                        <span data-weather-condition>
                             {% if weather and weather.condition %}
-                                {{ weather.condition }}
+                                {{ weather.condition }} · {{ weather.location }}
                             {% else %}
-                                날씨 연동 예정
+                                기상청 연동 대기
                             {% endif %}
                         </span>
                     </div>
 
                     <div class="iot-weather-metric">
                         <span>강수 확률</span>
-                        <strong>
+                        <strong data-weather-pop>
                             {% if weather %}
                                 {% if weather.precipitation_probability != None %}
                                     {{ weather.precipitation_probability }}%
@@ -225,7 +227,7 @@
 
                     <div class="iot-weather-metric">
                         <span>최고 / 최저</span>
-                        <strong>
+                        <strong data-weather-high-low>
                             {% if weather %}
                                 {% if weather.high != None and weather.low != None %}
                                     {{ weather.high|floatformat:0 }}° / {{ weather.low|floatformat:0 }}°
@@ -894,6 +896,5 @@
 <script>
 window.IOTCORE_NODE_METRICS_URL = "{{ node_metrics_url|escapejs }}";
 </script>
-<script src="{% static 'js/iotcore-dashboard-monitor.js' %}?v=20260816-door-2s"></script>
+<script src="{% static 'js/iotcore-dashboard-monitor.js' %}?v=20260822-weather-30m"></script>
 {% endblock %}
-

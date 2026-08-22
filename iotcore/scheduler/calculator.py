@@ -286,6 +286,17 @@ def describe_condition(condition):
         if config.get("operator") == "changed":
             return f"{topic} · {field} {operator}"
         return f"{topic} · {field} {operator} {config.get('value', '')}"
+    if condition.condition_type == AutomationCondition.ConditionType.WEATHER:
+        metric = config.get("metric") or "temperature"
+        metric_label, unit = {
+            "temperature": ("현재 기온", "°C"),
+            "humidity": ("현재 습도", "%"),
+            "precipitation_probability": ("강수 확률", "%"),
+        }.get(metric, (metric, ""))
+        value = config.get("value", "")
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
+        return f"현재 날씨 · {metric_label} {operator} {value}{unit}"
     if condition.condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
         field = config.get("field") or "value"
         if config.get("operator") == "changed":

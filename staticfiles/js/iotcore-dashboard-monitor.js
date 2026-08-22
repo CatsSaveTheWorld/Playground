@@ -10,6 +10,7 @@
     );
 
     const entryCard = document.querySelector('[data-entry-status-card]');
+    const weatherCard = document.querySelector('[data-weather-card]');
 
     const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
 
@@ -58,6 +59,40 @@
         }
         if (lastEvent) {
             lastEvent.textContent = formatEntryTime(entry?.last_event_at);
+        }
+    };
+
+    const updateWeather = (weather) => {
+        if (!weatherCard || !weather) return;
+
+        const temperature = weatherCard.querySelector('[data-weather-temperature]');
+        const condition = weatherCard.querySelector('[data-weather-condition]');
+        const precipitation = weatherCard.querySelector('[data-weather-pop]');
+        const highLow = weatherCard.querySelector('[data-weather-high-low]');
+        const updatedAt = weatherCard.querySelector('[data-weather-updated-at]');
+
+        if (temperature) {
+            temperature.textContent = weather.temperature == null
+                ? '--'
+                : `${Number(weather.temperature).toFixed(1)}°C`;
+        }
+        if (condition) {
+            const label = weather.condition || '정보 없음';
+            condition.textContent = weather.location ? `${label} · ${weather.location}` : label;
+        }
+        if (precipitation) {
+            precipitation.textContent = weather.precipitation_probability == null
+                ? '--'
+                : `${weather.precipitation_probability}%`;
+        }
+        if (highLow) {
+            highLow.textContent = weather.high == null || weather.low == null
+                ? '--'
+                : `${Number(weather.high).toFixed(0)}° / ${Number(weather.low).toFixed(0)}°`;
+        }
+        if (updatedAt) {
+            updatedAt.textContent = `${formatEntryTime(weather.updated_at)} 갱신${weather.stale ? ' · 이전 자료' : ''}`;
+            updatedAt.hidden = false;
         }
     };
 
@@ -219,6 +254,7 @@
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
             updateEntryStatus(data.entry_status);
+            updateWeather(data.weather);
             Object.entries(data.nodes || {}).forEach(([uid, node]) => {
                 const card = cards.get(uid);
                 if (card) updateCard(card, node);

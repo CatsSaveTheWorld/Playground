@@ -530,6 +530,13 @@
                 </select>
             </div>
 
+            <div class="form-row" id="parameter-row" hidden>
+                <label id="parameter-label">설정 값</label>
+                <input id="parameter-value" name="parameter_value" type="text" disabled>
+                <select id="parameter-choice" name="parameter_value" hidden disabled></select>
+                <small id="parameter-help"></small>
+            </div>
+
             <div class="form-row">
                 <label>지연 시간</label>
                 <div class="delay-container">
@@ -614,6 +621,11 @@
 
     const deviceSelect = document.getElementById("device-select");
     const functionSelect = document.getElementById("function-select");
+    const parameterRow = document.getElementById("parameter-row");
+    const parameterLabel = document.getElementById("parameter-label");
+    const parameterValue = document.getElementById("parameter-value");
+    const parameterChoice = document.getElementById("parameter-choice");
+    const parameterHelp = document.getElementById("parameter-help");
 
     const deviceActions = JSON.parse(
         document.getElementById("device-actions").textContent
@@ -703,7 +715,7 @@
 
             functionSelect.innerHTML =
                 '<option value="">장치를 먼저 선택하세요.</option>';
-
+            updateParameterField();
             return;
         }
 
@@ -715,12 +727,55 @@
 
             option.value = action.code;
             option.textContent = action.display_name;
+            option.dataset.parameterKey = action.parameter_key || "";
 
             functionSelect.appendChild(option);
 
         });
 
+        updateParameterField();
+
     });
+
+    functionSelect.addEventListener("change", updateParameterField);
+
+    function updateParameterField() {
+        const option = functionSelect.options[functionSelect.selectedIndex];
+        const parameterKey = option ? option.dataset.parameterKey : "";
+        parameterRow.hidden = !parameterKey;
+        parameterValue.hidden = false;
+        parameterValue.disabled = true;
+        parameterValue.value = "";
+        parameterChoice.hidden = true;
+        parameterChoice.disabled = true;
+        parameterChoice.innerHTML = "";
+        parameterHelp.textContent = "";
+
+        if (!parameterKey) return;
+        parameterValue.disabled = false;
+        parameterValue.type = "text";
+        parameterValue.removeAttribute("min");
+        parameterValue.removeAttribute("max");
+        parameterValue.removeAttribute("step");
+        parameterLabel.textContent = "설정 값";
+
+        if (parameterKey === "speed") {
+            parameterLabel.textContent = "풍속";
+            parameterValue.type = "number";
+            parameterValue.min = "1";
+            parameterValue.max = "100";
+            parameterValue.step = "1";
+            parameterHelp.textContent = "1부터 100 사이의 정수";
+        } else if (parameterKey === "horizontal_angle") {
+            parameterLabel.textContent = "좌우 회전 각도";
+            parameterValue.hidden = true;
+            parameterValue.disabled = true;
+            parameterChoice.hidden = false;
+            parameterChoice.disabled = false;
+            parameterChoice.innerHTML = '<option value="30">30°</option><option value="60">60°</option><option value="90">90°</option>';
+            parameterHelp.textContent = "확인된 값 30°, 60° 또는 90°";
+        }
+    }
     function showToast(message) {
         const toast = document.getElementById("toast");
         toast.textContent = message;

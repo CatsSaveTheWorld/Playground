@@ -255,6 +255,11 @@ class SpeakerWatchdogCommandTests(SimpleTestCase):
         )
 
     @patch(
+        "iotcore.management.commands.run_scheduler."
+        "AutomationService.process_weather_conditions",
+        return_value=[],
+    )
+    @patch(
         "iotcore.management.commands.run_scheduler.AutomationService.enqueue_due",
         return_value=[],
     )
@@ -273,6 +278,7 @@ class SpeakerWatchdogCommandTests(SimpleTestCase):
         watchdog_class,
         resolve_player_id,
         enqueue_due,
+        process_weather_conditions,
     ):
         filter_devices.return_value.only.return_value = [
             SimpleNamespace(
@@ -290,6 +296,7 @@ class SpeakerWatchdogCommandTests(SimpleTestCase):
         )
 
         enqueue_due.assert_called_once_with()
+        process_weather_conditions.assert_called_once_with()
         resolve_player_id.assert_called_once_with(
             player_id="jbl",
             player_name="JBL AUTHENTICS 300",

@@ -1,3 +1,4 @@
+import math
 import uuid
 
 import paho.mqtt.client as mqtt
@@ -14,6 +15,7 @@ from ..models import (
     DeviceState,
 )
 from ..room_entry.service import RoomEntryService
+from ..weather.service import KmaWeatherService
 from .calculator import (
     calculate_next_run,
     calculate_next_schedule,
@@ -90,6 +92,8 @@ def compare_value(operator, current, expected=None, previous=_MISSING):
 
 
 class AutomationService:
+    _last_weather_evaluation_token = None
+
     @classmethod
     def canonical_state_topic(cls, device):
         return f"{CANONICAL_STATE_PREFIX}/{device.device_uid}/state"
@@ -163,6 +167,8 @@ class AutomationService:
             resting=True,
             empty_matches=False,
         )
+        if result is None:
+            return bool(trigger.last_result)
         if trigger.last_result != result:
             trigger.last_result = result
             trigger.save(update_fields=["last_result", "updated_at"])
@@ -264,6 +270,93 @@ class AutomationService:
                 if automation_run is not None:
                     enqueued.append(automation_run)
         return enqueued
+
+    @classmethod
+    def process_weather_conditions(cls, now=None):
+        """Wake weather-backed trigger sets once for each fresh KMA snapshot."""
+        now = now or timezone.now()
+        trigger_ids = list(
+            AutomationTrigger.objects.filter(
+                trigger_type=AutomationTrigger.TriggerType.SET,
+                enabled=True,
+                automation__enabled=True,
+                conditions__condition_type=AutomationCondition.ConditionType.WEATHER,
+            )
+            .distinct()
+            .values_list("id", flat=True)
+        )
+        if not trigger_ids:
+            return []
+
+        try:
+            weather = KmaWeatherService.snapshot()
+        except Exception:
+            # Weather is an external input.  A transient/provider failure must
+            # not stop the scheduler loop or re-arm an already-true set.
+            return []
+        if not isinstance(weather, dict) or weather.get("stale"):
+            return []
+
+        token = cls._weather_snapshot_token(weather)
+        if not token or token == cls._last_weather_evaluation_token:
+            return []
+
+        weather_payload = cls._weather_snapshot_payload(weather)
+        enqueued = []
+
+        for trigger_id in trigger_ids:
+            with transaction.atomic():
+                trigger = (
+                    AutomationTrigger.objects
+                    .select_for_update()
+                    .select_related("automation")
+                    .get(pk=trigger_id)
+                )
+                automation_run = cls._enqueue_locked(
+                    trigger,
+                    now=now,
+                    source_event_id=f"weather:{token}"[:100],
+                    trigger_payload={
+                        "type": "weather",
+                        "weather_token": token,
+                        "weather": weather_payload,
+                    },
+                )
+                if automation_run is not None:
+                    enqueued.append(automation_run)
+
+        cls._last_weather_evaluation_token = token
+        return enqueued
+
+    @staticmethod
+    def _weather_snapshot_token(weather):
+        value = weather.get("fetched_at") or weather.get("updated_at")
+        if value is None:
+            return ""
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+        return str(value)
+
+    @staticmethod
+    def _weather_snapshot_payload(weather):
+        payload = {
+            key: weather.get(key)
+            for key in (
+                "location",
+                "temperature",
+                "humidity",
+                "precipitation_probability",
+                "condition",
+                "high",
+                "low",
+                "stale",
+                "source",
+            )
+        }
+        for key in ("updated_at", "fetched_at"):
+            value = weather.get(key)
+            payload[key] = value.isoformat() if hasattr(value, "isoformat") else value
+        return payload
 
     @classmethod
     def process_event(cls, topic, payload, now=None):
@@ -561,6 +654,22 @@ class AutomationService:
         if not actions or not conditions:
             return None
 
+        trigger_payload = dict(trigger_payload or {})
+        has_weather_condition = any(
+            condition.condition_type == AutomationCondition.ConditionType.WEATHER
+            for condition in conditions
+        )
+        if has_weather_condition and "weather" not in trigger_payload:
+            try:
+                weather = KmaWeatherService.snapshot()
+            except Exception:
+                weather = None
+            trigger_payload["weather"] = (
+                cls._weather_snapshot_payload(weather)
+                if isinstance(weather, dict) and not weather.get("stale")
+                else {"stale": True}
+            )
+
         previous_result = bool(trigger.last_result)
         current_result = cls._condition_list_matches(
             conditions,
@@ -578,6 +687,14 @@ class AutomationService:
             resting=True,
             empty_matches=False,
         )
+
+        # Missing/stale weather is an unknown state, not FALSE. Preserve the
+        # stored edge so an API outage cannot re-arm and replay an automation.
+        if (
+            current_result is None
+            or resting_result is None
+        ):
+            return None
 
         def save_resting_result():
             if trigger.last_result != resting_result:
@@ -793,8 +910,16 @@ class AutomationService:
             for condition in conditions
         ]
         if condition_operator == AutomationTrigger.ConditionOperator.OR:
-            return any(results)
-        return all(results)
+            if any(result is True for result in results):
+                return True
+            if any(result is None for result in results):
+                return None
+            return False
+        if any(result is False for result in results):
+            return False
+        if any(result is None for result in results):
+            return None
+        return True
 
     @classmethod
     def _condition_matches(
@@ -898,6 +1023,43 @@ class AutomationService:
                 trigger_payload=trigger_payload,
             )
             return compare_value(operator, current, config.get("value"), previous)
+
+        if condition.condition_type == AutomationCondition.ConditionType.WEATHER:
+            metric = config.get("metric")
+            operator = config.get("operator")
+            if metric not in {
+                "temperature",
+                "humidity",
+                "precipitation_probability",
+            } or operator not in {"eq", "ne", "gt", "gte", "lt", "lte"}:
+                return False
+
+            weather = trigger_payload.get("weather")
+            if weather is None:
+                # Resting-state synchronization (save/re-enable/retained MQTT)
+                # must stay local. A real scheduler/event evaluation prepares
+                # one shared snapshot in _enqueue_set_locked.
+                if resting:
+                    return None
+                try:
+                    weather = KmaWeatherService.snapshot()
+                except Exception:
+                    return None
+            if not isinstance(weather, dict) or weather.get("stale"):
+                return None
+
+            current = weather.get(metric)
+            expected = config.get("value")
+            if current is None or expected is None:
+                return None
+            try:
+                current = float(current)
+                expected = float(expected)
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(current) or not math.isfinite(expected):
+                return None
+            return compare_value(operator, current, expected)
 
         return False
 

@@ -12,7 +12,11 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 
 from pathlib import Path
 
-import os, my_settings
+import json
+import os
+
+import my_settings
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -36,6 +40,38 @@ IOTCORE_AI_NODE_UID = "home-ai-main"
 IOTCORE_PI5_NODE_UID = "pi5"
 NODE_TELEMETRY_OFFLINE_SECONDS = 5
 NODE_METRIC_RETENTION_HOURS = 24
+
+# Dashboard outdoor weather (KMA short-term forecast API)
+KMA_SERVICE_KEY = os.environ.get(
+    "KMA_SERVICE_KEY",
+    getattr(my_settings, "KMA_SERVICE_KEY", ""),
+)
+KMA_WEATHER_TIMEOUT = 5
+IOTCORE_WEATHER_CACHE_SECONDS = 30 * 60
+IOTCORE_WEATHER_LOCATIONS = (
+    {"name": "송탄", "nx": 62, "ny": 115},
+    {"name": "평택", "nx": 62, "ny": 114},
+)
+
+# Tuya LAN devices. Secrets stay in ignored my_settings.py or an environment
+# JSON object keyed by the stable Device.device_uid alias (for example lumdena).
+_tuya_devices_json = os.environ.get("IOTCORE_TUYA_DEVICES_JSON", "").strip()
+if _tuya_devices_json:
+    try:
+        IOTCORE_TUYA_DEVICES = json.loads(_tuya_devices_json)
+    except json.JSONDecodeError as exc:
+        raise ImproperlyConfigured(
+            "IOTCORE_TUYA_DEVICES_JSON must contain a valid JSON object."
+        ) from exc
+else:
+    IOTCORE_TUYA_DEVICES = getattr(my_settings, "IOTCORE_TUYA_DEVICES", {})
+if not isinstance(IOTCORE_TUYA_DEVICES, dict):
+    raise ImproperlyConfigured(
+        "IOTCORE_TUYA_DEVICES_JSON must contain a JSON object."
+    )
+IOTCORE_TUYA_CONNECTION_TIMEOUT = 3
+IOTCORE_TUYA_CONNECTION_RETRY_LIMIT = 1
+IOTCORE_TUYA_CONNECTION_RETRY_DELAY = 1
 
 # Room entry / Aqara P1 door sensor
 IOTCORE_DOOR_SENSOR_UID = "livingroom_door_sensor"

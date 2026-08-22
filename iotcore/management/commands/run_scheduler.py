@@ -11,7 +11,7 @@ from ...scheduler.service import AutomationService
 
 
 class Command(BaseCommand):
-    help = "Enqueue due time-based IoTCore automation triggers."
+    help = "Enqueue due time- and weather-based IoTCore automation triggers."
 
     def add_arguments(self, parser):
         parser.add_argument("--once", action="store_true")
@@ -33,6 +33,7 @@ class Command(BaseCommand):
             try:
                 close_old_connections()
                 runs = AutomationService.enqueue_due()
+                runs.extend(AutomationService.process_weather_conditions())
                 if runs:
                     self.stdout.write(f"{len(runs)}개 실행 요청을 등록했습니다.")
             except Exception as exc:

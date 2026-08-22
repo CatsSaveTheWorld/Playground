@@ -57,6 +57,27 @@ class DeviceActionRegistry:
             ),
         ],
 
+        "electric_fan": [
+            DeviceAction(code="power_on", display_name="전원 켜기"),
+            DeviceAction(code="power_off", display_name="전원 끄기"),
+            DeviceAction(
+                code="set_speed",
+                display_name="풍속 설정 (1~100)",
+                parameter_key="speed",
+            ),
+            DeviceAction(code="vertical_swing_on", display_name="상하 회전 켜기"),
+            DeviceAction(code="vertical_swing_off", display_name="상하 회전 끄기"),
+            DeviceAction(code="horizontal_swing_on", display_name="좌우 회전 켜기"),
+            DeviceAction(code="horizontal_swing_off", display_name="좌우 회전 끄기"),
+            DeviceAction(
+                code="set_horizontal_angle",
+                display_name="좌우 회전 각도 (30/60/90)",
+                parameter_key="horizontal_angle",
+            ),
+            DeviceAction(code="beep_on", display_name="안내음 켜기"),
+            DeviceAction(code="beep_off", display_name="안내음 끄기"),
+        ],
+
         "pc": [
             DeviceAction(
                 code="power_on",

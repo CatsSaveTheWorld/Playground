@@ -11,13 +11,15 @@ from .scheduler.service import AutomationService
 @override_settings(IOTCORE_DOOR_SENSOR_UID="livingroom_door_sensor")
 class RoomEntryServiceTests(TestCase):
     def setUp(self):
-        self.device = Device.objects.create(
+        self.device, _created = Device.objects.update_or_create(
             device_uid="livingroom_door_sensor",
-            device_type="door_sensor",
-            device_role=Device.Role.SENSOR,
-            protocol=Device.Protocol.ZIGBEE,
-            name="방문 센서",
-            location="내 방",
+            defaults={
+                "device_type": "door_sensor",
+                "device_role": Device.Role.SENSOR,
+                "protocol": Device.Protocol.ZIGBEE,
+                "name": "방문 센서",
+                "location": "내 방",
+            },
         )
         self.topic = "zigbee2mqtt/livingroom_door_sensor"
         self.canonical_topic = AutomationService.canonical_state_topic(self.device)

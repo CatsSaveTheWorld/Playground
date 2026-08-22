@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
@@ -10,6 +10,7 @@ from ...models import Device, Sequence, SequenceGroup, SequenceRun, SequenceStep
 from ...forms import SequenceForm, SequenceGroupForm, SequenceStepForm
 from ...device_actions import DeviceActionRegistry
 from ...device.services.sequence_service import SequenceService
+from ...device.services.device_service import DeviceService
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
@@ -361,6 +362,39 @@ def sequence_step_create(request, sequence_id:int):
     if request.method == 'POST':
         form = SequenceStepForm(request.POST)
         if form.is_valid():
+            device = form.cleaned_data["device"]
+            function = str(request.POST.get("function") or "").strip()
+            action = next(
+                (
+                    item
+                    for item in DeviceActionRegistry.get_actions(device.device_type)
+                    if item.code == function
+                ),
+                None,
+            )
+            if action is None:
+                messages.error(request, "선택한 기기에서 지원하지 않는 동작입니다.")
+                return redirect("iotcore:sequence_edit", sequence.id)
+
+            parameter = None
+            if action.parameter_key:
+                raw_value = request.POST.get("parameter_value")
+                if device.device_type == "electric_fan":
+                    command, error = DeviceService.prepare_electric_fan_command(
+                        function,
+                        raw_value,
+                    )
+                    if error:
+                        messages.error(request, error)
+                        return redirect("iotcore:sequence_edit", sequence.id)
+                    normalized_value = command[1]
+                else:
+                    if raw_value in (None, ""):
+                        messages.error(request, "동작에 필요한 설정 값을 입력하세요.")
+                        return redirect("iotcore:sequence_edit", sequence.id)
+                    normalized_value = raw_value
+                parameter = {action.parameter_key: normalized_value}
+
             # --------------------------
             # 마지막 order 계산
             # --------------------------
@@ -377,7 +411,8 @@ def sequence_step_create(request, sequence_id:int):
             step = form.save(commit=False)
             step.sequence = sequence
             step.order = last_order + 1
-            step.function = request.POST.get('function')
+            step.function = function
+            step.parameter = parameter
             step.full_clean()
             step.save()
             # --------------------------
@@ -408,9 +443,13 @@ def sequence_edit(request, sequence_id:int):
             step.function,
         )
     step_form = SequenceStepForm()
-    devices = Device.objects.filter(
-        device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
-    ).order_by("name")
+    devices = (
+        Device.objects.filter(
+            device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
+        )
+        .filter(~Q(device_type="electric_fan") | Q(protocol=Device.Protocol.TUYA))
+        .order_by("name")
+    )
     device_actions = {}
     for device_type in devices.values_list("device_type", flat=True).distinct():
         actions = DeviceActionRegistry.get_actions(device_type)
@@ -418,6 +457,7 @@ def sequence_edit(request, sequence_id:int):
             {
                 "code": action.code,
                 "display_name": action.display_name,
+                "parameter_key": action.parameter_key,
             }
             for action in actions
         ]

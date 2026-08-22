@@ -1,7 +1,9 @@
 import json
+import math
 
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from .models import (
@@ -107,9 +109,13 @@ class SequenceStepForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.fields["device"].queryset = Device.objects.filter(
-            device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
-        ).order_by("location", "name", "id")
+        self.fields["device"].queryset = (
+            Device.objects.filter(
+                device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
+            )
+            .filter(~Q(device_type="electric_fan") | Q(protocol=Device.Protocol.TUYA))
+            .order_by("location", "name", "id")
+        )
 
         delay = self.instance.delay if self.instance.pk else 0
 
@@ -192,7 +198,10 @@ class AutomationActionForm(forms.ModelForm):
         required=False,
         label="동작 파라미터(JSON)",
         widget=forms.Textarea(attrs={"rows": 3}),
-        help_text='예: {"temperature": 24} 또는 {"volume": 35}',
+        help_text=(
+            '예: {"temperature": 24}, {"speed": 50}, '
+            '또는 {"horizontal_angle": "60"}'
+        ),
     )
 
     class Meta:
@@ -226,9 +235,13 @@ class AutomationActionForm(forms.ModelForm):
                 if action.code not in seen:
                     choices.append((action.code, action.display_name))
                     seen.add(action.code)
-        self.fields["device"].queryset = Device.objects.filter(
-            device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
-        ).order_by("location", "name", "id")
+        self.fields["device"].queryset = (
+            Device.objects.filter(
+                device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
+            )
+            .filter(~Q(device_type="electric_fan") | Q(protocol=Device.Protocol.TUYA))
+            .order_by("location", "name", "id")
+        )
         self.fields["function"].widget.choices = choices
         if self.instance.pk and self.instance.parameter is not None:
             self.fields["parameter_json"].initial = json.dumps(
@@ -263,11 +276,54 @@ class AutomationActionForm(forms.ModelForm):
                     )
             cleaned["sequence"] = None
             parameter = None
+            parameter_json_valid = True
             if raw_parameter:
                 try:
                     parameter = json.loads(raw_parameter)
                 except json.JSONDecodeError:
+                    parameter_json_valid = False
                     self.add_error("parameter_json", "올바른 JSON 형식으로 입력하세요.")
+
+            if (
+                parameter_json_valid
+                and device is not None
+                and device.device_type == "electric_fan"
+                and function
+            ):
+                from .device.services.device_service import DeviceService
+                from .device_actions import DeviceActionRegistry
+
+                fan_action = next(
+                    (
+                        action
+                        for action in DeviceActionRegistry.get_actions("electric_fan")
+                        if action.code == function
+                    ),
+                    None,
+                )
+                if fan_action is not None:
+                    fan_value = None
+                    if fan_action.parameter_key:
+                        if not isinstance(parameter, dict):
+                            self.add_error(
+                                "parameter_json",
+                                "선풍기 동작에 필요한 설정 값을 JSON 객체로 입력하세요.",
+                            )
+                        else:
+                            fan_value = parameter.get(fan_action.parameter_key)
+
+                    command, error = DeviceService.prepare_electric_fan_command(
+                        function,
+                        fan_value,
+                    )
+                    if error and not self.errors.get("parameter_json"):
+                        self.add_error("parameter_json", error)
+                    elif not error:
+                        parameter = (
+                            {fan_action.parameter_key: command[1]}
+                            if fan_action.parameter_key
+                            else None
+                        )
             cleaned["parameter"] = parameter
         elif action_type == AutomationAction.ActionType.SEQUENCE:
             if sequence is None:
@@ -405,6 +461,22 @@ class AutomationTriggerForm(forms.ModelForm):
                 if device is not None:
                     self.fields["state_device"].initial = device.pk
 
+    def has_changed(self):
+        """Count a newly submitted set even when it uses every default value."""
+        if super().has_changed():
+            return True
+        if not self.is_bound:
+            return False
+        return any(
+            self.add_prefix(field_name) in self.data
+            for field_name in (
+                "set_key",
+                "enabled",
+                "condition_operator",
+                "trigger_type",
+            )
+        )
+
     def clean(self):
         cleaned = super().clean()
         trigger_type = cleaned.get("trigger_type")
@@ -534,6 +606,19 @@ class AutomationConditionForm(forms.ModelForm):
         ("changed", "값이 변경됨"), ("changed_to", "지정한 값으로 변경됨"),
     ]
     MQTT_OPERATOR_CHOICES = [("received", "메시지를 수신함")] + OPERATOR_CHOICES
+    WEATHER_OPERATOR_CHOICES = [
+        ("lt", "보다 낮음 (<)"),
+        ("lte", "이하 (≤)"),
+        ("gt", "보다 높음 (>)"),
+        ("gte", "이상 (≥)"),
+        ("eq", "같음 (=)"),
+        ("ne", "다름 (≠)"),
+    ]
+    WEATHER_METRIC_CHOICES = [
+        ("temperature", "현재 기온 (°C)"),
+        ("humidity", "현재 습도 (%)"),
+        ("precipitation_probability", "강수 확률 (%)"),
+    ]
     WEEKDAY_CHOICES = AutomationTriggerForm.WEEKDAY_CHOICES
     INTERVAL_UNIT_CHOICES = AutomationTriggerForm.INTERVAL_UNIT_CHOICES
     TIME_SCHEDULE_CHOICES = AutomationTriggerForm.TIME_SCHEDULE_CHOICES
@@ -571,6 +656,25 @@ class AutomationConditionForm(forms.ModelForm):
     mqtt_operator = forms.ChoiceField(required=False, label="비교 기준", choices=MQTT_OPERATOR_CHOICES, initial="received")
     mqtt_value = forms.CharField(required=False, label="비교 값", help_text="true, false, 숫자는 JSON 값으로 해석됩니다.")
 
+    weather_metric = forms.ChoiceField(
+        required=False,
+        label="날씨 항목",
+        choices=WEATHER_METRIC_CHOICES,
+        initial="temperature",
+    )
+    weather_operator = forms.ChoiceField(
+        required=False,
+        label="비교 기준",
+        choices=WEATHER_OPERATOR_CHOICES,
+        initial="lt",
+    )
+    weather_value = forms.FloatField(
+        required=False,
+        label="설정 값",
+        widget=forms.NumberInput(attrs={"step": "any"}),
+        help_text="기온은 °C, 습도와 강수 확률은 % 단위로 입력합니다.",
+    )
+
     # Legacy event-value widgets remain parseable but are not offered for new
     # sets.  0020 migrates normal MQTT-backed rows to MQTT_EVENT.
     event_field = forms.CharField(required=False, label="데이터 필드", initial="value")
@@ -581,6 +685,7 @@ class AutomationConditionForm(forms.ModelForm):
         (AutomationCondition.ConditionType.SCHEDULE, "예약 시간"),
         (AutomationCondition.ConditionType.DEVICE_STATE, "기기 상태"),
         (AutomationCondition.ConditionType.MQTT_EVENT, "MQTT 이벤트"),
+        (AutomationCondition.ConditionType.WEATHER, "현재 날씨"),
     ]
     condition_type = forms.ChoiceField(
         required=False,
@@ -661,6 +766,10 @@ class AutomationConditionForm(forms.ModelForm):
             self.fields["mqtt_field"].initial = config.get("field") or "value"
             self.fields["mqtt_operator"].initial = config.get("operator") or "received"
             self.fields["mqtt_value"].initial = self._format_initial_value(config.get("value"))
+        elif condition_type == AutomationCondition.ConditionType.WEATHER:
+            self.fields["weather_metric"].initial = config.get("metric") or "temperature"
+            self.fields["weather_operator"].initial = config.get("operator") or "lt"
+            self.fields["weather_value"].initial = config.get("value")
         elif condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
             self.fields["event_field"].initial = config.get("field")
             self.fields["event_operator"].initial = config.get("operator")
@@ -794,6 +903,27 @@ class AutomationConditionForm(forms.ModelForm):
                     "field": field or "value",
                     "operator": operator,
                     "value": None if operator in {"received", "changed"} else self._parse_value(raw_value),
+                }
+
+        elif condition_type == AutomationCondition.ConditionType.WEATHER:
+            metric = cleaned.get("weather_metric")
+            operator = cleaned.get("weather_operator")
+            value = cleaned.get("weather_value")
+            if not metric:
+                self.add_error("weather_metric", "날씨 항목을 선택하세요.")
+            if not operator:
+                self.add_error("weather_operator", "비교 기준을 선택하세요.")
+            if value is None:
+                self.add_error("weather_value", "설정 값을 입력하세요.")
+            elif not math.isfinite(value):
+                self.add_error("weather_value", "유한한 숫자를 입력하세요.")
+            elif metric in {"humidity", "precipitation_probability"} and not 0 <= value <= 100:
+                self.add_error("weather_value", "습도와 강수 확률은 0부터 100 사이로 입력하세요.")
+            if metric and operator and value is not None and math.isfinite(value):
+                cleaned["config"] = {
+                    "metric": metric,
+                    "operator": operator,
+                    "value": float(value),
                 }
 
         elif condition_type == AutomationCondition.ConditionType.EVENT_VALUE:

@@ -123,6 +123,14 @@
             width: auto; /* 버튼 너비를 내용에 맞춤 */
         }
 
+        .fan-control-label {
+            display: block;
+            margin-top: 12px;
+            color: #00FFC8;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
     
 
         /* ✅ 섹션(PC/방 제어) 2개를 가로로 배치 */
@@ -680,22 +688,40 @@
                                 <button onclick="sendAction('/iotcore/aircon/mode_fan/', event)">송풍 모드</button>
                             </div>
                         </div>
-                    {% elif controller.device.device_type == "electric_fan" %}
-                        <div class="card"
+                    {% endif %}
+                {% endfor %}
+                {% for device in devices %}
+                    {% if device.device_type == "electric_fan" and device.protocol == "tuya" %}
+                        <div class="card electric-fan-card"
                              onclick="toggleDropdown(this)"
-                             data-device-id="{{ controller.device.id }}"
-                             data-device-type="{{ controller.device.device_type }}"
-                             data-location="{{ controller.location }}">
-                            선풍기 제어 [사용 안함]
+                             data-device-id="{{ device.id }}"
+                             data-device-type="{{ device.device_type }}"
+                             data-control-url="{% url 'iotcore:electricfan_control' %}">
+                            선풍기 제어
                             <div class="dropdown-content" onclick="event.stopPropagation()">
-                                <!-- <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">풍량 올리기</button>
-                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">전원 끄기</button>
-                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">풍향 바꾸기</button>
-                                <button type="button" onclick="event.preventDefault(); event.stopPropagation(); showToast('선풍기 제어는 아직 URL/뷰가 준비되지 않았습니다.'); return false;">타이머 30분 추가</button> -->
-                                <button onclick="sendAction('/iotcore/electric_fan/power_cycle/', event)">풍량 올리기</button>
-                                <button onclick="sendAction('/iotcore/electric_fan/stop/', event)">전원 끄기</button>
-                                <button onclick="sendAction('/iotcore/electric_fan/fan_way_toggle/', event)">풍향 바꾸기</button>
-                                <button onclick="sendAction('/iotcore/electric_fan/timer_add_30m/', event)">타이머 30분 추가</button>
+                                <span class="fan-control-label">{{ device.name }}</span>
+                                <button onclick="sendFanAction(event, 'power_on')">전원 켜기</button>
+                                <button onclick="sendFanAction(event, 'power_off')">전원 끄기</button>
+                                <hr>
+                                <div class="temp-setting-row">
+                                    <span class="temp-label">풍속</span>
+                                    <input type="number" class="fan-speed" min="1" max="100" step="1" placeholder="1–100">
+                                    <button onclick="sendFanSpeedAction(event)">설정</button>
+                                </div>
+                                <hr>
+                                <span class="fan-control-label">상하 회전</span>
+                                <button onclick="sendFanAction(event, 'vertical_swing_on')">상하 회전 켜기</button>
+                                <button onclick="sendFanAction(event, 'vertical_swing_off')">상하 회전 끄기</button>
+                                <span class="fan-control-label">좌우 회전</span>
+                                <button onclick="sendFanAction(event, 'horizontal_swing_on')">좌우 회전 켜기</button>
+                                <button onclick="sendFanAction(event, 'horizontal_swing_off')">좌우 회전 끄기</button>
+                                <span class="fan-control-label">좌우 회전 각도</span>
+                                <button onclick="sendFanAction(event, 'set_horizontal_angle', '30')">30°</button>
+                                <button onclick="sendFanAction(event, 'set_horizontal_angle', '60')">60°</button>
+                                <button onclick="sendFanAction(event, 'set_horizontal_angle', '90')">90°</button>
+                                <span class="fan-control-label">버튼음</span>
+                                <button onclick="sendFanAction(event, 'beep_on')">버튼음 켜기</button>
+                                <button onclick="sendFanAction(event, 'beep_off')">버튼음 끄기</button>
                             </div>
                         </div>
                     {% endif %}
@@ -985,6 +1011,63 @@
         .catch(err => showToast('요청 실패: ' + err.message));
 
         return false;
+    }
+
+    const allowedFanActions = new Set([
+        'power_on',
+        'power_off',
+        'set_speed',
+        'vertical_swing_on',
+        'vertical_swing_off',
+        'horizontal_swing_on',
+        'horizontal_swing_off',
+        'set_horizontal_angle',
+        'beep_on',
+        'beep_off',
+    ]);
+
+    function sendFanAction(event, action, fanValue = null) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!allowedFanActions.has(action)) {
+            showToast('지원하지 않는 선풍기 동작입니다.');
+            return false;
+        }
+
+        const card = event.target.closest('.electric-fan-card');
+        const deviceId = card ? card.dataset.deviceId : null;
+        const controlUrl = card ? card.dataset.controlUrl : null;
+        if (!deviceId || !controlUrl) {
+            showToast('선풍기 제어 정보를 찾지 못했습니다.');
+            return false;
+        }
+
+        const params = new URLSearchParams({
+            device_id: deviceId,
+            action: action,
+        });
+        if (fanValue !== null) {
+            params.set('fan_value', String(fanValue));
+        }
+
+        window.IOTCORE_POST_FORM(controlUrl, params)
+        .then(data => showToast(data.message || '선풍기 제어를 완료했습니다.'))
+        .catch(err => showToast('선풍기 제어 실패: ' + err.message));
+        return false;
+    }
+
+    function sendFanSpeedAction(event) {
+        const card = event.target.closest('.electric-fan-card');
+        const input = card ? card.querySelector('.fan-speed') : null;
+        const speed = input ? input.valueAsNumber : NaN;
+        if (!Number.isInteger(speed) || speed < 1 || speed > 100) {
+            event.preventDefault();
+            event.stopPropagation();
+            showToast('풍속은 1부터 100 사이의 정수로 입력하세요.');
+            return false;
+        }
+        return sendFanAction(event, 'set_speed', speed);
     }
 
     // ✅ 온도 설정

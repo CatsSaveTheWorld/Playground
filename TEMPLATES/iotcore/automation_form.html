@@ -72,6 +72,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
     .automation-form-content .trigger-set, .automation-form-content .field,
     .automation-form-content .condition-schedule, .automation-form-content .condition-window-fields,
     .automation-form-content .condition-state, .automation-form-content .condition-mqtt,
+    .automation-form-content .condition-weather,
     .automation-form-content .device-action-fields, .automation-form-content .sequence-action-fields {
         min-width: 0; max-width: 100%;
     }
@@ -159,7 +160,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                                     <button type="button" class="button remove-button" onclick="removeCondition(this)">삭제</button>
                                 </div>
                                 {{ cf.non_field_errors }}
-                                <div class="field"><label>{{ cf.condition_type.label }}</label>{{ cf.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트는 세트를 깨웁니다. 예약 시간의 시간대 방식은 다른 조건이 변할 때 함께 검사되는 허용 시간 조건입니다.</span>{{ cf.condition_type.errors }}</div>
+                                <div class="field"><label>{{ cf.condition_type.label }}</label>{{ cf.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트·현재 날씨는 세트를 깨웁니다. 예약 시간의 시간대 방식은 다른 조건이 변할 때 함께 검사되는 허용 시간 조건입니다.</span>{{ cf.condition_type.errors }}</div>
 
                                 <div class="condition-schedule">
                                     <div class="field"><label>{{ cf.schedule_type.label }}</label>{{ cf.schedule_type }}{{ cf.schedule_type.errors }}</div>
@@ -192,6 +193,12 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                                     <div class="field mqtt-field"><label>{{ cf.mqtt_field.label }}</label>{{ cf.mqtt_field }}<span class="helptext">{{ cf.mqtt_field.help_text }}</span>{{ cf.mqtt_field.errors }}</div>
                                     <div class="field"><label>{{ cf.mqtt_operator.label }}</label>{{ cf.mqtt_operator }}{{ cf.mqtt_operator.errors }}</div>
                                     <div class="field condition-value"><label>{{ cf.mqtt_value.label }}</label>{{ cf.mqtt_value }}<span class="helptext">{{ cf.mqtt_value.help_text }}</span>{{ cf.mqtt_value.errors }}</div>
+                                </div>
+
+                                <div class="condition-weather">
+                                    <div class="field"><label>{{ cf.weather_metric.label }}</label>{{ cf.weather_metric }}{{ cf.weather_metric.errors }}</div>
+                                    <div class="field"><label>{{ cf.weather_operator.label }}</label>{{ cf.weather_operator }}{{ cf.weather_operator.errors }}</div>
+                                    <div class="field"><label>{{ cf.weather_value.label }}</label>{{ cf.weather_value }}<span class="helptext">{{ cf.weather_value.help_text }} 대시보드와 동일하게 송탄 자료를 우선 사용하고, 없으면 평택 자료를 사용합니다. 날씨는 30분마다 다시 평가됩니다.</span>{{ cf.weather_value.errors }}</div>
                                 </div>
 
                                 <div class="condition-event">
@@ -297,7 +304,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                 <strong>새 실행 조건</strong>
                 <button type="button" class="button remove-button" onclick="removeCondition(this)">삭제</button>
             </div>
-            <div class="field"><label>{{ condition_formset.empty_form.condition_type.label }}</label>{{ condition_formset.empty_form.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트는 세트를 깨웁니다. 시간대는 예약 시간 안에서 설정하는 허용 시간 조건입니다.</span></div>
+            <div class="field"><label>{{ condition_formset.empty_form.condition_type.label }}</label>{{ condition_formset.empty_form.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트·현재 날씨는 세트를 깨웁니다. 시간대는 예약 시간 안에서 설정하는 허용 시간 조건입니다.</span></div>
             <div class="condition-schedule">
                 <div class="field"><label>{{ condition_formset.empty_form.schedule_type.label }}</label>{{ condition_formset.empty_form.schedule_type }}</div>
                 <div class="field schedule-once"><label>{{ condition_formset.empty_form.run_at.label }}</label>{{ condition_formset.empty_form.run_at }}</div>
@@ -326,6 +333,11 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                 <div class="field mqtt-field"><label>{{ condition_formset.empty_form.mqtt_field.label }}</label>{{ condition_formset.empty_form.mqtt_field }}<span class="helptext">{{ condition_formset.empty_form.mqtt_field.help_text }}</span></div>
                 <div class="field"><label>{{ condition_formset.empty_form.mqtt_operator.label }}</label>{{ condition_formset.empty_form.mqtt_operator }}</div>
                 <div class="field condition-value"><label>{{ condition_formset.empty_form.mqtt_value.label }}</label>{{ condition_formset.empty_form.mqtt_value }}<span class="helptext">{{ condition_formset.empty_form.mqtt_value.help_text }}</span></div>
+            </div>
+            <div class="condition-weather">
+                <div class="field"><label>{{ condition_formset.empty_form.weather_metric.label }}</label>{{ condition_formset.empty_form.weather_metric }}</div>
+                <div class="field"><label>{{ condition_formset.empty_form.weather_operator.label }}</label>{{ condition_formset.empty_form.weather_operator }}</div>
+                <div class="field"><label>{{ condition_formset.empty_form.weather_value.label }}</label>{{ condition_formset.empty_form.weather_value }}<span class="helptext">{{ condition_formset.empty_form.weather_value.help_text }} 대시보드와 동일하게 송탄 자료를 우선 사용하고, 없으면 평택 자료를 사용합니다. 날씨는 30분마다 다시 평가됩니다.</span></div>
             </div>
             <div class="condition-event">
                 <div class="field"><label>{{ condition_formset.empty_form.event_field.label }}</label>{{ condition_formset.empty_form.event_field }}</div>
@@ -358,10 +370,12 @@ function updateCondition(card) {
     const time = card.querySelector('.condition-window-fields');
     const state = card.querySelector('.condition-state');
     const mqtt = card.querySelector('.condition-mqtt');
+    const weather = card.querySelector('.condition-weather');
     const event = card.querySelector('.condition-event');
     if (schedule) schedule.style.display = type === 'schedule' ? 'block' : 'none';
     if (state) state.style.display = type === 'device_state' ? 'block' : 'none';
     if (mqtt) mqtt.style.display = type === 'mqtt_event' ? 'block' : 'none';
+    if (weather) weather.style.display = type === 'weather' ? 'block' : 'none';
     if (event) event.style.display = type === 'event_value' ? 'block' : 'none';
 
     const scheduleType = card.querySelector('select[name$="-schedule_type"]')?.value;
@@ -414,6 +428,27 @@ function refreshFunctionChoices(card) {
         if (action.code === selectedFunction) option.selected = true;
         functionSelect.appendChild(option);
     });
+    refreshActionParameterHelp(card);
+}
+
+function refreshActionParameterHelp(card) {
+    const deviceSelect = card.querySelector('select[name^="actions-"][name$="-device"]');
+    const functionSelect = card.querySelector('select[name^="actions-"][name$="-function"]');
+    const parameterField = card.querySelector('textarea[name^="actions-"][name$="-parameter_json"]');
+    if (!deviceSelect || !functionSelect || !parameterField) return;
+    const actions = actionRegistry[deviceTypes[deviceSelect.value]] || [];
+    const action = actions.find(item => item.code === functionSelect.value);
+    const help = parameterField.closest('.field')?.querySelector('.helptext');
+    parameterField.placeholder = '';
+    if (action?.parameter_key === 'speed') {
+        parameterField.placeholder = '{"speed": 50}';
+        if (help) help.textContent = '풍속은 1부터 100 사이의 정수로 입력합니다. 예: {"speed": 50}';
+    } else if (action?.parameter_key === 'horizontal_angle') {
+        parameterField.placeholder = '{"horizontal_angle": "60"}';
+        if (help) help.textContent = '좌우 회전 각도는 문자열 "30", "60", "90"만 사용합니다.';
+    } else if (help) {
+        help.textContent = '설정 값이 필요한 동작만 JSON으로 입력합니다.';
+    }
 }
 
 function updateAction(card) {
@@ -434,6 +469,7 @@ function bindCondition(card) {
 function bindAction(card) {
     card.querySelectorAll('select[name^="actions-"][name$="-action_type"]').forEach(select => select.addEventListener('change', () => updateAction(card)));
     card.querySelectorAll('select[name^="actions-"][name$="-device"]').forEach(select => select.addEventListener('change', () => refreshFunctionChoices(card)));
+    card.querySelectorAll('select[name^="actions-"][name$="-function"]').forEach(select => select.addEventListener('change', () => refreshActionParameterHelp(card)));
     updateAction(card);
 }
 
