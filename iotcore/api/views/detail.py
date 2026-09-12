@@ -1,7 +1,9 @@
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import render
 
 from ...device.repositories.device_repository import DeviceRepository
+from ...device.services.reachability_service import DeviceReachabilityService
 from ...infrastructure.music_assistant.client import MusicAssistantClient
 from ...models import Controller, Device
 
@@ -102,3 +104,31 @@ def device_control(request):
 
 # Legacy import compatibility. New code should use device_control.
 detail_list = device_control
+
+
+@login_required(login_url="common:login")
+def device_status(request):
+    """Return fresh LAN reachability for Device Control status badges."""
+    raw_ids = (request.GET.get("ids") or "").strip()
+    device_ids = []
+    if raw_ids:
+        for value in raw_ids.split(","):
+            try:
+                device_ids.append(int(value))
+            except (TypeError, ValueError):
+                continue
+
+    queryset = (
+        DeviceRepository.get_controllable()
+        .select_related("controller")
+        .order_by("id")
+    )
+    if device_ids:
+        queryset = queryset.filter(id__in=device_ids)
+
+    devices = list(queryset)
+    statuses = DeviceReachabilityService.check_many(devices)
+    return JsonResponse({
+        "devices": statuses,
+        "poll_interval_ms": 10000,
+    })

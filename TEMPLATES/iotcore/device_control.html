@@ -180,6 +180,65 @@
     cursor: default;
 }
 
+
+.device-card__status {
+    position: absolute;
+    top: 13px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    min-height: 18px;
+    pointer-events: none;
+}
+
+.device-status-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--iot-muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.device-status-line__label {
+    color: #8c9aa8;
+    font-size: 9px;
+    letter-spacing: .07em;
+}
+
+.device-status-line__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #66727d;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.05);
+}
+
+.device-status-line.is-online { color: var(--iot-accent); }
+.device-status-line.is-online .device-status-line__dot {
+    background: var(--iot-accent);
+    box-shadow: 0 0 8px rgba(0, 255, 200, .32);
+}
+.device-status-line.is-offline { color: #aab2bb; }
+.device-status-line.is-offline .device-status-line__dot { background: #66727d; }
+.device-status-line.is-checking { color: #7d8b98; }
+
+.device-control-content .device-card,
+.device-control-content .device-card--link,
+.device-control-content .speaker-card {
+    position: relative;
+}
+
+.device-control-content .device-card__summary,
+.device-control-content .device-card--link {
+    padding-right: 88px;
+}
+
 /* Inline device action dropdowns */
 .dropdown-content {
     display: none;
@@ -578,6 +637,7 @@
              data-device-id="{{ device.id }}"
              data-device-type="{{ device.device_type }}">
           <div class="device-card__summary">
+            <span class="device-card__status" data-device-status="{{ device.id }}" aria-live="polite"></span>
             <span class="device-card__eyebrow">PC</span>
             <strong class="device-card__name">{{ device.name }}</strong>
             <span class="device-card__meta">{{ device.location }} · {{ device.get_protocol_display }}</span>
@@ -607,6 +667,7 @@
              data-device-type="{{ controller.device.device_type }}"
              data-location="{{ controller.location }}">
           <div class="device-card__summary">
+            <span class="device-card__status" data-device-status="{{ controller.device.id }}" aria-live="polite"></span>
             <span class="device-card__eyebrow">AIR CONDITIONER</span>
             <strong class="device-card__name">{{ controller.device.name }}</strong>
             <span class="device-card__meta">{{ controller.device.location }} · {{ controller.device.get_protocol_display }}</span>
@@ -636,6 +697,7 @@
              data-device-type="{{ device.device_type }}"
              data-control-url="{% url 'iotcore:electricfan_control' %}">
           <div class="device-card__summary">
+            <span class="device-card__status" data-device-status="{{ device.id }}" aria-live="polite"></span>
             <span class="device-card__eyebrow">FAN</span>
             <strong class="device-card__name">{{ device.name }}</strong>
             <span class="device-card__meta">{{ device.location }} · {{ device.get_protocol_display }}</span>
@@ -683,6 +745,7 @@
              data-device-id="{{ device.id }}"
              data-device-type="{{ device.device_type }}">
           <div class="device-card__summary">
+            <span class="device-card__status" data-device-status="{{ device.id }}" aria-live="polite"></span>
             <span class="device-card__eyebrow">LIGHT</span>
             <strong class="device-card__name">{{ device.name }}</strong>
             <span class="device-card__meta">{{ device.location }} · {{ device.get_protocol_display }}</span>
@@ -706,7 +769,9 @@
     <div class="device-card-grid">
       {% for device in projector_devices %}
         <a class="card device-card device-card--link projector-launch-card"
-           href="{% url 'iotcore:projector_control' device.id %}">
+           href="{% url 'iotcore:projector_control' device.id %}"
+           data-device-id="{{ device.id }}">
+          <span class="device-card__status" data-device-status="{{ device.id }}" aria-live="polite"></span>
           <span class="device-card__eyebrow">PROJECTOR</span>
           <strong class="device-card__name">{{ device.name }}</strong>
           <span class="device-card__meta">{{ device.location }} · {{ device.get_protocol_display }}</span>
@@ -715,7 +780,9 @@
 
       {% for device in media_server_devices %}
         <a class="card device-card device-card--link media-server-launch-card"
-           href="{% url 'iotcore:media_server_control' device.id %}">
+           href="{% url 'iotcore:media_server_control' device.id %}"
+           data-device-id="{{ device.id }}">
+          <span class="device-card__status" data-device-status="{{ device.id }}" aria-live="polite"></span>
           <span class="device-card__eyebrow">MEDIA SERVER</span>
           <strong class="device-card__name">{{ device.name }}</strong>
           <span class="device-card__meta">{{ device.location }} · {{ device.get_protocol_display }}</span>
@@ -733,6 +800,7 @@
             aria-expanded="false"
             onclick="toggleDropdown(this.closest('.speaker-card'))">
           <span class="media-control-panel__identity">
+            <span class="device-card__status" data-device-status="{{ device.id }}" aria-live="polite"></span>
             <span class="device-card__eyebrow">SPEAKER</span>
             <strong class="speaker-card-title">음악 제어</strong>
           </span>
@@ -806,7 +874,8 @@
     </div>
     <div class="device-card-grid">
       {% for device in other_devices %}
-        <div class="card device-card device-card--static">
+        <div class="card device-card device-card--static" data-device-id="{{ device.id }}">
+          <span class="device-card__status" data-device-status="{{ device.id }}" aria-live="polite"></span>
           <span class="device-card__eyebrow">{{ device.device_type|upper }}</span>
           <strong class="device-card__name">{{ device.name }}</strong>
           <span class="device-card__meta">{{ device.location }} · {{ device.get_protocol_display }}</span>
@@ -843,6 +912,71 @@
 
 {% block extra_js %}
 <script>
+
+
+    const DEVICE_STATUS_URL = "{% url 'iotcore:device_status' %}";
+    let deviceStatusTimer = null;
+
+    function renderDeviceStatusLine(label, status) {
+        if (!status) return '';
+        const cls = status.online ? 'is-online' : 'is-offline';
+        const text = status.online ? 'ONLINE' : 'OFFLINE';
+        const labelHtml = label ? `<span class="device-status-line__label">${label}</span>` : '';
+        return `<span class="device-status-line ${cls}">${labelHtml}<span class="device-status-line__dot" aria-hidden="true"></span><span>${text}</span></span>`;
+    }
+
+    function renderDeviceStatus(deviceId, status) {
+        const target = document.querySelector(`[data-device-status="${deviceId}"]`);
+        if (!target) return;
+        if (!status || (!status.device && !status.controller)) {
+            target.innerHTML = '';
+            target.removeAttribute('title');
+            return;
+        }
+
+        const hasDevice = Boolean(status.device);
+        const hasController = Boolean(status.controller);
+        if (hasDevice && hasController) {
+            target.innerHTML =
+                renderDeviceStatusLine('DEVICE', status.device) +
+                renderDeviceStatusLine('CTRL', status.controller);
+        } else if (hasController) {
+            target.innerHTML = renderDeviceStatusLine('CTRL', status.controller);
+        } else {
+            target.innerHTML = renderDeviceStatusLine('', status.device);
+        }
+
+        const detail = [];
+        if (status.device) detail.push(`Device: ${status.device.host}`);
+        if (status.controller) detail.push(`Controller: ${status.controller.host}`);
+        target.title = detail.join(' · ');
+    }
+
+    async function refreshDeviceStatuses() {
+        const targets = Array.from(document.querySelectorAll('[data-device-status]'));
+        const ids = [...new Set(targets.map(el => el.dataset.deviceStatus).filter(Boolean))];
+        if (!ids.length) return;
+
+        try {
+            const response = await fetch(`${DEVICE_STATUS_URL}?ids=${encodeURIComponent(ids.join(','))}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                cache: 'no-store'
+            });
+            if (!response.ok) return;
+            const payload = await response.json();
+            Object.entries(payload.devices || {}).forEach(([deviceId, status]) => {
+                renderDeviceStatus(deviceId, status);
+            });
+            const interval = Math.max(5000, Number(payload.poll_interval_ms || 10000));
+            window.clearTimeout(deviceStatusTimer);
+            deviceStatusTimer = window.setTimeout(refreshDeviceStatuses, interval);
+        } catch (error) {
+            window.clearTimeout(deviceStatusTimer);
+            deviceStatusTimer = window.setTimeout(refreshDeviceStatuses, 15000);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', refreshDeviceStatuses);
 
     function showToast(message) {
         const toast = document.getElementById('toast');

@@ -39,6 +39,7 @@ urlpatterns = [
         name="dashboard_node_metrics",
     ),
     path("devices/", detail.device_control, name="device_control"),
+    path("devices/status/", detail.device_status, name="device_status"),
     path(
         "devices/projector/<int:device_id>/",
         projector.projector_control,
