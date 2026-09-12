@@ -4,13 +4,7 @@ from django.apps import apps
 from django.test import TestCase
 
 from .device.repositories.device_repository import DeviceRepository
-from .forms import (
-    AutomationActionForm,
-    AutomationConditionForm,
-    AutomationTriggerForm,
-    DeviceForm,
-    SequenceStepForm,
-)
+from .forms import ActionForm, DeviceForm, TriggerForm
 from .models import Device
 
 
@@ -53,33 +47,16 @@ class DeviceRoleTests(TestCase):
         self.assertIn(self.sensor.id, ids)
         self.assertIn(self.hybrid.id, ids)
 
-    def test_trigger_and_condition_can_select_sensor(self):
+    def test_trigger_can_select_sensor(self):
         trigger_ids = set(
-            AutomationTriggerForm().fields["state_device"].queryset.values_list(
-                "id", flat=True
-            )
-        )
-        condition_ids = set(
-            AutomationConditionForm().fields["state_device"].queryset.values_list(
-                "id", flat=True
-            )
+            TriggerForm().fields["state_device"].queryset.values_list("id", flat=True)
         )
         self.assertIn(self.sensor.id, trigger_ids)
-        self.assertIn(self.sensor.id, condition_ids)
+        self.assertIn(self.hybrid.id, trigger_ids)
 
-    def test_action_and_sequence_forms_hide_sensor(self):
-        action_ids = set(
-            AutomationActionForm().fields["device"].queryset.values_list(
-                "id", flat=True
-            )
-        )
-        sequence_ids = set(
-            SequenceStepForm().fields["device"].queryset.values_list(
-                "id", flat=True
-            )
-        )
+    def test_action_form_hides_sensor(self):
+        action_ids = set(ActionForm().fields["device"].queryset.values_list("id", flat=True))
         self.assertNotIn(self.sensor.id, action_ids)
-        self.assertNotIn(self.sensor.id, sequence_ids)
         self.assertIn(self.control.id, action_ids)
         self.assertIn(self.hybrid.id, action_ids)
 

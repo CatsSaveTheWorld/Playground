@@ -1,12 +1,12 @@
 {% extends "iotcore/base_iotcore.html" %}
-{% block title %}{% if is_update %}시퀀스 설정{% else %}새 시퀀스{% endif %}{% endblock %}
+{% block title %}{% if is_update %}즉시 실행 설정{% else %}새 즉시 실행{% endif %}{% endblock %}
 {% block content %}
 <div class="iot-page iot-form-shell">
     <header class="iot-page-header">
         <div>
-            <p class="iot-eyebrow">SEQUENCE SETTINGS</p>
-            <h1>{% if is_update %}시퀀스 설정{% else %}새 시퀀스{% endif %}</h1>
-            <p>시퀀스의 이름과 설명을 설정합니다. 세부 Step은 시퀀스 편집 화면에서 추가합니다.</p>
+            <p class="iot-eyebrow">AUTOMATION SETTINGS</p>
+            <h1>{% if is_update %}즉시 실행 설정{% else %}새 즉시 실행{% endif %}</h1>
+            <p>즉시 실행 항목의 이름과 설명을 설정합니다. 세부 Step은 자동화 편집 화면에서 추가합니다.</p>
         </div>
         <div class="iot-page-actions"><a class="iot-button" href="{% if sequence %}{% url 'iotcore:sequence_edit' sequence.id %}{% else %}{% url 'iotcore:sequence_list' %}{% endif %}">뒤로</a></div>
     </header>

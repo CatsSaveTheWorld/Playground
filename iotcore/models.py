@@ -47,6 +47,10 @@ class Device(models.Model):
     device_uid = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=100)
     location = models.CharField(max_length=100)
+    # Protocol-specific control metadata lives with the Device so higher layers
+    # (Automation, AI, web UI) only need a device_id and a canonical action.
+    # Examples for a PC: mac_address, ip_address, wol_port, agent_port/path.
+    control_config = models.JSONField(default=dict, blank=True)
 
     @property
     def is_controllable(self):
@@ -87,82 +91,9 @@ class Controller(models.Model):
         return f"{self.name} (MAC: {self.mac_address})"
     
 
-class SequenceGroup(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    order = models.PositiveIntegerField(default=0, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["order", "name", "id"]
-        verbose_name = "시퀀스 그룹"
-        verbose_name_plural = "시퀀스 그룹"
-
-    def __str__(self):
-        return self.name
-
-
-class Sequence(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    group = models.ForeignKey(
-        SequenceGroup,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="sequences",
-    )
-    is_favorite = models.BooleanField(default=False, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-    
-
-class SequenceStep(models.Model):
-    BEFORE = "before"
-    AFTER = "after"
-
-    DELAY_POSITION_CHOICES = [
-        (BEFORE, "동작 전"),
-        (AFTER, "동작 후"),
-    ]
-
-    sequence = models.ForeignKey(
-        Sequence,
-        on_delete=models.CASCADE,
-        related_name="steps"
-    )
-    order = models.PositiveIntegerField()
-    device = models.ForeignKey(
-        Device,
-        on_delete=models.CASCADE,
-    )
-    function = models.CharField(max_length=50)
-    parameter = models.JSONField(blank=True, null=True)
-
-    delay = models.PositiveIntegerField(default=0)  #  지연 시간 (초)
-    delay_position = models.CharField(
-        max_length=10,
-        choices=DELAY_POSITION_CHOICES,
-        default=AFTER,
-    )
-
-    class Meta:
-        ordering = ["order"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["sequence", "order"],
-                name="unique_sequence_order"
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.sequence} #{self.order}: {self.function}"
-
-
 class AutomationGroup(models.Model):
+    """Optional UI grouping shared by immediate and scheduled automations."""
+
     name = models.CharField(max_length=100, unique=True)
     order = models.PositiveIntegerField(default=0, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -170,15 +101,34 @@ class AutomationGroup(models.Model):
 
     class Meta:
         ordering = ["order", "name", "id"]
-        verbose_name = "예약 실행 그룹"
-        verbose_name_plural = "예약 실행 그룹"
+        verbose_name = "자동화 그룹"
+        verbose_name_plural = "자동화 그룹"
 
     def __str__(self):
         return self.name
 
 
 class Automation(models.Model):
+    """A user-facing routine.
+
+    Immediate and scheduled execution intentionally share the exact same Step /
+    Trigger / Action graph. ``automation_type`` is an explicit user choice that
+    selects whether the Automation belongs to the one-shot or monitored library;
+    Trigger composition never changes that choice automatically.
+    """
+
+    class Type(models.TextChoices):
+        IMMEDIATE = "immediate", "즉시 실행"
+        SCHEDULED = "scheduled", "예약 실행"
+
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    automation_type = models.CharField(
+        max_length=20,
+        choices=Type.choices,
+        default=Type.SCHEDULED,
+        db_index=True,
+    )
     group = models.ForeignKey(
         AutomationGroup,
         on_delete=models.SET_NULL,
@@ -194,35 +144,123 @@ class Automation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["name"]
-        verbose_name = "예약 실행"
-        verbose_name_plural = "예약 실행"
+        ordering = ["name", "id"]
+        verbose_name = "자동화"
+        verbose_name_plural = "자동화"
 
     def __str__(self):
         return self.name
 
 
+class Step(models.Model):
+    """One ordered unit inside an Automation.
 
+    A Step owns 0..N Triggers and 1..N Actions.  No Trigger means an
+    unconditional Step when the Automation is explicitly executed.  Scheduled
+    automations with no wake-up Trigger simply have nothing that starts them
+    automatically.
+    """
 
-class AutomationAction(models.Model):
-    class ActionType(models.TextChoices):
-        DEVICE = "device", "개별 기기 동작"
-        SEQUENCE = "sequence", "시퀀스 실행"
+    class TriggerOperator(models.TextChoices):
+        AND = "and", "모든 트리거 만족 (AND)"
+        OR = "or", "하나 이상 만족 (OR)"
 
     automation = models.ForeignKey(
         Automation,
         on_delete=models.CASCADE,
-        related_name="actions",
+        related_name="steps",
     )
-    trigger = models.ForeignKey(
-        "AutomationTrigger",
+    order = models.PositiveIntegerField()
+    trigger_operator = models.CharField(
+        max_length=3,
+        choices=TriggerOperator.choices,
+        default=TriggerOperator.AND,
+    )
+    enabled = models.BooleanField(default=True)
+
+    # Scheduler runtime state belongs to the Step because the Step is the
+    # independently evaluated execution set.
+    last_result = models.BooleanField(default=False)
+    next_run_at = models.DateTimeField(blank=True, null=True, db_index=True)
+    last_triggered_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["automation", "order"],
+                name="unique_automation_step_order",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.automation} Step #{self.order}"
+
+
+class Trigger(models.Model):
+    """A predicate/event definition that decides whether a Step may run."""
+
+    class Type(models.TextChoices):
+        SCHEDULE = "schedule", "날짜 / 시간"
+        DEVICE_STATE = "device_state", "기기 상태 / 변화"
+        MQTT_EVENT = "mqtt_event", "MQTT 이벤트"
+        WEATHER = "weather", "현재 날씨"
+
+    class ScheduleType(models.TextChoices):
+        ONCE = "once", "한 번"
+        WEEKLY = "weekly", "매주"
+        INTERVAL = "interval", "일정 간격"
+
+    class ScheduleTimeMode(models.TextChoices):
+        AT = "at", "지정 시각"
+        WINDOW = "window", "시간대"
+
+    step = models.ForeignKey(
+        Step,
         on_delete=models.CASCADE,
-        blank=True,
-        null=True,
+        related_name="triggers",
+    )
+    trigger_type = models.CharField(max_length=20, choices=Type.choices)
+    config = models.JSONField(default=dict)
+    order = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["step", "order"],
+                name="unique_step_trigger_order",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.step} 트리거 #{self.order}"
+
+
+class Action(models.Model):
+    """One ordered action owned by a Step."""
+
+    class Type(models.TextChoices):
+        DEVICE = "device", "개별 기기 동작"
+        AUTOMATION = "automation", "다른 자동화 실행"
+
+    class DelayPosition(models.TextChoices):
+        BEFORE = "before", "동작 전"
+        AFTER = "after", "동작 후"
+
+    step = models.ForeignKey(
+        Step,
+        on_delete=models.CASCADE,
         related_name="actions",
     )
     order = models.PositiveIntegerField(default=1)
-    action_type = models.CharField(max_length=20, choices=ActionType.choices)
+    action_type = models.CharField(
+        max_length=20,
+        choices=Type.choices,
+        default=Type.DEVICE,
+    )
     device = models.ForeignKey(
         Device,
         on_delete=models.PROTECT,
@@ -232,136 +270,31 @@ class AutomationAction(models.Model):
     )
     function = models.CharField(max_length=100, blank=True)
     parameter = models.JSONField(blank=True, null=True)
-    sequence = models.ForeignKey(
-        Sequence,
+    target_automation = models.ForeignKey(
+        Automation,
         on_delete=models.PROTECT,
         blank=True,
         null=True,
-        related_name="automation_actions",
+        related_name="referenced_by_actions",
     )
     delay = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ["trigger_id", "order", "id"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["trigger", "order"],
-                name="unique_automation_trigger_action_order",
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.automation} 동작 #{self.order}"
-
-
-class AutomationTrigger(models.Model):
-    class TriggerType(models.TextChoices):
-        # SET is the current model: one trigger set owns 1..N conditions and
-        # 1..N ordered actions. The legacy types remain for migration/runtime
-        # compatibility with installations that have not applied 0020 yet.
-        SET = "set", "트리거 세트"
-        TIME = "time", "예약 시간 (기존)"
-        MQTT_EVENT = "mqtt_event", "MQTT 이벤트 (기존)"
-        DEVICE_STATE = "device_state", "기기 상태 변화 (기존)"
-
-    class ConditionOperator(models.TextChoices):
-        AND = "and", "모든 조건 만족 (AND)"
-        OR = "or", "하나 이상 만족 (OR)"
-
-    class ScheduleType(models.TextChoices):
-        ONCE = "once", "한 번"
-        DAILY = "daily", "매일"
-        WEEKLY = "weekly", "매주"
-        INTERVAL = "interval", "일정 간격"
-
-    class ScheduleTimeMode(models.TextChoices):
-        AT = "at", "지정 시각"
-        WINDOW = "window", "시간대"
-
-    automation = models.ForeignKey(
-        Automation,
-        on_delete=models.CASCADE,
-        related_name="triggers",
+    delay_position = models.CharField(
+        max_length=10,
+        choices=DelayPosition.choices,
+        default=DelayPosition.AFTER,
     )
-    trigger_type = models.CharField(
-        max_length=20,
-        choices=TriggerType.choices,
-        default=TriggerType.SET,
-    )
-    config = models.JSONField(default=dict)
-    enabled = models.BooleanField(default=True)
-    condition_operator = models.CharField(
-        max_length=3,
-        choices=ConditionOperator.choices,
-        default=ConditionOperator.AND,
-    )
-    # Resting truth value of this set.  Runtime uses it to fire only on a
-    # FALSE -> TRUE transition for persistent state conditions.
-    last_result = models.BooleanField(default=False)
-    next_run_at = models.DateTimeField(blank=True, null=True, db_index=True)
-    last_triggered_at = models.DateTimeField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["id"]
-
-    def __str__(self):
-        return f"{self.automation}: {self.get_trigger_type_display()}"
-
-
-class AutomationCondition(models.Model):
-    class ConditionType(models.TextChoices):
-        SCHEDULE = "schedule", "예약 시간"
-        # Legacy rows are migrated into SCHEDULE + ScheduleTimeMode.WINDOW.
-        # Keep the enum value so old databases/rollback tooling can still read it.
-        TIME_WINDOW = "time_window", "시간대 (기존)"
-        DEVICE_STATE = "device_state", "기기 상태"
-        MQTT_EVENT = "mqtt_event", "MQTT 이벤트"
-        WEATHER = "weather", "현재 날씨"
-        # Kept only for old rows/tests.  Migration 0020 converts event-value
-        # conditions that belonged to MQTT triggers into MQTT_EVENT.
-        EVENT_VALUE = "event_value", "트리거 데이터 (기존)"
-
-    automation = models.ForeignKey(
-        Automation,
-        on_delete=models.CASCADE,
-        related_name="conditions",
-    )
-    action = models.ForeignKey(
-        AutomationAction,
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-        related_name="conditions",
-    )
-    trigger = models.ForeignKey(
-        AutomationTrigger,
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-        related_name="conditions",
-    )
-    condition_type = models.CharField(max_length=20, choices=ConditionType.choices)
-    config = models.JSONField(default=dict)
-    order = models.PositiveIntegerField(default=1)
 
     class Meta:
         ordering = ["order", "id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["trigger", "order"],
-                name="unique_automation_trigger_condition_order",
+                fields=["step", "order"],
+                name="unique_step_action_order",
             ),
         ]
 
     def __str__(self):
-        if self.trigger_id:
-            return f"{self.automation} 트리거 세트 #{self.trigger_id} 조건 #{self.order}"
-        if self.action_id:
-            return f"{self.automation} 기존 동작 조건 #{self.order}"
-        return f"{self.automation} 기존 전역 조건 #{self.order}"
-
+        return f"{self.step} 동작 #{self.order}"
 
 class DeviceState(models.Model):
     topic = models.CharField(max_length=255)
@@ -446,26 +379,46 @@ class NodeMetricSample(models.Model):
 
 
 class AutomationRun(models.Model):
+    """Execution history for both immediate and scheduled Automations."""
+
     class Status(models.TextChoices):
         PENDING = "pending", "대기"
         RUNNING = "running", "실행 중"
         SUCCESS = "success", "성공"
         FAILED = "failed", "실패"
         CANCELLED = "cancelled", "취소"
+        SKIPPED = "skipped", "건너뜀"
+
+    class Source(models.TextChoices):
+        MANUAL = "manual", "수동"
+        SCHEDULER = "scheduler", "스케줄러"
+        MQTT = "mqtt", "MQTT"
+        DEVICE = "device", "기기 상태"
+        WEATHER = "weather", "날씨"
+        AUTOMATION = "automation", "다른 자동화"
+        API = "api", "API"
+        AI = "ai", "AI"
 
     automation = models.ForeignKey(
         Automation,
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
-        related_name="automation_runs",
+        related_name="runs",
     )
-    trigger = models.ForeignKey(
-        AutomationTrigger,
+    step = models.ForeignKey(
+        Step,
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
         related_name="runs",
+    )
+    automation_name = models.CharField(max_length=100, blank=True, default="")
+    source = models.CharField(
+        max_length=20,
+        choices=Source.choices,
+        default=Source.MANUAL,
+        db_index=True,
     )
     status = models.CharField(
         max_length=20,
@@ -482,141 +435,43 @@ class AutomationRun(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["-created_at", "-id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["trigger", "scheduled_for"],
-                name="unique_automation_trigger_run_time",
+                fields=["step", "scheduled_for"],
+                name="unique_step_run_time",
             ),
             models.UniqueConstraint(
-                fields=["trigger", "source_event_id"],
-                name="unique_automation_trigger_source_event",
+                fields=["step", "source_event_id"],
+                name="unique_step_source_event",
             ),
         ]
 
+    def __str__(self):
+        name = self.automation_name or (self.automation.name if self.automation_id else "삭제된 자동화")
+        return f"{name} ({self.get_status_display()})"
 
-class AutomationActionRun(models.Model):
+
+class ActionRun(models.Model):
     automation_run = models.ForeignKey(
         AutomationRun,
         on_delete=models.CASCADE,
         related_name="action_runs",
     )
-    automation_action = models.ForeignKey(
-        AutomationAction,
+    action = models.ForeignKey(
+        Action,
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
         related_name="runs",
     )
+    step_order = models.PositiveIntegerField(default=1)
     order = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=AutomationRun.Status.choices)
-    sequence_run = models.ForeignKey(
-        "SequenceRun",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="automation_action_runs",
-    )
     message = models.TextField(blank=True)
     started_at = models.DateTimeField(blank=True, null=True)
     finished_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
-        ordering = ["order", "id"]
+        ordering = ["step_order", "order", "id"]
 
-
-class SequenceRun(models.Model):
-    class Trigger(models.TextChoices):
-        MANUAL = "manual", "수동"
-        AUTOMATION = "automation", "예약 실행"
-
-    class Status(models.TextChoices):
-        PENDING = "pending", "대기"
-        RUNNING = "running", "실행 중"
-        SUCCESS = "success", "성공"
-        FAILED = "failed", "실패"
-        CANCELLED = "cancelled", "취소"
-
-    sequence = models.ForeignKey(
-        Sequence,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="runs",
-    )
-    sequence_name = models.CharField(
-        max_length=100,
-        blank=True,
-        default="",
-    )
-
-    automation = models.ForeignKey(
-        Automation,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="runs",
-    )
-    trigger = models.CharField(max_length=20, choices=Trigger.choices)
-    status = models.CharField(
-        max_length=20,
-        choices=Status.choices,
-        default=Status.PENDING,
-        db_index=True,
-    )
-    scheduled_for = models.DateTimeField(blank=True, null=True)
-    source_event_id = models.CharField(max_length=100, blank=True, null=True)
-    trigger_payload = models.JSONField(default=dict, blank=True)
-    started_at = models.DateTimeField(blank=True, null=True)
-    finished_at = models.DateTimeField(blank=True, null=True)
-    message = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["automation", "scheduled_for"],
-                name="unique_automation_run_time",
-            ),
-            models.UniqueConstraint(
-                fields=["automation", "source_event_id"],
-                name="unique_automation_source_event",
-            ),
-        ]
-
-    def __str__(self):
-        name = self.sequence_name
-        if not name and self.sequence_id:
-            name = self.sequence.name
-        return f"{name or '삭제된 시퀀스'} ({self.get_status_display()})"
-
-
-class SequenceStepRun(models.Model):
-    class Status(models.TextChoices):
-        RUNNING = "running", "실행 중"
-        SUCCESS = "success", "성공"
-        FAILED = "failed", "실패"
-        SKIPPED = "skipped", "건너뜀"
-
-    sequence_run = models.ForeignKey(
-        SequenceRun,
-        on_delete=models.CASCADE,
-        related_name="step_runs",
-    )
-    sequence_step = models.ForeignKey(
-        SequenceStep,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="runs",
-    )
-    step_order = models.PositiveIntegerField()
-    action_code = models.CharField(max_length=50)
-    status = models.CharField(max_length=20, choices=Status.choices)
-    message = models.TextField(blank=True)
-    started_at = models.DateTimeField(auto_now_add=True)
-    finished_at = models.DateTimeField(blank=True, null=True)
-
-    class Meta:
-        ordering = ["step_order"]

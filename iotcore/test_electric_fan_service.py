@@ -6,19 +6,10 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .device.services.device_service import DeviceService
-from .device.services.sequence_executor import SequenceExecutor
 from .device_actions import DeviceActionRegistry
-from .forms import AutomationActionForm, SequenceStepForm
+from .forms import ActionForm
 from .infrastructure.tuya.client import TuyaClient
-from .models import (
-    Automation,
-    AutomationAction,
-    AutomationRun,
-    Device,
-    Sequence,
-    SequenceRun,
-    SequenceStep,
-)
+from .models import Action, Automation, AutomationRun, Device, Step
 from .scheduler.executor import AutomationExecutor
 
 
@@ -244,6 +235,7 @@ class ElectricFanDeviceServiceTests(TestCase):
         set_value.assert_not_called()
 
 
+
 class ElectricFanExecutionPathTests(TestCase):
     def setUp(self):
         self.device = Device.objects.create(
@@ -255,38 +247,48 @@ class ElectricFanExecutionPathTests(TestCase):
         )
 
     @patch.object(TuyaClient, "set_value", return_value=(True, "완료"))
-    def test_sequence_worker_executes_electric_fan_step(self, set_value):
-        sequence = Sequence.objects.create(name="선풍기 풍속 설정")
-        SequenceStep.objects.create(
-            sequence=sequence,
+    def test_immediate_automation_uses_unified_worker(self, set_value):
+        automation = Automation.objects.create(
+            name="선풍기 풍속 설정",
+            automation_type=Automation.Type.IMMEDIATE,
+        )
+        step = Step.objects.create(automation=automation, order=1)
+        Action.objects.create(
+            step=step,
             order=1,
+            action_type=Action.Type.DEVICE,
             device=self.device,
             function="set_speed",
             parameter={"speed": 51},
         )
-        sequence_run = SequenceRun.objects.create(
-            sequence=sequence,
-            trigger=SequenceRun.Trigger.MANUAL,
-        )
+        automation_run = AutomationExecutor.enqueue(automation, source=AutomationRun.Source.MANUAL)
 
-        result = SequenceExecutor.run_next_pending()
+        result = AutomationExecutor.run_next_pending()
 
-        self.assertEqual(result.pk, sequence_run.pk)
-        sequence_run.refresh_from_db()
-        self.assertEqual(sequence_run.status, SequenceRun.Status.SUCCESS)
+        self.assertEqual(result.pk, automation_run.pk)
+        automation_run.refresh_from_db()
+        self.assertEqual(automation_run.status, AutomationRun.Status.SUCCESS)
         set_value.assert_called_once_with(self.device.device_uid, 3, 51)
 
     @patch.object(TuyaClient, "set_value", return_value=(True, "완료"))
-    def test_automation_worker_executes_electric_fan_action(self, set_value):
-        automation = Automation.objects.create(name="선풍기 자동 종료")
-        AutomationAction.objects.create(
-            automation=automation,
+    def test_scheduled_automation_uses_same_worker(self, set_value):
+        automation = Automation.objects.create(
+            name="선풍기 자동 종료",
+            automation_type=Automation.Type.SCHEDULED,
+        )
+        step = Step.objects.create(automation=automation, order=1)
+        Action.objects.create(
+            step=step,
             order=1,
-            action_type=AutomationAction.ActionType.DEVICE,
+            action_type=Action.Type.DEVICE,
             device=self.device,
             function="power_off",
         )
-        automation_run = AutomationRun.objects.create(automation=automation)
+        automation_run = AutomationRun.objects.create(
+            automation=automation,
+            automation_name=automation.name,
+            source=AutomationRun.Source.SCHEDULER,
+        )
 
         result = AutomationExecutor.run_next_pending()
 
@@ -307,48 +309,39 @@ class ElectricFanEditorTests(TestCase):
             location="거실",
         )
 
-    def test_automation_form_normalizes_fan_parameter_json(self):
+    def _form(self, function, parameter_json):
+        return ActionForm(data={
+            "action_type": Action.Type.DEVICE,
+            "device": self.device.pk,
+            "function": function,
+            "parameter_json": parameter_json,
+            "delay": 0,
+            "delay_position": Action.DelayPosition.AFTER,
+        })
+
+    def test_action_form_normalizes_fan_parameter_json(self):
         cases = (
             ("set_speed", '{"speed": "51"}', {"speed": 51}),
-            (
-                "set_horizontal_angle",
-                '{"horizontal_angle": 90}',
-                {"horizontal_angle": "90"},
-            ),
+            ("set_horizontal_angle", '{"horizontal_angle": 90}', {"horizontal_angle": "90"}),
         )
-
         for function, parameter_json, expected in cases:
             with self.subTest(function=function):
-                form = AutomationActionForm(data={
-                    "action_type": AutomationAction.ActionType.DEVICE,
-                    "device": self.device.pk,
-                    "function": function,
-                    "parameter_json": parameter_json,
-                    "delay": 0,
-                })
-
+                form = self._form(function, parameter_json)
                 self.assertTrue(form.is_valid(), form.errors)
                 self.assertEqual(form.cleaned_data["parameter"], expected)
 
-    def test_automation_form_rejects_missing_or_unconfirmed_fan_values(self):
+    def test_action_form_rejects_missing_or_unconfirmed_fan_values(self):
         for function, parameter_json in (
             ("set_speed", ""),
             ("set_speed", '{"speed": 101}'),
             ("set_horizontal_angle", '{"horizontal_angle": "120"}'),
         ):
             with self.subTest(function=function, parameter_json=parameter_json):
-                form = AutomationActionForm(data={
-                    "action_type": AutomationAction.ActionType.DEVICE,
-                    "device": self.device.pk,
-                    "function": function,
-                    "parameter_json": parameter_json,
-                    "delay": 0,
-                })
-
+                form = self._form(function, parameter_json)
                 self.assertFalse(form.is_valid())
                 self.assertIn("parameter_json", form.errors)
 
-    def test_editors_exclude_non_tuya_electric_fan(self):
+    def test_action_form_excludes_non_tuya_electric_fan(self):
         ir_fan = Device.objects.create(
             device_uid="legacy-ir-fan",
             name="기존 IR 선풍기",
@@ -357,117 +350,12 @@ class ElectricFanEditorTests(TestCase):
             protocol=Device.Protocol.IR,
             location="거실",
         )
-
-        step_form = SequenceStepForm()
-        self.assertNotIn(ir_fan, step_form.fields["device"].queryset)
-
-        action_form = AutomationActionForm(data={
-            "action_type": AutomationAction.ActionType.DEVICE,
+        form = ActionForm(data={
+            "action_type": Action.Type.DEVICE,
             "device": ir_fan.pk,
             "function": "power_on",
             "delay": 0,
+            "delay_position": Action.DelayPosition.AFTER,
         })
-        self.assertFalse(action_form.is_valid())
-        self.assertIn("device", action_form.errors)
-
-        user = get_user_model().objects.create_user(
-            username="non-tuya-fan-editor",
-            password="test-password",
-        )
-        self.client.force_login(user)
-        sequence = Sequence.objects.create(name="비 Tuya 선풍기 차단")
-
-        response = self.client.get(
-            reverse("iotcore:sequence_edit", args=[sequence.pk])
-        )
-        self.assertNotIn(ir_fan, response.context["devices"])
-
-        response = self.client.post(
-            reverse("iotcore:sequence_step_create", args=[sequence.pk]),
-            {
-                "device": ir_fan.pk,
-                "function": "power_on",
-                "hour": 0,
-                "minute": 0,
-                "second": 0,
-                "delay_position": SequenceStep.AFTER,
-            },
-        )
-        self.assertEqual(response.status_code, 302)
-        self.assertFalse(sequence.steps.exists())
-
-    def test_sequence_editor_saves_typed_fan_value(self):
-        user = get_user_model().objects.create_user(
-            username="fan-sequence-editor",
-            password="test-password",
-        )
-        self.client.force_login(user)
-        sequence = Sequence.objects.create(name="선풍기 설정")
-
-        response = self.client.post(
-            reverse("iotcore:sequence_step_create", args=[sequence.pk]),
-            {
-                "device": self.device.pk,
-                "function": "set_speed",
-                "parameter_value": "37",
-                "hour": 0,
-                "minute": 0,
-                "second": 0,
-                "delay_position": SequenceStep.AFTER,
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        step = sequence.steps.get()
-        self.assertEqual(step.function, "set_speed")
-        self.assertEqual(step.parameter, {"speed": 37})
-
-    def test_sequence_editor_saves_confirmed_horizontal_angle(self):
-        user = get_user_model().objects.create_user(
-            username="fan-sequence-angle-editor",
-            password="test-password",
-        )
-        self.client.force_login(user)
-        sequence = Sequence.objects.create(name="선풍기 좌우 회전 각도 설정")
-
-        response = self.client.post(
-            reverse("iotcore:sequence_step_create", args=[sequence.pk]),
-            {
-                "device": self.device.pk,
-                "function": "set_horizontal_angle",
-                "parameter_value": "90",
-                "hour": 0,
-                "minute": 0,
-                "second": 0,
-                "delay_position": SequenceStep.AFTER,
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        step = sequence.steps.get()
-        self.assertEqual(step.function, "set_horizontal_angle")
-        self.assertEqual(step.parameter, {"horizontal_angle": "90"})
-
-    def test_sequence_editor_rejects_invalid_fan_value(self):
-        user = get_user_model().objects.create_user(
-            username="fan-sequence-invalid",
-            password="test-password",
-        )
-        self.client.force_login(user)
-        sequence = Sequence.objects.create(name="잘못된 선풍기 설정")
-
-        response = self.client.post(
-            reverse("iotcore:sequence_step_create", args=[sequence.pk]),
-            {
-                "device": self.device.pk,
-                "function": "set_horizontal_angle",
-                "parameter_value": "120",
-                "hour": 0,
-                "minute": 0,
-                "second": 0,
-                "delay_position": SequenceStep.AFTER,
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertFalse(sequence.steps.exists())
+        self.assertFalse(form.is_valid())
+        self.assertIn("device", form.errors)

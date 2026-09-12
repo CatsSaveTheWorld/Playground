@@ -1,6 +1,3 @@
-from unittest.mock import patch
-
-import pandas as pd
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -8,14 +5,30 @@ from django.urls import reverse
 from .models import Device
 
 
-class MediaServerDeviceControlPlacementTests(TestCase):
+class DeviceControlPlacementTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
-            username="media-placement-user",
+            username="device-placement-user",
             password="test-password",
         )
         self.client.force_login(self.user)
         Device.objects.filter(device_type="media_server").delete()
+
+        self.pc = Device.objects.update_or_create(
+            device_uid="home-ai-main",
+            defaults={
+                "device_type": "pc",
+                "device_role": Device.Role.HYBRID,
+                "protocol": Device.Protocol.TCPIP,
+                "name": "Home-AI-Main",
+                "location": "내 방",
+                "control_config": {
+                    "mac_address": "00:11:22:33:44:55",
+                    "ip_address": "192.168.0.4",
+                    "wol_port": 9,
+                },
+            },
+        )[0]
         self.media_server = Device.objects.create(
             device_type="media_server",
             device_role=Device.Role.CONTROL,
@@ -25,23 +38,17 @@ class MediaServerDeviceControlPlacementTests(TestCase):
             location="내 방",
         )
 
-    @patch("iotcore.api.views.detail.pd.read_csv")
-    def test_media_server_is_room_device_not_pc_card(self, read_csv):
-        read_csv.return_value = pd.DataFrame(
-            [
-                ["Home-AI-Main", "00:11:22:33:44:55", "192.168.0.255", 9],
-                ["파이", "AA:BB:CC:DD:EE:FF", "192.168.0.255", 9],
-            ],
-            columns=["name", "mac", "broadcast_ip", "port"],
-        )
-
+    def test_pc_and_media_server_are_room_devices(self):
         response = self.client.get(reverse("iotcore:device_control"))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "컴퓨터")
+        self.assertContains(response, "미디어")
+        self.assertNotContains(response, "PC 제어")
         self.assertContains(response, "Home-AI-Main")
-        self.assertNotContains(response, 'data-pc-name="파이"')
+        self.assertContains(response, f'data-device-id="{self.pc.id}"')
         self.assertContains(response, "MEDIA SERVER")
-        self.assertContains(response, "미디어 서버 제어")
+        self.assertContains(response, self.media_server.name)
         self.assertContains(
             response,
             reverse("iotcore:media_server_control", args=[self.media_server.id]),

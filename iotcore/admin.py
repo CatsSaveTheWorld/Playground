@@ -1,50 +1,22 @@
 from django.contrib import admin
+
 from .models import (
+    Action,
+    ActionRun,
     Automation,
-    AutomationAction,
     AutomationGroup,
-    AutomationActionRun,
-    AutomationCondition,
     AutomationRun,
-    AutomationTrigger,
     Controller,
     Device,
     DeviceState,
     DoorEvent,
     NodeMetricSample,
-    Sequence,
-    SequenceGroup,
-    SequenceRun,
-    SequenceStep,
-    SequenceStepRun,
+    Step,
+    Trigger,
 )
 
-admin.site.register(Controller)
-@admin.register(Device)
-class DeviceAdmin(admin.ModelAdmin):
-    list_display = (
-        "name",
-        "device_type",
-        "device_role",
-        "protocol",
-        "device_uid",
-        "location",
-    )
-    list_filter = ("device_role", "protocol", "device_type", "location")
-    search_fields = ("name", "device_uid", "device_type", "location")
-
-admin.site.register(SequenceGroup)
-admin.site.register(Sequence)
-admin.site.register(SequenceStep)
-admin.site.register(AutomationGroup)
-admin.site.register(Automation)
-admin.site.register(AutomationAction)
-admin.site.register(AutomationRun)
-admin.site.register(AutomationActionRun)
-admin.site.register(AutomationTrigger)
-admin.site.register(AutomationCondition)
-admin.site.register(DeviceState)
-admin.site.register(DoorEvent)
-admin.site.register(NodeMetricSample)
-admin.site.register(SequenceRun)
-admin.site.register(SequenceStepRun)
+for model in (
+    Device, Controller, AutomationGroup, Automation, Step, Trigger, Action,
+    AutomationRun, ActionRun, DeviceState, DoorEvent, NodeMetricSample,
+):
+    admin.site.register(model)

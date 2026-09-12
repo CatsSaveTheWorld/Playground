@@ -1,21 +1,40 @@
 {% extends "iotcore/base_iotcore.html" %}
-{% block title %}시퀀스{% endblock %}
+{% block title %}자동화{% endblock %}
 {% block content %}
 <div class="iot-page">
-    <header class="iot-page-header">
+    <header class="iot-page-header iot-automation-page-header">
         <div>
-            <p class="iot-eyebrow">SEQUENCES</p>
-            <h1>시퀀스</h1>
-            <p>여러 기기의 동작과 지연 시간을 순서대로 구성하고 수동으로 실행합니다.</p>
-        </div>
-        <div class="iot-page-actions">
-            <a class="iot-button" href="{% url 'iotcore:sequence_group_manage' %}">그룹 관리</a>
-            <a class="iot-button iot-button--primary" href="{% url 'iotcore:sequence_create' %}">+ 새 시퀀스</a>
+            <p class="iot-eyebrow">AUTOMATION</p>
+            <h1>자동화</h1>
+            <p>기기 동작을 즉시 실행하거나 원하는 시간과 조건에 맞춰 자동으로 실행합니다.</p>
         </div>
     </header>
 
+    <nav class="iot-automation-tabs" aria-label="자동화 실행 방식">
+        <a class="iot-automation-tab is-active" href="{% url 'iotcore:sequence_list' %}" aria-current="page">
+            <span class="iot-automation-tab__title">즉시 실행</span>
+            <span class="iot-automation-tab__meta">시퀀스</span>
+        </a>
+        <a class="iot-automation-tab" href="{% url 'iotcore:automation_list' %}">
+            <span class="iot-automation-tab__title">예약 실행</span>
+            <span class="iot-automation-tab__meta">시간 · 센서 · 조건</span>
+        </a>
+    </nav>
+
+    <section class="iot-automation-section-heading">
+        <div>
+            <p class="iot-eyebrow">INSTANT EXECUTION</p>
+            <h2>즉시 실행</h2>
+            <p>저장된 여러 기기 동작을 필요할 때 직접 실행합니다.</p>
+        </div>
+        <div class="iot-page-actions">
+            <a class="iot-button" href="{% url 'iotcore:sequence_group_manage' %}">그룹 관리</a>
+            <a class="iot-button iot-button--primary" href="{% url 'iotcore:sequence_create' %}">+ 새 즉시 실행</a>
+        </div>
+    </section>
+
     {% if has_any_sequences %}
-    <section class="iot-list-toolbar" aria-label="시퀀스 검색 및 분류">
+    <section class="iot-list-toolbar" aria-label="즉시 실행 검색 및 분류">
         <form method="get" class="iot-list-toolbar__search">
             <input type="hidden" name="scope" value="{{ current_scope }}">
             <label class="iot-visually-hidden" for="sequenceSearch">시퀀스 검색</label>
@@ -25,7 +44,7 @@
                 type="search"
                 name="q"
                 value="{{ query }}"
-                placeholder="시퀀스 이름·설명·기기·동작 검색">
+                placeholder="즉시 실행 이름·설명·기기·동작 검색">
             <label class="iot-list-select-label" for="sequenceSort">정렬</label>
             <select id="sequenceSort" class="iot-list-select" name="sort">
                 <option value="updated" {% if current_sort == "updated" %}selected{% endif %}>최근 수정</option>

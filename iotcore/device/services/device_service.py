@@ -1,3 +1,6 @@
+import requests
+from django.conf import settings
+
 from ..repositories.controller_repository import ControllerRepository
 from ..repositories.ircode_repository import IRCodeRepository
 from ...infrastructure.ir.client import IRClient
@@ -7,6 +10,7 @@ from ...infrastructure.zigbee.client import ZigbeeClient
 from ...infrastructure.music_assistant.client import MusicAssistantClient
 from ...infrastructure.remote_tasks.client import RemoteTaskClient
 from ...infrastructure.tuya.client import TuyaClient
+from ...infrastructure.wol.client import WOLClient
 
 
 class DeviceService:
@@ -44,6 +48,8 @@ class DeviceService:
                 step.function,
                 fan_value=fan_value,
             )
+        if device.device_type == "pc":
+            return DeviceService.control(device.id, step.function)
         if device.device_type == "light":
             return DeviceService.control(device.id, step.function)
         if device.device_type == "media_server":
@@ -97,7 +103,20 @@ class DeviceService:
         success = False
         error_message = f"지원하지 않는 프로토콜입니다. ({device.protocol})"
 
-        if device.device_type == 'aircon':
+        if device.device_type == 'pc':
+            if device.protocol != 'tcpip':
+                return False, (
+                    "PC는 TCP/IP 프로토콜로 등록되어야 합니다. "
+                    f"(현재 {device.protocol})"
+                )
+            success, error_message = DeviceService.execute_pc(
+                device=device,
+                motion=motion,
+            )
+            if success and not success_message:
+                success_message = error_message
+
+        elif device.device_type == 'aircon':
             if device.protocol == 'ir':
                 controller = ControllerRepository.get_controller_by_device(device_id)
                 # print(f"[DEBUG] control controller : {controller}")
@@ -257,6 +276,86 @@ class DeviceService:
         if motion == "beep_off":
             return {"beep": False}
         return {}
+
+    @staticmethod
+    def execute_pc(device, motion):
+        """Control a PC using connection metadata stored on ``Device``.
+
+        ``power_on`` sends Wake-on-LAN. ``power_off`` calls the local shutdown
+        agent.  The browser never supplies MAC/IP credentials; it only sends the
+        Device id and action.
+        """
+        config = dict(device.control_config or {})
+
+        if motion == "power_on":
+            mac = str(config.get("mac_address") or "").strip()
+            if not mac:
+                return False, f"{device.name}의 MAC 주소가 등록되어 있지 않습니다."
+            broadcast_ip = str(
+                config.get("wol_broadcast_ip") or "255.255.255.255"
+            ).strip()
+            try:
+                wol_port = int(config.get("wol_port") or 9)
+            except (TypeError, ValueError):
+                return False, f"{device.name}의 WOL 포트 설정이 올바르지 않습니다."
+            try:
+                WOLClient.send_wol(mac, ip=broadcast_ip, port=wol_port)
+            except Exception as exc:
+                return False, f"WOL 전송 실패: {exc}"
+            return True, f"{device.name}에 WOL 패킷을 전송했습니다."
+
+        if motion == "power_off":
+            ip_address = str(config.get("ip_address") or "").strip()
+            if not ip_address:
+                return False, f"{device.name}의 IP 주소가 등록되어 있지 않습니다."
+            try:
+                agent_port = int(
+                    config.get("agent_port")
+                    or getattr(settings, "PC_AGENT_PORT", 5050)
+                )
+            except (TypeError, ValueError):
+                return False, f"{device.name}의 종료 에이전트 포트 설정이 올바르지 않습니다."
+            agent_path = str(
+                config.get("agent_path")
+                or getattr(settings, "PC_AGENT_SHUTDOWN_PATH", "/shutdown")
+            ).strip()
+            if not agent_path.startswith("/"):
+                agent_path = "/" + agent_path
+
+            token = str(
+                config.get("agent_token")
+                or getattr(settings, "PC_AGENT_TOKEN", "")
+                or ""
+            ).strip()
+            headers = {"X-Token": token} if token else {}
+            url = f"http://{ip_address}:{agent_port}{agent_path}"
+            try:
+                response = requests.post(url, headers=headers, timeout=2)
+                response.raise_for_status()
+                try:
+                    payload = response.json()
+                except ValueError:
+                    payload = {}
+                message = (
+                    payload.get("msg")
+                    or payload.get("message")
+                    or f"{device.name} 종료 요청을 전송했습니다."
+                )
+                return True, message
+            except requests.exceptions.Timeout:
+                return False, f"{device.name} 종료 요청 시간 초과(Timeout)"
+            except requests.exceptions.ConnectionError:
+                return False, (
+                    f"{device.name} 에이전트 연결 실패"
+                    "(PC가 꺼져있거나 포트/방화벽 확인)"
+                )
+            except requests.exceptions.HTTPError:
+                status = getattr(response, "status_code", "?")
+                return False, f"{device.name} 에이전트 오류: HTTP {status}"
+            except Exception as exc:
+                return False, f"{device.name} 종료 요청 실패: {exc}"
+
+        return False, f"지원하지 않는 PC 동작입니다. ({motion})"
 
     @staticmethod
     def execute_aircon(step):

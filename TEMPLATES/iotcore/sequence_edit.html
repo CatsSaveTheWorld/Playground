@@ -3,794 +3,304 @@
 {% block title %}{{ sequence.name }}{% endblock %}
 {% block extra_css %}
 <style>
-.sequence-edit-content .iot-page-header {
-    align-items: flex-start;
-}
-
-.sequence-editor-header__tools {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 10px;
-    flex: 0 0 auto;
-}
-
-.sequence-back-link {
-    color: var(--iot-accent);
-    font-size: 12px;
-    text-decoration: none;
-}
-
-.sequence-back-link:hover {
-    color: #ffffff;
-}
-
-.sequence-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.sequence-actions form {
-    margin: 0;
-}
-
-.sequence-actions .iot-button {
-    min-width: 76px;
-    min-height: 38px;
-}
-
-.sequence-container {
-    width: 100%;
-    margin: 0;
-}
-
-.step-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 16px;
-    padding: 12px 0;
-}
-
-.step-toolbar > label {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    color: var(--iot-text);
-    font-size: 12px;
-}
-
-.step-toolbar-right {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.step-toolbar button,
-.step-form button {
-    min-height: 38px;
-    padding: 0 14px;
-    border: 1px solid var(--iot-accent);
-    border-radius: 0;
-    background: #000000;
-    color: var(--iot-accent);
-    cursor: pointer;
-}
-
-.step-toolbar button:hover,
-.step-form button:hover {
-    background: var(--iot-accent);
-    color: #000000;
-}
-
-.step-form {
-    margin-bottom: 18px;
-    padding: 20px;
-    border: 1px solid var(--iot-accent);
-    background: #000000;
-}
-
-.form-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 14px;
-}
-
-.form-row > label {
-    width: 92px;
-    flex: 0 0 92px;
-    color: var(--iot-accent);
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.form-row select,
-.form-row input {
-    min-height: 38px;
-    padding: 8px 10px;
-    border: 1px solid var(--iot-border-soft);
-    border-radius: 0;
-    background: #000000;
-    color: var(--iot-text);
-}
-
-.form-row select {
-    flex: 1;
-}
-
-.form-row select:focus,
-.form-row input:focus {
-    outline: none;
-    border-color: var(--iot-accent);
-}
-
-.delay-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
-}
-
-.delay-container input {
-    width: 58px;
-    flex: 0 0 58px;
-    text-align: center;
-}
-
-.delay-position {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    margin-left: auto;
-}
-
-.form-row .delay-position > label {
-    width: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin: 0;
-    color: var(--iot-muted);
-    font-size: 12px;
-}
-
-.delay-position input[type="radio"] {
-    min-height: 0;
-    margin: 0;
-    padding: 0;
-}
-
-.form-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 18px;
-}
-
-.step-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.step-card {
-    display: grid;
-    grid-template-columns: 92px minmax(0, 1fr);
-    min-height: 116px;
-    border: 1px solid var(--iot-accent);
-    background: #000000;
-}
-
-.step-header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 16px 12px;
-    border-right: 1px solid var(--iot-border-soft);
-}
-
-.step-order-label {
-    color: var(--iot-muted-2);
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: .15em;
-}
-
-.step-order {
-    color: var(--iot-accent);
-    font-size: 24px;
-    font-weight: 800;
-    line-height: 1;
-}
-
-.step-body {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: stretch;
-    min-width: 0;
-}
-
-.step-data {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 7px;
-    min-width: 0;
-    padding: 18px 24px;
-}
-
-.step-data + .step-data {
-    border-left: 1px solid var(--iot-border-soft);
-}
-
-.step-data__label {
-    color: var(--iot-accent);
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: .1em;
-}
-
-.step-data strong {
-    overflow-wrap: anywhere;
-    color: var(--iot-text);
-    font-size: 15px;
-    font-weight: 650;
-    line-height: 1.45;
-}
-
-.step-data__sub {
-    color: var(--iot-muted-2);
-    font-size: 10px;
-}
-
-.step-card--empty {
-    display: block;
-    min-height: 0;
-    padding: 28px;
-    color: var(--iot-muted);
-    text-align: center;
-}
-
-.bottom-toolbar {
-    display: none;
-}
-
-@media (max-width: 900px) {
-    .step-card {
-        grid-template-columns: 74px minmax(0, 1fr);
-    }
-
-    .step-body {
-        grid-template-columns: 1fr;
-    }
-
-    .step-data + .step-data {
-        border-left: 0;
-        border-top: 1px solid var(--iot-border-soft);
-    }
-}
-
-@media (max-width: 720px) {
-    .sequence-edit-content .iot-page-header {
-        align-items: stretch;
-    }
-
-    .sequence-editor-header__tools {
-        width: 100%;
-        align-items: stretch;
-    }
-
-    .sequence-back-link {
-        align-self: flex-end;
-    }
-
-    .sequence-actions {
-        width: 100%;
-    }
-
-    .sequence-actions form {
-        flex: 1;
-    }
-
-    .sequence-actions .iot-button {
-        width: 100%;
-        min-width: 0;
-    }
-
-    .step-toolbar {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .step-toolbar-right {
-        width: 100%;
-    }
-
-    .step-toolbar-right button {
-        flex: 1;
-    }
-
-    .form-row {
-        align-items: stretch;
-        flex-direction: column;
-        gap: 7px;
-    }
-
-    .form-row > label {
-        width: auto;
-        flex: none;
-    }
-
-    .delay-container {
-        flex-wrap: wrap;
-    }
-
-    .delay-position {
-        width: 100%;
-        margin: 4px 0 0;
-    }
-}
-
-
-/* Sequence Editor: mobile-only layout */
-@media (max-width: 720px) {
-    .sequence-edit-content,
-    .sequence-container,
-    .sequence-editor-header__tools,
-    .sequence-actions,
-    .step-toolbar,
-    .step-toolbar-right,
-    .step-form,
-    .form-row,
-    .delay-container,
-    .delay-position,
-    .step-list,
-    .step-card,
-    .step-body,
-    .step-data {
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    .sequence-actions {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 7px;
-    }
-
-    .sequence-actions form,
-    .sequence-actions .iot-button {
-        min-width: 0;
-        width: 100%;
-    }
-
-    .step-toolbar-right {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 7px;
-    }
-
-    .step-toolbar-right button {
-        min-width: 0;
-        width: 100%;
-    }
-
-    .step-form {
-        padding: 14px;
-    }
-
-    .form-row select,
-    .form-row input {
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    .delay-container {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        width: 100%;
-    }
-
-    .delay-container input {
-        width: 100%;
-        min-width: 0;
-        flex: none;
-    }
-
-    .delay-position {
-        flex-wrap: wrap;
-        gap: 10px 16px;
-    }
-
-    .step-card {
-        display: block;
-        width: 100%;
-    }
-
-    .step-header {
-        flex-direction: row;
-        justify-content: flex-start;
-        gap: 10px;
-        padding: 12px 14px;
-        border-right: 0;
-        border-bottom: 1px solid var(--iot-border-soft);
-    }
-
-    .step-order {
-        font-size: 19px;
-    }
-
-    .step-body {
-        display: block;
-        width: 100%;
-    }
-
-    .step-data {
-        width: 100%;
-        padding: 14px;
-    }
-
-    .step-data + .step-data {
-        border-left: 0;
-        border-top: 1px solid var(--iot-border-soft);
-    }
-}
-
-@media (max-width: 390px) {
-    .sequence-actions,
-    .step-toolbar-right,
-    .delay-container {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .sequence-back-link {
-        align-self: flex-start;
-    }
-}
-
+* { box-sizing:border-box; }
+.automation-step-editor { width:100%; }
+.automation-step-editor .iot-page-header { align-items:flex-start; }
+.editor-header-tools { display:flex; flex-direction:column; align-items:flex-end; gap:10px; flex:0 0 auto; }
+.editor-back-link { color:var(--iot-accent); font-size:12px; text-decoration:none; }
+.editor-back-link:hover { color:#fff; }
+.editor-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.editor-actions form { margin:0; }
+.editor-actions .iot-button { min-width:76px; min-height:38px; }
+.editor-intro { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin:4px 0 8px; }
+.editor-intro h2 { margin:0; color:var(--iot-text); font-size:15px; }
+.editor-intro p { margin:5px 0 0; color:var(--iot-muted); font-size:11px; line-height:1.6; }
+.step-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; padding:10px 0; }
+.step-toolbar > label { display:inline-flex; align-items:center; gap:7px; color:var(--iot-text); font-size:12px; }
+.step-toolbar-right { display:flex; gap:8px; flex-wrap:wrap; }
+.editor-button { min-height:38px; padding:0 14px; border:1px solid var(--iot-accent); background:#000; color:var(--iot-accent); cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+.editor-button:hover { background:var(--iot-accent); color:#000; }
+.editor-button--danger { border-color:#ff5252; color:#ff6868; }
+.editor-button--danger:hover { background:#ff5252; color:#000; }
+.step-create { margin-bottom:18px; padding:0; border:1px solid var(--iot-accent); background:#000; }
+.step-create__header { display:grid; grid-template-columns:92px minmax(0,1fr); border-bottom:1px solid var(--iot-border-soft); }
+.step-create__index { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; padding:14px 10px; border-right:1px solid var(--iot-border-soft); }
+.step-create__index span { color:var(--iot-muted-2); font-size:9px; font-weight:800; letter-spacing:.14em; }
+.step-create__index strong { color:var(--iot-accent); font-size:22px; }
+.step-create__title { padding:15px 18px; }
+.step-create__title strong { color:var(--iot-text); font-size:14px; }
+.step-create__title p { margin:6px 0 0; color:var(--iot-muted); font-size:11px; }
+.step-create__body { padding:18px; }
+.step-subsection + .step-subsection { margin-top:20px; padding-top:20px; border-top:1px solid var(--iot-border-soft); }
+.step-subsection__header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.step-subsection__header h3 { margin:0; color:var(--iot-text); font-size:13px; }
+.step-subsection__header p { margin:4px 0 0; color:var(--iot-muted); font-size:10px; }
+.field { margin-bottom:12px; }
+.field:last-child { margin-bottom:0; }
+.field > label { display:block; color:var(--iot-muted); margin-bottom:6px; font-size:11px; font-weight:650; }
+.field input[type=text], .field input[type=number], .field input[type=datetime-local], .field input[type=time], .field select, .field textarea { width:100%; min-height:38px; padding:8px 10px; border:1px solid var(--iot-border-soft); background:#000; color:var(--iot-text); border-radius:0; }
+.field textarea { min-height:62px; resize:vertical; }
+.field input:focus, .field select:focus, .field textarea:focus { outline:none; border-color:var(--iot-accent); }
+.helptext { display:block; margin-top:5px; color:var(--iot-muted-2); font-size:10px; line-height:1.5; }
+.condition-logic { display:grid; grid-template-columns:minmax(220px,360px) minmax(0,1fr); gap:14px; align-items:end; margin-bottom:12px; }
+.logic-note { color:var(--iot-muted); font-size:10px; line-height:1.5; border-left:2px solid var(--iot-border); padding-left:10px; }
+.condition-list, .action-list { display:flex; flex-direction:column; gap:10px; }
+.condition-card, .action-card { border:1px solid var(--iot-border-soft); background:#020202; padding:14px; }
+.child-card__header { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:9px; margin-bottom:12px; border-bottom:1px solid var(--iot-border-soft); }
+.child-card__header strong { color:var(--iot-accent); font-size:11px; }
+.condition-grid, .action-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 14px; }
+.condition-grid .field, .action-grid .field { margin:0; }
+.condition-grid .field--full, .action-grid .field--full { grid-column:1/-1; }
+.weekdays > div[id$="weekdays"], .weekdays > ul[id$="weekdays"] { display:flex; align-items:center; gap:11px; flex-wrap:wrap; list-style:none; padding:0; margin:0; }
+.weekdays label { display:inline-flex; align-items:center; gap:5px; margin:0; color:var(--iot-text); }
+.schedule-time-mode > div[id$="schedule_time_mode"], .schedule-time-mode > ul[id$="schedule_time_mode"] { display:inline-flex; gap:6px; list-style:none; padding:0; margin:0; }
+.schedule-time-mode label { position:relative; display:inline-flex; align-items:center; justify-content:center; min-width:108px; min-height:36px; padding:7px 12px; border:1px solid var(--iot-border-soft); color:var(--iot-text); cursor:pointer; }
+.schedule-time-mode input[type=radio] { position:absolute; width:1px!important; height:1px!important; opacity:0; pointer-events:none; }
+.schedule-time-mode label:has(input:checked) { border-color:var(--iot-accent); color:var(--iot-accent); background:rgba(0,255,210,.05); }
+.delay-grid { display:grid; grid-template-columns:repeat(3,minmax(0,90px)); gap:8px; align-items:end; }
+.delay-position-list > div, .delay-position-list > ul { display:flex; gap:14px; list-style:none; padding:0; margin:0; }
+.delay-position-list label { display:inline-flex; align-items:center; gap:5px; color:var(--iot-text); }
+.form-buttons { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+.step-list { display:flex; flex-direction:column; gap:12px; }
+.step-card { display:grid; grid-template-columns:92px minmax(0,1fr); border:1px solid var(--iot-accent); background:#000; }
+.step-index { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:8px; padding:18px 10px; border-right:1px solid var(--iot-border-soft); }
+.step-index span { color:var(--iot-muted-2); font-size:9px; font-weight:800; letter-spacing:.15em; }
+.step-index strong { color:var(--iot-accent); font-size:24px; line-height:1; }
+.step-body { min-width:0; padding:16px 18px; }
+.step-block + .step-block { margin-top:15px; padding-top:15px; border-top:1px solid var(--iot-border-soft); }
+.step-block__header { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:9px; }
+.step-block__header strong { color:var(--iot-text); font-size:11px; letter-spacing:.03em; }
+.step-block__header span { color:var(--iot-muted-2); font-size:10px; }
+.summary-row { display:flex; flex-wrap:wrap; gap:7px; }
+.summary-chip { display:inline-flex; align-items:center; min-height:30px; padding:5px 9px; border:1px solid var(--iot-border-soft); color:var(--iot-text); font-size:11px; }
+.summary-chip--muted { color:var(--iot-muted); }
+.action-summary { display:grid; grid-template-columns:36px minmax(140px,.8fr) minmax(150px,1fr) minmax(110px,.55fr); gap:10px; align-items:center; padding:9px 0; font-size:11px; }
+.action-summary + .action-summary { border-top:1px solid rgba(255,255,255,.07); }
+.action-summary__number { color:var(--iot-accent); font-weight:800; }
+.action-summary__muted { color:var(--iot-muted); }
+.step-card--empty { display:block; padding:28px; text-align:center; color:var(--iot-muted); }
+.hidden { display:none!important; }
+@media(max-width:900px){ .condition-grid,.action-grid{grid-template-columns:1fr;} .condition-grid .field--full,.action-grid .field--full{grid-column:auto;} .action-summary{grid-template-columns:32px 1fr;} .action-summary > :nth-child(3),.action-summary > :nth-child(4){grid-column:2;} }
+@media(max-width:720px){ .automation-step-editor .iot-page-header{align-items:stretch;} .editor-header-tools{width:100%;align-items:stretch;} .editor-back-link{align-self:flex-end;} .editor-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));} .editor-actions form,.editor-actions .iot-button{width:100%;min-width:0;} .step-toolbar{align-items:stretch;flex-direction:column;} .step-toolbar-right{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));} .step-create__header,.step-card{display:block;} .step-create__index,.step-index{flex-direction:row;justify-content:flex-start;border-right:0;border-bottom:1px solid var(--iot-border-soft);padding:11px 13px;} .step-create__body,.step-body{padding:13px;} .condition-logic{grid-template-columns:1fr;} .step-subsection__header{flex-direction:column;} .delay-grid{grid-template-columns:repeat(3,minmax(0,1fr));} .form-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));} }
+@media(max-width:390px){ .editor-actions,.step-toolbar-right,.delay-grid,.form-buttons{grid-template-columns:1fr;} }
 </style>
 {% endblock %}
 {% block content %}
-<div class="iot-page sequence-edit-content">
+<div class="iot-page automation-step-editor">
     <header class="iot-page-header">
         <div>
-            <p class="iot-eyebrow">SEQUENCE EDITOR</p>
+            <p class="iot-eyebrow">AUTOMATION EDITOR</p>
             <h1>{{ sequence.name }}</h1>
             <p>{{ sequence.description|default:"시퀀스 설명이 없습니다." }}</p>
         </div>
-
-        <div class="sequence-editor-header__tools">
-            <a href="{% url 'iotcore:sequence_list' %}" class="sequence-back-link">← 시퀀스 목록으로</a>
-
-            <div class="sequence-actions">
-                <form method="post" action="{% url 'iotcore:sequence_run' sequence.id %}">
-                    {% csrf_token %}
-                    <button type="submit" class="iot-button iot-button--primary">실행</button>
-                </form>
-
-                <form method="get" action="{% url 'iotcore:sequence_update' sequence.id %}">
-                    <button type="submit" class="iot-button">편집</button>
-                </form>
-
-                <form method="post" action="{% url 'iotcore:sequence_delete' sequence.id %}">
-                    {% csrf_token %}
-                    <button
-                        type="submit"
-                        class="iot-button iot-button--danger"
-                        onclick="return confirm('정말 삭제하시겠습니까?');">
-                        삭제
-                    </button>
-                </form>
+        <div class="editor-header-tools">
+            <a href="{% url 'iotcore:sequence_list' %}" class="editor-back-link">← 자동화 목록으로</a>
+            <div class="editor-actions">
+                <form method="post" action="{% url 'iotcore:sequence_run' sequence.id %}">{% csrf_token %}<button type="submit" class="iot-button iot-button--primary">실행</button></form>
+                <form method="get" action="{% url 'iotcore:sequence_update' sequence.id %}"><button type="submit" class="iot-button">기본 설정</button></form>
+                <form method="post" action="{% url 'iotcore:sequence_delete' sequence.id %}">{% csrf_token %}<button type="submit" class="iot-button iot-button--danger" onclick="return confirm('정말 삭제하시겠습니까?');">삭제</button></form>
             </div>
         </div>
     </header>
 
-    <div class="sequence-container">
-        <div class="step-toolbar">
-            <label>
-                <input type="checkbox" id="checkAll">
-                전체 선택
-            </label>
-
-            <div class="step-toolbar-right">
-                <button type="button" id="btnAddStep">+ Step 추가</button>
-                <button type="button" id="btnDeleteStep">- Step 삭제</button>
-                <button type="button">순서 편집</button>
-            </div>
-        </div>
-
-        <form
-            id="stepForm"
-            class="step-form"
-            action="{% url 'iotcore:sequence_step_create' sequence.id %}"
-            method="post"
-            style="display:none;">
-            {% csrf_token %}
-
-            <div class="form-row">
-                <label>장치</label>
-                <select id="device-select" name="device">
-                    <option value="">장치를 선택하세요.</option>
-                    {% for device in devices %}
-                    <option value="{{ device.id }}" data-device-type="{{ device.device_type }}">{{ device.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="form-row">
-                <label>동작</label>
-                <select id="function-select" name="function">
-                    <option value="">장치를 먼저 선택하세요.</option>
-                </select>
-            </div>
-
-            <div class="form-row" id="parameter-row" hidden>
-                <label id="parameter-label">설정 값</label>
-                <input id="parameter-value" name="parameter_value" type="text" disabled>
-                <select id="parameter-choice" name="parameter_value" hidden disabled></select>
-                <small id="parameter-help"></small>
-            </div>
-
-            <div class="form-row">
-                <label>지연 시간</label>
-                <div class="delay-container">
-                    {{ step_form.hour }}<span>시</span>
-                    {{ step_form.minute }}<span>분</span>
-                    {{ step_form.second }}<span>초</span>
-
-                    <div class="delay-position">
-                        <label>{{ step_form.delay_position.0.tag }} 동작 전</label>
-                        <label>{{ step_form.delay_position.1.tag }} 동작 후</label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="form-buttons">
-                <button type="button">취소</button>
-                <button type="submit">추가</button>
-            </div>
-        </form>
-
-        {{ device_actions|json_script:"device-actions" }}
-
-        <div class="step-list">
-            {% for step in steps %}
-            <div class="step-card">
-                <div class="step-header">
-                    <input type="checkbox" class="step-checkbox" value="{{ step.id }}">
-                    <span class="step-order-label">STEP</span>
-                    <span class="step-order">{{ step.order }}</span>
-                </div>
-
-                <div class="step-body">
-                    <div class="step-data">
-                        <span class="step-data__label">장치</span>
-                        <strong>{{ step.device.name }}</strong>
-                    </div>
-
-                    <div class="step-data">
-                        <span class="step-data__label">동작</span>
-                        <strong>{{ step.function_display }}</strong>
-                    </div>
-
-                    <div class="step-data">
-                        <span class="step-data__label">지연</span>
-                        <strong>{{ step.delay|duration }}</strong>
-                        <span class="step-data__sub">
-                            {% if step.delay %}{{ step.get_delay_position_display }}{% else %}지연 없음{% endif %}
-                        </span>
-                    </div>
-                </div>
-            </div>
-            {% empty %}
-            <div class="step-card step-card--empty">등록된 Step이 없습니다.</div>
-            {% endfor %}
+    <div class="editor-intro">
+        <div>
+            <h2>실행 Step</h2>
+            <p>Step마다 실행 조건 N개와 실행 동작 N개를 구성합니다. 조건이 없으면 해당 Step은 항상 실행됩니다.</p>
         </div>
     </div>
 
-    <div id="toast" style="
-        display:none;
-        position:fixed;
-        top:30px;
-        left:50%;
-        transform:translateX(-50%);
-        background-color:rgba(0,0,0,0.85);
-        color:#fff;
-        padding:10px 24px;
-        border:1px solid #00FFC8;
-        border-radius:0;
-        font-size:15px;
-        z-index:2000;
-        opacity:0;
-        transition:opacity 0.3s ease;
-    "></div>
+    <div class="step-toolbar">
+        <label><input type="checkbox" id="checkAll"> 전체 선택</label>
+        <div class="step-toolbar-right">
+            <button type="button" class="editor-button" id="btnAddStep">+ Step 추가</button>
+            <button type="button" class="editor-button" id="btnDeleteStep">- Step 삭제</button>
+            <button type="button" class="editor-button" disabled title="기존 순서 편집 기능 연결 예정">순서 편집</button>
+        </div>
+    </div>
+
+    <form id="stepForm" class="step-create" action="{% url 'iotcore:sequence_step_create' sequence.id %}" method="post" style="display:none;">
+        {% csrf_token %}
+        <input type="hidden" id="id_conditions-TOTAL_FORMS" name="conditions-TOTAL_FORMS" value="0">
+        <input type="hidden" id="id_actions-TOTAL_FORMS" name="actions-TOTAL_FORMS" value="0">
+        <div class="step-create__header">
+            <div class="step-create__index"><span>STEP</span><strong>NEW</strong></div>
+            <div class="step-create__title"><strong>새 Step 구성</strong><p>조건과 동작을 필요한 만큼 추가한 뒤 Step 하나로 저장합니다.</p></div>
+        </div>
+        <div class="step-create__body">
+            <section class="step-subsection">
+                <div class="step-subsection__header">
+                    <div><h3>실행 조건</h3><p>날짜·시간, 기기 상태, MQTT 이벤트, 날씨 조건을 조합합니다.</p></div>
+                    <button type="button" class="editor-button" id="btnAddCondition">+ 조건 추가</button>
+                </div>
+                <div class="condition-logic">
+                    <div class="field"><label for="condition_operator">조건 충족 방식</label><select id="condition_operator" name="condition_operator">{% for value,label in condition_operator_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+                    <div class="logic-note">AND는 모든 조건이 참일 때, OR는 하나 이상의 조건이 참일 때 이 Step의 동작을 실행합니다. 조건을 하나도 넣지 않으면 무조건 실행합니다.</div>
+                </div>
+                <div id="conditionList" class="condition-list"></div>
+            </section>
+
+            <section class="step-subsection">
+                <div class="step-subsection__header">
+                    <div><h3>실행 동작</h3><p>한 Step 안에서 여러 기기 동작을 순서대로 실행할 수 있습니다.</p></div>
+                    <button type="button" class="editor-button" id="btnAddAction">+ 동작 추가</button>
+                </div>
+                <div id="actionList" class="action-list"></div>
+            </section>
+
+            <div class="form-buttons"><button type="button" class="editor-button" id="btnCancelStep">취소</button><button type="submit" class="editor-button">Step 추가</button></div>
+        </div>
+    </form>
+
+    <template id="conditionTemplate">
+        <div class="condition-card">
+            <div class="child-card__header"><strong>실행 조건</strong><button type="button" class="editor-button editor-button--danger child-remove">삭제</button></div>
+            <div class="condition-grid">
+                <div class="field field--full"><label>{{ condition_empty_form.condition_type.label }}</label>{{ condition_empty_form.condition_type }}</div>
+                <div class="condition-schedule field--full hidden">
+                    <div class="condition-grid">
+                        <div class="field"><label>{{ condition_empty_form.schedule_type.label }}</label>{{ condition_empty_form.schedule_type }}</div>
+                        <div class="field schedule-once"><label>{{ condition_empty_form.run_at.label }}</label>{{ condition_empty_form.run_at }}</div>
+                        <div class="field schedule-weekly weekdays field--full"><label>요일</label>{{ condition_empty_form.weekdays }}</div>
+                        <div class="field schedule-weekly schedule-time-mode field--full"><label>{{ condition_empty_form.schedule_time_mode.label }}</label>{{ condition_empty_form.schedule_time_mode }}</div>
+                        <div class="field schedule-at"><label>{{ condition_empty_form.time_of_day.label }}</label>{{ condition_empty_form.time_of_day }}</div>
+                        <div class="field schedule-window"><label>{{ condition_empty_form.time_start.label }}</label>{{ condition_empty_form.time_start }}</div>
+                        <div class="field schedule-window schedule-window-end"><label>{{ condition_empty_form.time_end.label }}</label>{{ condition_empty_form.time_end }}</div>
+                        <div class="field schedule-window field--full"><label>{{ condition_empty_form.time_no_end }} {{ condition_empty_form.time_no_end.label }}</label></div>
+                        <div class="field schedule-interval"><label>{{ condition_empty_form.interval_every.label }}</label>{{ condition_empty_form.interval_every }}</div>
+                        <div class="field schedule-interval"><label>{{ condition_empty_form.interval_unit.label }}</label>{{ condition_empty_form.interval_unit }}</div>
+                    </div>
+                </div>
+                <div class="condition-state field--full hidden"><div class="condition-grid"><div class="field"><label>{{ condition_empty_form.state_device.label }}</label>{{ condition_empty_form.state_device }}</div><div class="field"><label>{{ condition_empty_form.state_key.label }}</label>{{ condition_empty_form.state_key }}</div><div class="field"><label>{{ condition_empty_form.state_operator.label }}</label>{{ condition_empty_form.state_operator }}</div><div class="field condition-value"><label>{{ condition_empty_form.state_value.label }}</label>{{ condition_empty_form.state_value }}</div></div></div>
+                <div class="condition-mqtt field--full hidden"><div class="condition-grid"><div class="field field--full"><label>{{ condition_empty_form.mqtt_topic.label }}</label>{{ condition_empty_form.mqtt_topic }}</div><div class="field"><label>{{ condition_empty_form.mqtt_field.label }}</label>{{ condition_empty_form.mqtt_field }}</div><div class="field"><label>{{ condition_empty_form.mqtt_operator.label }}</label>{{ condition_empty_form.mqtt_operator }}</div><div class="field field--full condition-value"><label>{{ condition_empty_form.mqtt_value.label }}</label>{{ condition_empty_form.mqtt_value }}</div></div></div>
+                <div class="condition-weather field--full hidden"><div class="condition-grid"><div class="field"><label>{{ condition_empty_form.weather_metric.label }}</label>{{ condition_empty_form.weather_metric }}</div><div class="field"><label>{{ condition_empty_form.weather_operator.label }}</label>{{ condition_empty_form.weather_operator }}</div><div class="field"><label>{{ condition_empty_form.weather_value.label }}</label>{{ condition_empty_form.weather_value }}</div></div></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="actionTemplate">
+        <div class="action-card">
+            <div class="child-card__header"><strong>실행 동작</strong><button type="button" class="editor-button editor-button--danger child-remove">삭제</button></div>
+            <div class="action-grid">
+                <div class="field"><label>{{ action_empty_form.device.label }}</label>{{ action_empty_form.device }}</div>
+                <div class="field"><label>{{ action_empty_form.function.label }}</label>{{ action_empty_form.function }}</div>
+                <div class="field field--full parameter-field hidden"><label>{{ action_empty_form.parameter_json.label }}</label>{{ action_empty_form.parameter_json }}<span class="helptext parameter-help">파라미터가 필요한 동작에서만 사용합니다.</span></div>
+                <div class="field field--full"><label>지연 시간</label><div class="delay-grid"><div><span class="helptext">시</span>{{ action_empty_form.hour }}</div><div><span class="helptext">분</span>{{ action_empty_form.minute }}</div><div><span class="helptext">초</span>{{ action_empty_form.second }}</div></div></div>
+                <div class="field field--full delay-position-list"><label>{{ action_empty_form.delay_position.label }}</label>{{ action_empty_form.delay_position }}</div>
+            </div>
+        </div>
+    </template>
+
+    {{ device_actions|json_script:"device-actions" }}
+
+    <div class="step-list">
+        {% for step in steps %}
+        <article class="step-card">
+            <div class="step-index"><input type="checkbox" class="step-checkbox" value="{{ step.id }}"><span>STEP</span><strong>{{ step.order }}</strong></div>
+            <div class="step-body">
+                <div class="step-block">
+                    <div class="step-block__header"><strong>실행 조건</strong><span>{{ step.get_condition_operator_display }}</span></div>
+                    <div class="summary-row">
+                        {% for summary in step.condition_summaries %}<span class="summary-chip">{{ summary }}</span>{% empty %}<span class="summary-chip summary-chip--muted">조건 없음 · 항상 실행</span>{% endfor %}
+                    </div>
+                </div>
+                <div class="step-block">
+                    <div class="step-block__header"><strong>실행 동작</strong><span>{% if step.decorated_actions %}{{ step.decorated_actions|length }}개{% else %}1개{% endif %}</span></div>
+                    {% for action in step.decorated_actions %}
+                    <div class="action-summary"><span class="action-summary__number">{{ forloop.counter }}</span><strong>{{ action.device.name }}</strong><span>{{ action.function_display }}</span><span class="action-summary__muted">{{ action.delay|duration }} · {% if action.delay %}{{ action.get_delay_position_display }}{% else %}지연 없음{% endif %}</span></div>
+                    {% empty %}
+                        {% if step.device_id %}<div class="action-summary"><span class="action-summary__number">1</span><strong>{{ step.device.name }}</strong><span>{{ step.function_display }}</span><span class="action-summary__muted">{{ step.delay|duration }} · {% if step.delay %}{{ step.get_delay_position_display }}{% else %}지연 없음{% endif %}</span></div>{% else %}<span class="summary-chip summary-chip--muted">등록된 동작이 없습니다.</span>{% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </article>
+        {% empty %}<div class="step-card step-card--empty">등록된 Step이 없습니다.</div>{% endfor %}
+    </div>
+
+    <div id="toast" style="display:none;position:fixed;top:30px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.9);color:#fff;padding:10px 24px;border:1px solid var(--iot-accent);z-index:2000;"></div>
 </div>
 {% endblock %}
-{% block extra_js %}<script>
+{% block extra_js %}
+<script>
+(() => {
+    const form = document.getElementById('stepForm');
+    const conditionList = document.getElementById('conditionList');
+    const actionList = document.getElementById('actionList');
+    const conditionTemplate = document.getElementById('conditionTemplate');
+    const actionTemplate = document.getElementById('actionTemplate');
+    const conditionTotal = document.getElementById('id_conditions-TOTAL_FORMS');
+    const actionTotal = document.getElementById('id_actions-TOTAL_FORMS');
+    const deviceActions = JSON.parse(document.getElementById('device-actions').textContent);
 
-    const btnAddStep = document.getElementById("btnAddStep");
-    const btnDeleteStep = document.getElementById("btnDeleteStep");
-    const stepForm = document.getElementById("stepForm");
-    const checkAll = document.getElementById("checkAll");
-
-    const deviceSelect = document.getElementById("device-select");
-    const functionSelect = document.getElementById("function-select");
-    const parameterRow = document.getElementById("parameter-row");
-    const parameterLabel = document.getElementById("parameter-label");
-    const parameterValue = document.getElementById("parameter-value");
-    const parameterChoice = document.getElementById("parameter-choice");
-    const parameterHelp = document.getElementById("parameter-help");
-
-    const deviceActions = JSON.parse(
-        document.getElementById("device-actions").textContent
-    );
-
-    // Step 추가 버튼
-    btnAddStep.addEventListener("click", function () {
-        stepForm.style.display = "block";
-    });
-
-    // Step 전체 선택
-    checkAll.addEventListener("change", function () {
-    document.querySelectorAll(".step-checkbox")
-        .forEach(cb => {
-
-            cb.checked = checkAll.checked;
+    function showToast(message){ const t=document.getElementById('toast'); t.textContent=message; t.style.display='block'; setTimeout(()=>t.style.display='none',1600); }
+    function renumber(list, prefix, totalField){
+        [...list.children].forEach((card,index)=>{
+            card.querySelectorAll('[name]').forEach(el=>{ el.name=el.name.replace(new RegExp(prefix+'-\\d+-'), prefix+'-'+index+'-'); });
+            card.querySelectorAll('[id]').forEach(el=>{ el.id=el.id.replace(new RegExp('id_'+prefix+'-\\d+-'), 'id_'+prefix+'-'+index+'-'); });
+            card.querySelectorAll('label[for]').forEach(el=>{ el.htmlFor=el.htmlFor.replace(new RegExp('id_'+prefix+'-\\d+-'), 'id_'+prefix+'-'+index+'-'); });
+            const title=card.querySelector('.child-card__header strong'); if(title) title.textContent=(prefix==='conditions'?'실행 조건 ':'실행 동작 ')+(index+1);
         });
-    });
-
-    // Step 삭제 버튼
-    btnDeleteStep.addEventListener("click", function () {
-        const checkedSteps = [
-            ...document.querySelectorAll(".step-checkbox:checked")
-        ];
-
-        if (checkedSteps.length === 0) {
-            showToast("삭제할 Step을 선택하세요.");
-            return;
-        }
-
-        const stepIds = checkedSteps.map(cb => cb.value);
-        const formData = new FormData();
-        stepIds.forEach(id => {
-            formData.append("step_ids", id);
-        });
-        const csrfToken =
-            document.querySelector("#stepForm [name=csrfmiddlewaretoken]").value;
-
-        formData.append(
-            "csrfmiddlewaretoken",
-            csrfToken
-        );
-        fetch("{% url 'iotcore:sequence_step_delete' %}", {
-            method: "POST",
-            body: formData
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("HTTP Error");
-            }
-            return response.json();
-
-        })
-        .then(data => {
-            if (!data.success) {
-                showToast(data.message);
-                return;
-            }
-            showToast(data.message);
-
-            // TODO
-            // 나중에는 여기서 DOM만 수정하도록 변경 예정
-            setTimeout(() => {
-                location.reload();
-            }, 800);
-        })
-        .catch(error => {
-            console.error(error);
-            showToast("Step 삭제 중 오류가 발생했습니다.");
-        });
-
-});
-
-    // 장치 변경
-    deviceSelect.addEventListener("change", function () {
-
-        const selectedOption =
-            deviceSelect.options[deviceSelect.selectedIndex];
-
-        const deviceType =
-            selectedOption.dataset.deviceType;
-
-        // 기존 목록 제거
-        functionSelect.innerHTML = "";
-
-        if (!deviceType) {
-
-            functionSelect.innerHTML =
-                '<option value="">장치를 먼저 선택하세요.</option>';
-            updateParameterField();
-            return;
-        }
-
-        const actions = deviceActions[deviceType] || [];
-
-        actions.forEach(function(action){
-
-            const option = document.createElement("option");
-
-            option.value = action.code;
-            option.textContent = action.display_name;
-            option.dataset.parameterKey = action.parameter_key || "";
-
-            functionSelect.appendChild(option);
-
-        });
-
-        updateParameterField();
-
-    });
-
-    functionSelect.addEventListener("change", updateParameterField);
-
-    function updateParameterField() {
-        const option = functionSelect.options[functionSelect.selectedIndex];
-        const parameterKey = option ? option.dataset.parameterKey : "";
-        parameterRow.hidden = !parameterKey;
-        parameterValue.hidden = false;
-        parameterValue.disabled = true;
-        parameterValue.value = "";
-        parameterChoice.hidden = true;
-        parameterChoice.disabled = true;
-        parameterChoice.innerHTML = "";
-        parameterHelp.textContent = "";
-
-        if (!parameterKey) return;
-        parameterValue.disabled = false;
-        parameterValue.type = "text";
-        parameterValue.removeAttribute("min");
-        parameterValue.removeAttribute("max");
-        parameterValue.removeAttribute("step");
-        parameterLabel.textContent = "설정 값";
-
-        if (parameterKey === "speed") {
-            parameterLabel.textContent = "풍속";
-            parameterValue.type = "number";
-            parameterValue.min = "1";
-            parameterValue.max = "100";
-            parameterValue.step = "1";
-            parameterHelp.textContent = "1부터 100 사이의 정수";
-        } else if (parameterKey === "horizontal_angle") {
-            parameterLabel.textContent = "좌우 회전 각도";
-            parameterValue.hidden = true;
-            parameterValue.disabled = true;
-            parameterChoice.hidden = false;
-            parameterChoice.disabled = false;
-            parameterChoice.innerHTML = '<option value="30">30°</option><option value="60">60°</option><option value="90">90°</option>';
-            parameterHelp.textContent = "확인된 값 30°, 60° 또는 90°";
-        }
+        totalField.value=list.children.length;
     }
-    function showToast(message) {
-        const toast = document.getElementById("toast");
-        toast.textContent = message;
-        toast.style.display = "block";
-
-        requestAnimationFrame(() => {
-            toast.style.opacity = "1";
-        });
-        setTimeout(() => {
-            toast.style.opacity = "0";
-            setTimeout(() => {
-                toast.style.display = "none";
-            }, 300);
-        }, 1500);
+    function addCondition(){
+        const index=Number(conditionTotal.value);
+        conditionList.insertAdjacentHTML('beforeend', conditionTemplate.innerHTML.replaceAll('__prefix__', index));
+        conditionTotal.value=index+1;
+        const card=conditionList.lastElementChild; bindCondition(card); renumber(conditionList,'conditions',conditionTotal);
     }
+    function addAction(){
+        const index=Number(actionTotal.value);
+        actionList.insertAdjacentHTML('beforeend', actionTemplate.innerHTML.replaceAll('__prefix__', index));
+        actionTotal.value=index+1;
+        const card=actionList.lastElementChild; bindAction(card); renumber(actionList,'actions',actionTotal);
+    }
+    function field(card,suffix){ return card.querySelector(`[name$="-${suffix}"]`); }
+    function setVisible(card, selector, visible){ card.querySelectorAll(selector).forEach(el=>el.classList.toggle('hidden',!visible)); }
+    function updateCondition(card){
+        const type=field(card,'condition_type')?.value || '';
+        setVisible(card,'.condition-schedule',type==='schedule'); setVisible(card,'.condition-state',type==='device_state'); setVisible(card,'.condition-mqtt',type==='mqtt_event'); setVisible(card,'.condition-weather',type==='weather');
+        if(type==='schedule') updateSchedule(card);
+        if(type==='device_state') updateStateValue(card);
+        if(type==='mqtt_event') updateMqttValue(card);
+    }
+    function checkedTimeMode(card){ return card.querySelector('[name$="-schedule_time_mode"]:checked')?.value || 'at'; }
+    function updateSchedule(card){
+        const schedule=field(card,'schedule_type')?.value || '';
+        setVisible(card,'.schedule-once',schedule==='once'); setVisible(card,'.schedule-weekly',schedule==='weekly'); setVisible(card,'.schedule-interval',schedule==='interval');
+        const mode=checkedTimeMode(card); setVisible(card,'.schedule-at',schedule==='weekly'&&mode==='at'); setVisible(card,'.schedule-window',schedule==='weekly'&&mode==='window');
+        const noEnd=field(card,'time_no_end')?.checked; setVisible(card,'.schedule-window-end',schedule==='weekly'&&mode==='window'&&!noEnd);
+    }
+    function updateStateValue(card){ const op=field(card,'state_operator')?.value; setVisible(card,'.condition-state .condition-value', op!=='changed'); }
+    function updateMqttValue(card){ const op=field(card,'mqtt_operator')?.value; setVisible(card,'.condition-mqtt .condition-value', !['received','changed'].includes(op)); }
+    function bindCondition(card){
+        field(card,'condition_type')?.addEventListener('change',()=>updateCondition(card)); field(card,'schedule_type')?.addEventListener('change',()=>updateSchedule(card));
+        card.querySelectorAll('[name$="-schedule_time_mode"]').forEach(el=>el.addEventListener('change',()=>updateSchedule(card))); field(card,'time_no_end')?.addEventListener('change',()=>updateSchedule(card));
+        field(card,'state_operator')?.addEventListener('change',()=>updateStateValue(card)); field(card,'mqtt_operator')?.addEventListener('change',()=>updateMqttValue(card));
+        card.querySelector('.child-remove')?.addEventListener('click',()=>{card.remove();renumber(conditionList,'conditions',conditionTotal);}); updateCondition(card);
+    }
+    function refreshFunctions(card){
+        const device=field(card,'device'); const fn=field(card,'function'); if(!device||!fn)return;
+        const selected=device.options[device.selectedIndex]; const type=selected?.dataset.deviceType || selected?.getAttribute('data-device-type');
+        // Django's ModelChoiceField does not carry the device type, so resolve from a data map injected below.
+        const deviceType=(window.sequenceDeviceTypes||{})[device.value] || type || '';
+        const current=fn.value; fn.innerHTML='<option value="">동작을 선택하세요.</option>';
+        (deviceActions[deviceType]||[]).forEach(action=>{ const o=document.createElement('option'); o.value=action.code; o.textContent=action.display_name; o.dataset.parameterKey=action.parameter_key||''; fn.appendChild(o); });
+        if([...fn.options].some(o=>o.value===current)) fn.value=current; updateParameter(card);
+    }
+    function updateParameter(card){ const fn=field(card,'function'); const row=card.querySelector('.parameter-field'); const key=fn?.options[fn.selectedIndex]?.dataset.parameterKey||''; row?.classList.toggle('hidden',!key); const help=card.querySelector('.parameter-help'); if(help&&key)help.textContent=`${key} 값을 JSON 객체로 입력하세요. 예: {"${key}": 24}`; }
+    function bindAction(card){ field(card,'device')?.addEventListener('change',()=>refreshFunctions(card)); field(card,'function')?.addEventListener('change',()=>updateParameter(card)); card.querySelector('.child-remove')?.addEventListener('click',()=>{card.remove();renumber(actionList,'actions',actionTotal);}); refreshFunctions(card); }
 
-
-</script>{% endblock %}
+    document.getElementById('btnAddStep').addEventListener('click',()=>{ form.style.display='block'; if(actionList.children.length===0)addAction(); form.scrollIntoView({behavior:'smooth',block:'start'}); });
+    document.getElementById('btnCancelStep').addEventListener('click',()=>{ form.style.display='none'; });
+    document.getElementById('btnAddCondition').addEventListener('click',addCondition);
+    document.getElementById('btnAddAction').addEventListener('click',addAction);
+    document.getElementById('checkAll').addEventListener('change',e=>document.querySelectorAll('.step-checkbox').forEach(cb=>cb.checked=e.target.checked));
+    document.getElementById('btnDeleteStep').addEventListener('click',()=>{
+        const ids=[...document.querySelectorAll('.step-checkbox:checked')].map(cb=>cb.value); if(!ids.length){showToast('삭제할 Step을 선택하세요.');return;}
+        const data=new FormData(); ids.forEach(id=>data.append('step_ids',id)); data.append('csrfmiddlewaretoken',form.querySelector('[name=csrfmiddlewaretoken]').value);
+        fetch("{% url 'iotcore:sequence_step_delete' %}",{method:'POST',body:data}).then(r=>r.json()).then(data=>{showToast(data.message||'처리했습니다.'); if(data.success)setTimeout(()=>location.reload(),500);}).catch(()=>showToast('Step 삭제 중 오류가 발생했습니다.'));
+    });
+    window.sequenceDeviceTypes = { {% for device in devices %}"{{ device.id }}":"{{ device.device_type|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %} };
+})();
+</script>
+{% endblock %}

@@ -2,17 +2,22 @@
 
 After deploying the Django code to `/home/leedowon/Playground`:
 
+
+> 기존 설치에서 업그레이드하는 경우 먼저 구형 워커를 제거하세요.
+> `sudo systemctl disable --now iotcore-sequence-worker.service || true`
+> `sudo rm -f /etc/systemd/system/iotcore-sequence-worker.service`
+
 ```bash
 cd /home/leedowon/Playground
 source venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 sudo cp deploy/systemd/iotcore-scheduler.service /etc/systemd/system/
-sudo cp deploy/systemd/iotcore-sequence-worker.service /etc/systemd/system/
+sudo cp deploy/systemd/iotcore-automation-worker.service /etc/systemd/system/
 sudo cp deploy/systemd/iotcore-automation-listener.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl reenable --now iotcore-scheduler iotcore-sequence-worker iotcore-automation-listener
-sudo systemctl status iotcore-scheduler iotcore-sequence-worker iotcore-automation-listener --no-pager
+sudo systemctl reenable --now iotcore-scheduler iotcore-automation-worker iotcore-automation-listener
+sudo systemctl status iotcore-scheduler iotcore-automation-worker iotcore-automation-listener --no-pager
 ```
 
 These units are bound to `apache2.service`: starting Apache starts them, and
@@ -21,12 +26,12 @@ after installation with:
 
 ```bash
 sudo systemctl restart apache2
-sudo systemctl status apache2 iotcore-scheduler iotcore-sequence-worker iotcore-automation-listener --no-pager
+sudo systemctl status apache2 iotcore-scheduler iotcore-automation-worker iotcore-automation-listener --no-pager
 ```
 
 The scheduler converts due time triggers into pending `AutomationRun` rows.
 The MQTT listener does the same for matching sensor events. The worker executes
-automation actions and any nested `SequenceRun` rows, so long-running device
+all immediate/scheduled `AutomationRun` actions, including nested Automation calls, so long-running device
 operations do not block Apache requests or MQTT event handling.
 
 ## MQTT listener for Pi agents

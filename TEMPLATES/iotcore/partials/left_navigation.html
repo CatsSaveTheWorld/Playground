@@ -14,16 +14,10 @@
             <span>기기 제어</span>
         </a>
         <a
-            class="iot-nav-link {% if request.resolver_match.url_name and 'sequence' in request.resolver_match.url_name %}is-active{% endif %}"
+            class="iot-nav-link {% if 'sequence' in request.resolver_match.url_name or 'automation' in request.resolver_match.url_name %}is-active{% endif %}"
             href="{% url 'iotcore:sequence_list' %}">
-            <span class="iot-nav-icon" aria-hidden="true">▶</span>
-            <span>시퀀스</span>
-        </a>
-        <a
-            class="iot-nav-link {% if request.resolver_match.url_name and 'automation' in request.resolver_match.url_name %}is-active{% endif %}"
-            href="{% url 'iotcore:automation_list' %}">
-            <span class="iot-nav-icon" aria-hidden="true">◴</span>
-            <span>예약 실행</span>
+            <span class="iot-nav-icon" aria-hidden="true">↻</span>
+            <span>자동화</span>
         </a>
 
         <p class="iot-nav-label">SYSTEM</p>

@@ -1,102 +1,66 @@
 {% extends "iotcore/base_iotcore.html" %}
-{% block title %}예약 실행{% endblock %}
+{% block title %}자동화{% endblock %}
 {% block content %}
 <div class="iot-page">
-    <header class="iot-page-header">
+    <header class="iot-page-header iot-automation-page-header">
         <div>
-            <p class="iot-eyebrow">SCHEDULES</p>
-            <h1>예약 실행 목록</h1>
-            <p>트리거 세트마다 조건을 AND/OR로 평가하고, 전체 결과가 FALSE에서 TRUE로 바뀌는 순간 해당 세트의 동작을 실행합니다.</p>
-        </div>
-        <div class="iot-page-actions">
-            <a class="iot-button" href="{% url 'iotcore:automation_group_manage' %}">그룹 관리</a>
-            <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}">+ 새 예약 실행</a>
+            <p class="iot-eyebrow">AUTOMATION</p>
+            <h1>자동화</h1>
+            <p>같은 Automation 구조를 즉시 실행 또는 예약 실행으로 직접 분류해 관리합니다.</p>
         </div>
     </header>
 
-    {% if has_any_automations %}
-    <section class="iot-list-toolbar" aria-label="예약 실행 검색 및 필터">
-        <form method="get" class="iot-list-toolbar__filters">
-            <input type="hidden" name="scope" value="{{ current_scope }}">
-            <div class="iot-list-toolbar__search-line">
-                <label class="iot-visually-hidden" for="automationSearch">예약 실행 검색</label>
-                <input
-                    id="automationSearch"
-                    class="iot-list-search"
-                    type="search"
-                    name="q"
-                    value="{{ query }}"
-                    placeholder="이름·조건·동작·기기 검색">
-                <button class="iot-button" type="submit">적용</button>
-                {% if query %}<a class="iot-button iot-button--quiet" href="{{ clear_search_url }}">검색 초기화</a>{% endif %}
-            </div>
+    <nav class="iot-automation-tabs" aria-label="자동화 실행 방식">
+        <a class="iot-automation-tab {% if is_immediate %}is-active{% endif %}" href="{{ immediate_url }}" {% if is_immediate %}aria-current="page"{% endif %}>
+            <span class="iot-automation-tab__title">즉시 실행</span>
+            <span class="iot-automation-tab__meta">필요할 때 한 번 실행</span>
+        </a>
+        <a class="iot-automation-tab {% if is_scheduled %}is-active{% endif %}" href="{{ scheduled_url }}" {% if is_scheduled %}aria-current="page"{% endif %}>
+            <span class="iot-automation-tab__title">예약 실행</span>
+            <span class="iot-automation-tab__meta">Trigger 감시 · 반복 실행</span>
+        </a>
+    </nav>
 
-            <div class="iot-filter-grid">
-                <label class="iot-list-filter">
-                    <span>상태</span>
-                    <select class="iot-list-select" name="status">
-                        <option value="all" {% if current_status == "all" %}selected{% endif %}>전체 ({{ total_count }})</option>
-                        <option value="enabled" {% if current_status == "enabled" %}selected{% endif %}>활성 ({{ active_count }})</option>
-                        <option value="disabled" {% if current_status == "disabled" %}selected{% endif %}>비활성 ({{ inactive_count }})</option>
-                    </select>
-                </label>
-                <label class="iot-list-filter">
-                    <span>조건 종류</span>
-                    <select class="iot-list-select" name="trigger">
-                        <option value="all" {% if current_trigger == "all" %}selected{% endif %}>전체</option>
-                        {% for value, label in trigger_choices %}
-                        <option value="{{ value }}" {% if current_trigger == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-                <label class="iot-list-filter">
-                    <span>실행 종류</span>
-                    <select class="iot-list-select" name="action">
-                        <option value="all" {% if current_action == "all" %}selected{% endif %}>전체</option>
-                        {% for value, label in action_choices %}
-                        <option value="{{ value }}" {% if current_action == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-                <label class="iot-list-filter">
-                    <span>정렬</span>
-                    <select class="iot-list-select" name="sort">
-                        <option value="next" {% if current_sort == "next" %}selected{% endif %}>다음 실행</option>
-                        <option value="updated" {% if current_sort == "updated" %}selected{% endif %}>최근 수정</option>
-                        <option value="name" {% if current_sort == "name" %}selected{% endif %}>이름</option>
-                    </select>
-                </label>
-            </div>
-        </form>
-
-        <nav class="iot-scope-tabs" aria-label="예약 실행 그룹 필터">
-            <a class="iot-scope-tab {% if current_scope == 'all' %}is-active{% endif %}" href="{{ scope_all_url }}">전체 <span>{{ total_count }}</span></a>
-            <a class="iot-scope-tab {% if current_scope == 'favorite' %}is-active{% endif %}" href="{{ scope_favorite_url }}">★ 즐겨찾기 <span>{{ favorite_count }}</span></a>
-            {% for tab in group_tabs %}
-            <a class="iot-scope-tab {% if current_scope == tab.scope %}is-active{% endif %}" href="{{ tab.url }}">{{ tab.name }} <span>{{ tab.count }}</span></a>
-            {% endfor %}
-            {% if ungrouped_count %}
-            <a class="iot-scope-tab {% if current_scope == 'ungrouped' %}is-active{% endif %}" href="{{ scope_ungrouped_url }}">미분류 <span>{{ ungrouped_count }}</span></a>
+    <section class="iot-automation-section-heading">
+        <div>
+            {% if is_scheduled %}
+            <p class="iot-eyebrow">SCHEDULED EXECUTION</p>
+            <h2>예약 실행</h2>
+            <p>IoTCore가 Trigger를 감시해 자동으로 실행합니다. 실행 방식은 편집 화면에서 직접 변경할 수 있습니다.</p>
+            {% else %}
+            <p class="iot-eyebrow">IMMEDIATE EXECUTION</p>
+            <h2>즉시 실행</h2>
+            <p>필요할 때 직접 한 번 실행합니다. Trigger가 있어도 실행 방식은 자동으로 변경되지 않습니다.</p>
             {% endif %}
-        </nav>
+        </div>
+        <div class="iot-page-actions">
+            <a class="iot-button" href="{% url 'iotcore:automation_group_manage' %}">그룹 관리</a>
+            {% if is_scheduled %}
+            <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}?type=scheduled">+ 새 예약 실행</a>
+            {% else %}
+            <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}?type=immediate">+ 새 즉시 실행</a>
+            {% endif %}
+        </div>
     </section>
 
-    {% if automations %}
-        {% for section in automation_sections %}
+    {% if group_sections %}
+        {% for section in group_sections %}
         <section class="iot-group-section">
             <div class="iot-group-section__header">
                 <div>
-                    <span class="iot-group-section__eyebrow">GROUP</span>
+                    <span class="iot-group-section__eyebrow">{% if section.is_ungrouped %}UNGROUPED{% else %}GROUP{% endif %}</span>
                     <h2>{{ section.name }}</h2>
                 </div>
                 <span class="iot-group-section__count">{{ section.items|length }}</span>
             </div>
+
+            {% if section.items %}
             <div class="iot-card-grid">
                 {% for automation in section.items %}
                 <article class="iot-panel iot-entity-card automation-card" data-edit-url="{% url 'iotcore:automation_update' automation.id %}">
                     <div class="iot-entity-card__top">
                         <div>
-                            <span class="iot-entity-card__type">SCHEDULE{% if automation.group %} · {{ automation.group.name }}{% else %} · 미분류{% endif %}</span>
+                            <span class="iot-entity-card__type">{% if is_scheduled %}SCHEDULED{% else %}IMMEDIATE{% endif %}</span>
                             <h2>{{ automation.name }}</h2>
                         </div>
                         <div class="iot-entity-card__indicators">
@@ -109,24 +73,36 @@
                                     title="{% if automation.is_favorite %}즐겨찾기 해제{% else %}즐겨찾기 추가{% endif %}"
                                     aria-label="{% if automation.is_favorite %}즐겨찾기 해제{% else %}즐겨찾기 추가{% endif %}">{% if automation.is_favorite %}★{% else %}☆{% endif %}</button>
                             </form>
+                            {% if is_scheduled %}
                             <span class="iot-status-toggle {% if automation.enabled %}is-enabled{% endif %}"><i></i>{% if automation.enabled %}활성{% else %}비활성{% endif %}</span>
+                            {% endif %}
                         </div>
                     </div>
-                    <p class="iot-entity-card__description">
-                        <strong>트리거 세트</strong> {{ automation.summary }}<br>
-                        <strong>조건</strong> {{ automation.condition_summary }}<br>
-                        <strong>동작</strong> {{ automation.action_summary }}
-                    </p>
-                    <div class="iot-entity-card__meta">
-                        {% if automation.next_run_at %}다음 실행 {{ automation.next_run_at|date:"Y.m.d H:i" }}{% else %}예정된 실행 없음{% endif %}
-                    </div>
+
+                    {% if automation.description %}<p class="iot-entity-card__description">{{ automation.description }}</p>{% endif %}
+                    <p class="iot-entity-card__description"><strong>Step</strong> {{ automation.step_count }}개 · <strong>Trigger</strong> {{ automation.trigger_count }}개 · <strong>Action</strong> {{ automation.action_count }}개</p>
+
+                    {% if is_scheduled %}
+                    <div class="iot-entity-card__meta">{% if automation.next_run_at %}다음 예약 {{ automation.next_run_at|date:"Y.m.d H:i" }}{% else %}이벤트 대기 또는 예약 없음{% endif %}</div>
+                    {% else %}
+                    <div class="iot-entity-card__meta">최근 수정 {{ automation.updated_at|date:"Y.m.d H:i" }}</div>
+                    {% endif %}
+
                     <div class="iot-entity-card__actions">
+                        {% if is_scheduled %}
                         <form method="post" action="{% url 'iotcore:automation_toggle' automation.id %}">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{{ request.get_full_path }}">
                             <button class="iot-button" type="submit">{% if automation.enabled %}중지{% else %}활성화{% endif %}</button>
                         </form>
-                        <form method="post" action="{% url 'iotcore:automation_delete' automation.id %}" onsubmit="return confirm('이 예약 실행을 삭제할까요?');">
+                        {% else %}
+                        <form method="post" action="{% url 'iotcore:automation_run' automation.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button class="iot-button iot-button--primary" type="submit">실행</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{% url 'iotcore:automation_delete' automation.id %}" onsubmit="return confirm('이 자동화를 삭제할까요?');">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{{ request.get_full_path }}">
                             <button class="iot-button iot-button--danger" type="submit">삭제</button>
@@ -135,20 +111,22 @@
                 </article>
                 {% endfor %}
             </div>
+            {% else %}
+            <p class="iot-group-section__empty">이 그룹에 등록된 {% if is_scheduled %}예약 실행{% else %}즉시 실행{% endif %} 항목이 없습니다.</p>
+            {% endif %}
         </section>
         {% endfor %}
     {% else %}
     <section class="iot-panel iot-empty-panel">
-        <h2>조건에 맞는 예약 실행이 없습니다.</h2>
-        <p>검색어, 상태, 조건 종류 또는 그룹 필터를 변경해보세요.</p>
-        <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_list' %}">전체 예약 실행 보기</a>
-    </section>
-    {% endif %}
-    {% else %}
-    <section class="iot-panel iot-empty-panel">
-        <h2>등록된 예약 실행이 없습니다.</h2>
-        <p>조건과 실행 동작을 묶은 트리거 세트를 구성하세요.</p>
-        <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}">첫 예약 실행 만들기</a>
+        {% if is_scheduled %}
+        <h2>등록된 예약 실행과 그룹이 없습니다.</h2>
+        <p>그룹을 먼저 만들거나 새 예약 실행을 추가해보세요.</p>
+        <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}?type=scheduled">첫 예약 실행 만들기</a>
+        {% else %}
+        <h2>등록된 즉시 실행과 그룹이 없습니다.</h2>
+        <p>그룹을 먼저 만들거나 새 즉시 실행을 추가해보세요.</p>
+        <a class="iot-button iot-button--primary" href="{% url 'iotcore:automation_create' %}?type=immediate">첫 즉시 실행 만들기</a>
+        {% endif %}
     </section>
     {% endif %}
 </div>

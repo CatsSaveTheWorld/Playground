@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_time
 
-from ..models import AutomationCondition, AutomationTrigger
+from ..models import Step, Trigger
 
 
 INTERVAL_UNITS = {
@@ -15,11 +15,9 @@ INTERVAL_UNITS = {
 }
 
 
-def _schedule_weekdays(config, schedule_type):
-    if schedule_type == AutomationTrigger.ScheduleType.DAILY:
-        return set(range(7))
+def _schedule_weekdays(config):
     try:
-        weekdays = {int(day) for day in config.get("weekdays", [])}
+        weekdays = {int(day) for day in (config or {}).get("weekdays", [])}
     except (TypeError, ValueError):
         return set()
     return weekdays if weekdays.issubset(set(range(7))) else set()
@@ -28,36 +26,20 @@ def _schedule_weekdays(config, schedule_type):
 def is_schedule_window(config):
     config = config or {}
     return (
-        config.get("schedule_type")
-        in {AutomationTrigger.ScheduleType.DAILY, AutomationTrigger.ScheduleType.WEEKLY}
-        and config.get("time_mode") == AutomationTrigger.ScheduleTimeMode.WINDOW
+        config.get("schedule_type") == Trigger.ScheduleType.WEEKLY
+        and config.get("time_mode") == Trigger.ScheduleTimeMode.WINDOW
     )
 
 
-def schedule_is_event_source(config):
-    """Whether this reservation-time condition actively wakes a TriggerSet."""
-    return not is_schedule_window(config)
-
-
 def schedule_window_matches(config, now=None):
-    """Evaluate a weekly/daily passive time window.
-
-    A crossing-midnight window is anchored to the selected start weekday.
-    Example: Monday 23:00~06:00 remains true until Tuesday 06:00 even if
-    Tuesday itself is not selected. ``end=None`` means from start until the
-    end of each selected day.
-    """
     config = config or {}
     if not is_schedule_window(config):
         return False
-
     now = now or timezone.now()
     local_now = timezone.localtime(now)
-    schedule_type = config.get("schedule_type")
-    weekdays = _schedule_weekdays(config, schedule_type)
+    weekdays = _schedule_weekdays(config)
     if not weekdays:
         return False
-
     start = parse_time(str(config.get("start", "")))
     if start is None:
         return False
@@ -65,7 +47,6 @@ def schedule_window_matches(config, now=None):
     end = parse_time(str(raw_end)) if raw_end not in (None, "") else None
     current = local_now.time().replace(tzinfo=None)
     today = local_now.weekday()
-
     if end is None:
         return today in weekdays and current >= start
     if start <= end:
@@ -77,46 +58,29 @@ def schedule_window_matches(config, now=None):
     return False
 
 
-def format_korean_time(value):
-    """Format a time as Korean 12-hour clock text."""
-    hour = value.hour
-    period = "오전" if hour < 12 else "오후"
-    display_hour = hour % 12 or 12
-    return f"{period} {display_hour}:{value.minute:02d}"
-
-
 def calculate_next_schedule(config, after=None, previous_next=None):
-    """Return the next due time for a schedule-condition config."""
     after = after or timezone.now()
     local_after = timezone.localtime(after)
     config = config or {}
     schedule_type = config.get("schedule_type")
 
-    if schedule_type == AutomationTrigger.ScheduleType.ONCE:
+    if schedule_type == Trigger.ScheduleType.ONCE:
         run_at = parse_datetime(str(config.get("run_at", "")))
         if run_at is None:
             raise ValidationError("한 번 실행 시각이 올바르지 않습니다.")
         if timezone.is_naive(run_at):
-            run_at = timezone.make_aware(run_at)
+            run_at = timezone.make_aware(run_at, timezone.get_current_timezone())
         return run_at if run_at > after else None
 
-    if schedule_type in {
-        AutomationTrigger.ScheduleType.DAILY,
-        AutomationTrigger.ScheduleType.WEEKLY,
-    }:
-        # A time range is a passive constraint. It is evaluated only when a
-        # state/MQTT condition wakes the set and therefore has no next_run_at.
+    if schedule_type == Trigger.ScheduleType.WEEKLY:
         if is_schedule_window(config):
             return None
-
         run_time = parse_time(str(config.get("time", "")))
         if run_time is None:
             raise ValidationError("실행 시간이 올바르지 않습니다.")
-
-        weekdays = _schedule_weekdays(config, schedule_type)
+        weekdays = _schedule_weekdays(config)
         if not weekdays:
             raise ValidationError("실행 요일을 하나 이상 선택하세요.")
-
         for days_ahead in range(8):
             candidate_date = local_after.date() + timedelta(days=days_ahead)
             if candidate_date.weekday() not in weekdays:
@@ -129,7 +93,7 @@ def calculate_next_schedule(config, after=None, previous_next=None):
                 return candidate
         return None
 
-    if schedule_type == AutomationTrigger.ScheduleType.INTERVAL:
+    if schedule_type == Trigger.ScheduleType.INTERVAL:
         try:
             every = int(config.get("every", 0))
         except (TypeError, ValueError):
@@ -146,160 +110,89 @@ def calculate_next_schedule(config, after=None, previous_next=None):
     raise ValidationError("지원하지 않는 예약 시간 유형입니다.")
 
 
-def calculate_next_run(trigger, after=None):
-    """Backward-compatible trigger API.
+def calculate_next_run(step, after=None):
+    trigger = (
+        step.triggers
+        .filter(trigger_type=Trigger.Type.SCHEDULE)
+        .order_by("order", "id")
+        .first()
+    )
+    if trigger is None:
+        return None
+    return calculate_next_schedule(
+        trigger.config or {},
+        after=after,
+        previous_next=step.next_run_at,
+    )
 
-    Legacy TIME triggers still read ``trigger.config``. Current trigger sets
-    derive their schedule from the single SCHEDULE condition they own.
-    """
-    if trigger.trigger_type == AutomationTrigger.TriggerType.TIME:
-        return calculate_next_schedule(
-            trigger.config or {},
-            after=after,
-            previous_next=trigger.next_run_at,
-        )
-    if trigger.trigger_type == AutomationTrigger.TriggerType.SET and trigger.pk:
-        condition = (
-            trigger.conditions
-            .filter(condition_type=AutomationCondition.ConditionType.SCHEDULE)
-            .order_by("order", "id")
-            .first()
-        )
-        if condition is None:
-            return None
-        return calculate_next_schedule(
-            condition.config or {},
-            after=after,
-            previous_next=trigger.next_run_at,
-        )
-    return None
+
+def format_korean_time(value):
+    hour = value.hour
+    period = "오전" if hour < 12 else "오후"
+    return f"{period} {hour % 12 or 12}:{value.minute:02d}"
 
 
 def _operator_label(operator):
     return {
-        "eq": "=",
-        "ne": "≠",
-        "gt": ">",
-        "gte": "≥",
-        "lt": "<",
-        "lte": "≤",
-        "changed": "변경됨",
-        "changed_to": "변경 후 =",
-        "received": "수신",
+        "eq": "=", "ne": "≠", "gt": ">", "gte": "≥", "lt": "<", "lte": "≤",
+        "changed": "변경됨", "changed_to": "변경 후 =", "received": "수신",
     }.get(operator, operator or "=")
 
 
 def describe_schedule(config):
     config = config or {}
     schedule_type = config.get("schedule_type")
-    if schedule_type == AutomationTrigger.ScheduleType.ONCE:
+    if schedule_type == Trigger.ScheduleType.ONCE:
         run_at = parse_datetime(str(config.get("run_at", "")))
         if run_at is None:
             return f"{config.get('run_at', '-')} 한 번"
         if timezone.is_naive(run_at):
-            run_at = timezone.make_aware(run_at)
-        local_run_at = timezone.localtime(run_at)
-        return f"{local_run_at:%Y-%m-%d} {format_korean_time(local_run_at)} 한 번"
-    if schedule_type == AutomationTrigger.ScheduleType.DAILY:
-        if is_schedule_window(config):
-            start = parse_time(str(config.get("start", "")))
-            raw_end = config.get("end")
-            end = parse_time(str(raw_end)) if raw_end not in (None, "") else None
-            if start is None:
-                return "매일 시간대 미설정"
-            if end is None:
-                return f"매일 {format_korean_time(start)} 이후"
-            return f"매일 {format_korean_time(start)} ~ {format_korean_time(end)}"
-        run_time = parse_time(str(config.get("time", "")))
-        return f"매일 {format_korean_time(run_time)}" if run_time else "매일 -"
-    if schedule_type == AutomationTrigger.ScheduleType.WEEKLY:
+            run_at = timezone.make_aware(run_at, timezone.get_current_timezone())
+        run_at = timezone.localtime(run_at)
+        return f"{run_at:%Y-%m-%d} {format_korean_time(run_at)} 한 번"
+    if schedule_type == Trigger.ScheduleType.WEEKLY:
         labels = ["월", "화", "수", "목", "금", "토", "일"]
-        weekday_numbers = _schedule_weekdays(config, schedule_type)
-        days = "매일" if weekday_numbers == set(range(7)) else (
-            "매주 " + ", ".join(labels[day] for day in sorted(weekday_numbers))
-        )
+        weekday_numbers = _schedule_weekdays(config)
+        days = "매일" if weekday_numbers == set(range(7)) else "매주 " + ", ".join(labels[d] for d in sorted(weekday_numbers))
         if is_schedule_window(config):
             start = parse_time(str(config.get("start", "")))
             raw_end = config.get("end")
             end = parse_time(str(raw_end)) if raw_end not in (None, "") else None
             if start is None:
                 return f"{days} 시간대 미설정"
-            if end is None:
-                return f"{days} {format_korean_time(start)} 이후"
-            return f"{days} {format_korean_time(start)} ~ {format_korean_time(end)}"
+            return f"{days} {format_korean_time(start)} 이후" if end is None else f"{days} {format_korean_time(start)} ~ {format_korean_time(end)}"
         run_time = parse_time(str(config.get("time", "")))
         return f"{days} {format_korean_time(run_time) if run_time else '-'}"
-    if schedule_type == AutomationTrigger.ScheduleType.INTERVAL:
-        unit = INTERVAL_UNITS.get(config.get("unit"), config.get("unit", ""))
-        return f"{config.get('every', '-')} {unit}마다"
+    if schedule_type == Trigger.ScheduleType.INTERVAL:
+        return f"{config.get('every', '-')} {INTERVAL_UNITS.get(config.get('unit'), config.get('unit', ''))}마다"
     return "예약 시간 미설정"
 
 
 def describe_trigger(trigger):
-    if trigger.trigger_type == AutomationTrigger.TriggerType.SET:
-        conditions = list(trigger.conditions.order_by("order", "id"))
-        if not conditions:
-            return "조건 없음"
-        joiner = " AND " if trigger.condition_operator == AutomationTrigger.ConditionOperator.AND else " OR "
-        return joiner.join(describe_condition(condition) for condition in conditions)
-
-    # Legacy summaries.
     config = trigger.config or {}
-    if trigger.trigger_type == AutomationTrigger.TriggerType.MQTT_EVENT:
-        topic = config.get("topic", "-")
-        if any(key in config for key in ("field", "operator", "value")):
-            field = config.get("field") or "value"
-            operator = _operator_label(config.get("operator"))
-            value = config.get("value", "")
-            return f"{topic} · {field} {operator} {value}"
-        return f"{topic} 메시지 수신"
-    if trigger.trigger_type == AutomationTrigger.TriggerType.DEVICE_STATE:
-        label = config.get("device_name") or config.get("device_uid") or "기기"
-        return f"{label} 상태 변경"
-    return describe_schedule(config)
-
-
-def describe_condition(condition):
-    config = condition.config or {}
-    if condition.condition_type == AutomationCondition.ConditionType.SCHEDULE:
+    op = _operator_label(config.get("operator"))
+    if trigger.trigger_type == Trigger.Type.SCHEDULE:
         return describe_schedule(config)
-    if condition.condition_type == AutomationCondition.ConditionType.TIME_WINDOW:
-        return f"{config.get('start', '-')} ~ {config.get('end', '-')}"
-
-    operator = _operator_label(config.get("operator"))
-    if condition.condition_type == AutomationCondition.ConditionType.DEVICE_STATE:
-        device = (
-            config.get("device_name")
-            or config.get("device_uid")
-            or config.get("topic")
-            or "기기"
-        )
+    if trigger.trigger_type == Trigger.Type.DEVICE_STATE:
+        device = config.get("device_name") or config.get("device_uid") or config.get("topic") or "기기"
         key = config.get("key") or "value"
-        if config.get("operator") == "changed":
-            return f"{device} · {key} {operator}"
-        return f"{device} · {key} {operator} {config.get('value', '')}"
-    if condition.condition_type == AutomationCondition.ConditionType.MQTT_EVENT:
+        return f"{device} · {key} {op}" if config.get("operator") == "changed" else f"{device} · {key} {op} {config.get('value', '')}"
+    if trigger.trigger_type == Trigger.Type.MQTT_EVENT:
         topic = config.get("topic") or "MQTT"
         if config.get("operator") == "received":
             return f"{topic} · 메시지 수신"
         field = config.get("field") or "value"
-        if config.get("operator") == "changed":
-            return f"{topic} · {field} {operator}"
-        return f"{topic} · {field} {operator} {config.get('value', '')}"
-    if condition.condition_type == AutomationCondition.ConditionType.WEATHER:
+        return f"{topic} · {field} {op}" if config.get("operator") == "changed" else f"{topic} · {field} {op} {config.get('value', '')}"
+    if trigger.trigger_type == Trigger.Type.WEATHER:
         metric = config.get("metric") or "temperature"
-        metric_label, unit = {
-            "temperature": ("현재 기온", "°C"),
-            "humidity": ("현재 습도", "%"),
-            "precipitation_probability": ("강수 확률", "%"),
-        }.get(metric, (metric, ""))
-        value = config.get("value", "")
-        if isinstance(value, float) and value.is_integer():
-            value = int(value)
-        return f"현재 날씨 · {metric_label} {operator} {value}{unit}"
-    if condition.condition_type == AutomationCondition.ConditionType.EVENT_VALUE:
-        field = config.get("field") or "value"
-        if config.get("operator") == "changed":
-            return f"트리거 · {field} {operator}"
-        return f"트리거 · {field} {operator} {config.get('value', '')}"
+        label, unit = {"temperature": ("현재 기온", "°C"), "humidity": ("현재 습도", "%"), "precipitation_probability": ("강수 확률", "%")}.get(metric, (metric, ""))
+        return f"현재 날씨 · {label} {op} {config.get('value', '')}{unit}"
     return "설정되지 않음"
+
+
+def describe_step(step):
+    triggers = list(step.triggers.order_by("order", "id"))
+    if not triggers:
+        return "조건 없음"
+    joiner = " AND " if step.trigger_operator == Step.TriggerOperator.AND else " OR "
+    return joiner.join(describe_trigger(trigger) for trigger in triggers)

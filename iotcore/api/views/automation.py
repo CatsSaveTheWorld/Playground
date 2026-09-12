@@ -3,540 +3,237 @@ import json
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
-from urllib.parse import urlencode
 
 from ...device_actions import DeviceActionRegistry
 from ...forms import (
-    AutomationActionFormSet,
-    AutomationConditionFormSet,
+    ActionFormSet,
     AutomationForm,
     AutomationGroupForm,
-    AutomationTriggerFormSet,
+    StepFormSet,
+    TriggerFormSet,
 )
-from ...models import (
-    Automation,
-    AutomationAction,
-    AutomationGroup,
-    AutomationCondition,
-    AutomationTrigger,
-    Device,
-)
-from ...scheduler.calculator import describe_trigger, schedule_is_event_source
+from ...models import Action, Automation, AutomationGroup, AutomationRun, Device, Step, Trigger
+from ...scheduler.calculator import describe_step
+from ...scheduler.executor import AutomationExecutor
 from ...scheduler.service import AutomationService
+
+
+def _owner_key(form, index, *, child=False):
+    field = "trigger_key" if child else "set_key"
+    value = str(form.cleaned_data.get(field) or "").strip() if getattr(form, "cleaned_data", None) else ""
+    if value:
+        return f"key:{value}"
+    if child:
+        idx = form.cleaned_data.get("trigger_index") if getattr(form, "cleaned_data", None) else None
+        return f"index:{idx}" if idx is not None else None
+    return f"index:{index}"
 
 
 def _automation_forms(request, automation):
     data = request.POST if request.method == "POST" else None
-    trigger_queryset = AutomationTrigger.objects.none()
-    action_queryset = AutomationAction.objects.none()
-    condition_queryset = AutomationCondition.objects.none()
-    if automation.pk:
-        # TriggerSet is the parent. Conditions and actions are independent
-        # 1..N child collections that point back to the owning set.
-        trigger_queryset = automation.triggers.order_by("id")
-        action_queryset = automation.actions.order_by("trigger_id", "order", "id")
-        condition_queryset = automation.conditions.order_by(
-            "trigger_id", "order", "id"
-        )
+    step_qs = automation.steps.order_by("order", "id") if automation.pk else Step.objects.none()
+    trigger_qs = Trigger.objects.filter(step__automation=automation).order_by("step__order", "order", "id") if automation.pk else Trigger.objects.none()
+    action_qs = Action.objects.filter(step__automation=automation).order_by("step__order", "order", "id") if automation.pk else Action.objects.none()
     return (
         AutomationForm(data, instance=automation),
-        AutomationTriggerFormSet(
-            data,
-            instance=automation,
-            prefix="triggers",
-            queryset=trigger_queryset,
-        ),
-        AutomationConditionFormSet(
-            data,
-            instance=automation,
-            prefix="conditions",
-            queryset=condition_queryset,
-        ),
-        AutomationActionFormSet(
-            data,
-            instance=automation,
-            prefix="actions",
-            queryset=action_queryset,
-        ),
+        StepFormSet(data, prefix="triggers", queryset=step_qs),
+        TriggerFormSet(data, prefix="conditions", queryset=trigger_qs),
+        ActionFormSet(data, prefix="actions", queryset=action_qs),
     )
 
 
-def _active_form_indexes(formset, value_key=None):
-    indexes = set()
-    for index, form in enumerate(formset.forms):
+def _seed_child_owner_fields(step_formset, trigger_formset, action_formset):
+    if any(fs.is_bound for fs in (step_formset, trigger_formset, action_formset)):
+        return
+    step_key_by_id = {}
+    for form in step_formset.forms:
+        if form.instance.pk:
+            key = f"step-{form.instance.pk}"
+            form.fields["set_key"].initial = key
+            step_key_by_id[form.instance.pk] = key
+    for form in trigger_formset.forms:
+        if form.instance.pk and form.instance.step_id in step_key_by_id:
+            form.fields["trigger_key"].initial = step_key_by_id[form.instance.step_id]
+    for form in action_formset.forms:
+        if form.instance.pk and form.instance.step_id in step_key_by_id:
+            form.fields["trigger_key"].initial = step_key_by_id[form.instance.step_id]
+
+
+def _automation_list_url(automation_type):
+    return f"{reverse('iotcore:automation_list')}?type={automation_type}"
+
+
+def _validate_graph(step_formset, trigger_formset, action_formset):
+    active_steps = []
+    owners = {}
+    for index, form in enumerate(step_formset.forms):
+        if not form.cleaned_data or form.cleaned_data.get("DELETE"):
+            continue
+        owner = _owner_key(form, index)
+        active_steps.append((index, owner, form))
+        owners[owner] = {"actions": 0, "triggers": 0, "schedules": 0}
+
+    errors = []
+    if not active_steps:
+        errors.append("Step을 하나 이상 등록하세요.")
+
+    for form in trigger_formset.forms:
+        if not form.cleaned_data or form.cleaned_data.get("DELETE") or not form.cleaned_data.get("condition_type"):
+            continue
+        owner = _owner_key(form, 0, child=True)
+        if owner not in owners:
+            errors.append("일부 트리거의 Step 연결 정보가 올바르지 않습니다.")
+            continue
+        owners[owner]["triggers"] += 1
+        if form.cleaned_data.get("trigger_type") == Trigger.Type.SCHEDULE:
+            owners[owner]["schedules"] += 1
+
+    for form in action_formset.forms:
+        if not form.cleaned_data or form.cleaned_data.get("DELETE") or not form.cleaned_data.get("action_type"):
+            continue
+        owner = _owner_key(form, 0, child=True)
+        if owner not in owners:
+            errors.append("일부 동작의 Step 연결 정보가 올바르지 않습니다.")
+            continue
+        owners[owner]["actions"] += 1
+
+    missing_actions = [str(index + 1) for index, owner, _ in active_steps if owners[owner]["actions"] == 0]
+    if missing_actions:
+        errors.append(f"각 Step에는 Action이 하나 이상 필요합니다. 해당 Step: {', '.join(missing_actions)}")
+    too_many_schedules = [str(index + 1) for index, owner, _ in active_steps if owners[owner]["schedules"] > 1]
+    if too_many_schedules:
+        errors.append(f"한 Step에는 예약 시간 Trigger를 하나만 둘 수 있습니다. 해당 Step: {', '.join(too_many_schedules)}")
+
+    if errors:
+        step_formset._non_form_errors = step_formset.error_class(errors)
+        return False
+    return True
+
+
+def _replace_graph(automation, step_formset, trigger_formset, action_formset):
+    step_rows = []
+    owner_to_step = {}
+    for index, form in enumerate(step_formset.forms):
         cleaned = form.cleaned_data
         if not cleaned or cleaned.get("DELETE"):
             continue
-        if value_key is not None and not cleaned.get(value_key):
-            continue
-        indexes.add(index)
-    return indexes
+        owner = _owner_key(form, index)
+        step_rows.append((owner, cleaned))
 
+    # Pending runs may refer to Step ids that are about to be rebuilt. Cancel
+    # them explicitly instead of letting them execute against a different graph.
+    automation.runs.filter(status=AutomationRun.Status.PENDING).update(
+        status=AutomationRun.Status.CANCELLED,
+        message="자동화 수정으로 취소됨",
+        finished_at=timezone.now(),
+    )
 
-def _clean_owner_key(value):
-    return str(value or "").strip()
+    # Deliberately rebuild the small graph atomically. It makes edit code and
+    # debugging much easier than trying to diff nested form payloads.
+    automation.steps.all().delete()
 
-
-def _persisted_set_key(trigger_id):
-    return f"trigger-{trigger_id}"
-
-
-def _trigger_owner_token(form, form_index):
-    key = _clean_owner_key(form.cleaned_data.get("set_key"))
-    if key:
-        return f"key:{key}"
-    return f"index:{form_index}"
-
-
-def _action_owner_token(form, form_index, set_indexes):
-    key = _clean_owner_key(form.cleaned_data.get("trigger_key"))
-    if key:
-        return f"key:{key}"
-    trigger_index = form.cleaned_data.get("trigger_index")
-    if trigger_index is None and form_index in set_indexes:
-        # v4 compatibility: one action occupied the same form index as its set.
-        trigger_index = form_index
-    if trigger_index is None:
-        return None
-    return f"index:{trigger_index}"
-
-
-def _condition_owner_token(form):
-    key = _clean_owner_key(form.cleaned_data.get("trigger_key"))
-    if key:
-        return f"key:{key}"
-    trigger_index = form.cleaned_data.get("trigger_index")
-    if trigger_index is None:
-        trigger_index = form.cleaned_data.get("action_index")
-    if trigger_index is None:
-        return None
-    return f"index:{trigger_index}"
-
-
-def _bound_owner_key(form, field_name):
-    try:
-        return _clean_owner_key(form[field_name].value())
-    except KeyError:
-        return ""
-
-
-def _action_trigger_index(form):
-    raw = form["trigger_index"].value()
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return None
-
-
-def _trigger_sets_have_actions(trigger_formset, action_formset):
-    """Require one or more actions under every active TriggerSet.
-
-    Current editor ownership is keyed by a stable ``set_key``/``trigger_key``
-    pair. Index ownership is accepted only as a compatibility path for older
-    POST payloads.
-    """
-    set_indexes = _active_form_indexes(trigger_formset)
-    owner_by_index = {
-        index: _trigger_owner_token(trigger_formset.forms[index], index)
-        for index in set_indexes
-    }
-    owner_tokens = list(owner_by_index.values())
-    duplicate_owners = len(owner_tokens) != len(set(owner_tokens))
-    counts = {owner: 0 for owner in owner_tokens}
-    invalid_action_forms = []
-    active_actions = 0
-
-    for form_index, form in enumerate(action_formset.forms):
-        cleaned = form.cleaned_data
-        if not cleaned or cleaned.get("DELETE") or not cleaned.get("action_type"):
-            continue
-        active_actions += 1
-        owner = _action_owner_token(form, form_index, set_indexes)
-        if owner not in counts:
-            invalid_action_forms.append(form_index + 1)
-            continue
-        counts[owner] += 1
-
-    missing = [
-        index + 1
-        for index, owner in owner_by_index.items()
-        if counts.get(owner, 0) == 0
-    ]
-    errors = []
-    if not set_indexes:
-        errors.append("트리거 세트를 하나 이상 등록하세요.")
-    if duplicate_owners:
-        errors.append("트리거 세트의 내부 식별자가 중복되었습니다. 페이지를 새로고침한 뒤 다시 저장하세요.")
-    if missing:
-        errors.append(
-            "각 트리거 세트에는 실행 동작이 하나 이상 필요합니다. "
-            f"동작이 없는 세트: {', '.join(map(str, missing))}"
+    for order, (owner, cleaned) in enumerate(step_rows, start=1):
+        step = Step.objects.create(
+            automation=automation,
+            order=order,
+            enabled=cleaned.get("enabled", True),
+            trigger_operator=cleaned.get("trigger_operator") or Step.TriggerOperator.AND,
         )
-    if invalid_action_forms:
-        errors.append(
-            "일부 실행 동작의 트리거 세트 연결 정보가 올바르지 않습니다. "
-            f"동작 폼: {', '.join(map(str, invalid_action_forms))}"
-        )
-    if active_actions == 0:
-        errors.append("실행 동작을 하나 이상 등록하세요.")
+        owner_to_step[owner] = step
 
-    if errors:
-        action_formset._non_form_errors = action_formset.error_class(errors)
-        return False
-    return True
-
-
-def _condition_trigger_index(form):
-    raw = form["trigger_index"].value()
-    if raw in (None, ""):
-        raw = form["action_index"].value()
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return None
-
-
-def _trigger_sets_have_conditions(trigger_formset, condition_formset):
-    set_indexes = _active_form_indexes(trigger_formset)
-    owner_by_index = {
-        index: _trigger_owner_token(trigger_formset.forms[index], index)
-        for index in set_indexes
-    }
-    counts = {owner: 0 for owner in owner_by_index.values()}
-    schedule_counts = {owner: 0 for owner in owner_by_index.values()}
-    source_counts = {owner: 0 for owner in owner_by_index.values()}
-
-    for form in condition_formset.forms:
+    trigger_orders = {owner: 0 for owner in owner_to_step}
+    for form in trigger_formset.forms:
         cleaned = form.cleaned_data
         if not cleaned or cleaned.get("DELETE") or not cleaned.get("condition_type"):
             continue
-        owner = _condition_owner_token(form)
-        if owner not in counts:
+        owner = _owner_key(form, 0, child=True)
+        step = owner_to_step.get(owner)
+        if step is None:
             continue
-        counts[owner] += 1
-        condition_type = cleaned.get("condition_type")
-        if condition_type == AutomationCondition.ConditionType.SCHEDULE:
-            schedule_counts[owner] += 1
-            if schedule_is_event_source(cleaned.get("config") or {}):
-                source_counts[owner] += 1
-        elif condition_type in {
-            AutomationCondition.ConditionType.DEVICE_STATE,
-            AutomationCondition.ConditionType.MQTT_EVENT,
-            AutomationCondition.ConditionType.WEATHER,
-            AutomationCondition.ConditionType.EVENT_VALUE,
-        }:
-            source_counts[owner] += 1
-
-    # Backward-compatible POSTs from the v3 editor may still carry a legacy
-    # trigger_type/config instead of an explicit source condition.
-    for index in set_indexes:
-        owner = owner_by_index[index]
-        trigger_cleaned = trigger_formset.forms[index].cleaned_data
-        legacy_type = trigger_cleaned.get("trigger_type")
-        if legacy_type in {
-            AutomationTrigger.TriggerType.TIME,
-            AutomationTrigger.TriggerType.MQTT_EVENT,
-            AutomationTrigger.TriggerType.DEVICE_STATE,
-        }:
-            counts[owner] += 1
-            source_counts[owner] += 1
-            if legacy_type == AutomationTrigger.TriggerType.TIME:
-                schedule_counts[owner] += 1
-
-    missing = [
-        index + 1
-        for index, owner in owner_by_index.items()
-        if counts.get(owner, 0) == 0
-    ]
-    too_many_schedules = [
-        index + 1
-        for index, owner in owner_by_index.items()
-        if schedule_counts.get(owner, 0) > 1
-    ]
-    no_source = [
-        index + 1
-        for index, owner in owner_by_index.items()
-        if source_counts.get(owner, 0) == 0
-    ]
-    errors = []
-    if missing:
-        errors.append(
-            "각 트리거 세트에는 조건이 하나 이상 필요합니다. "
-            f"조건이 없는 세트: {', '.join(map(str, missing))}"
+        trigger_orders[owner] += 1
+        Trigger.objects.create(
+            step=step,
+            order=trigger_orders[owner],
+            trigger_type=cleaned["trigger_type"],
+            config=cleaned.get("config") or {},
         )
-    if too_many_schedules:
-        errors.append(
-            "한 트리거 세트에는 '예약 시간' 조건을 하나만 둘 수 있습니다. "
-            f"해당 세트: {', '.join(map(str, too_many_schedules))}"
-        )
-    if no_source:
-        errors.append(
-            "각 트리거 세트에는 실행 시점을 만드는 조건이 하나 이상 필요합니다. "
-            "예약 시간의 '시간대' 방식은 보조 조건이므로 단독으로는 실행 시점을 만들지 않습니다. "
-            f"해당 세트: {', '.join(map(str, no_source))}"
-        )
-    if errors:
-        condition_formset._non_form_errors = condition_formset.error_class(errors)
-        return False
-    return True
 
-
-def _replace_children(automation, trigger_formset, condition_formset, action_formset):
-    active_indexes = sorted(_active_form_indexes(trigger_formset))
-
-    trigger_rows = {}
-    for form_index in active_indexes:
-        form = trigger_formset.forms[form_index]
-        cleaned = form.cleaned_data
-        enabled = cleaned.get("enabled", True)
-        if not form.instance.pk and form.add_prefix("enabled") not in form.data:
-            enabled = True
-        trigger_rows[form_index] = {
-            "enabled": enabled,
-            "condition_operator": (
-                cleaned.get("condition_operator")
-                or AutomationTrigger.ConditionOperator.AND
-            ),
-            "legacy_trigger_type": cleaned.get("trigger_type"),
-            "legacy_config": cleaned.get("config") or {},
-        }
-
-    # The editor treats each card as one atomic TriggerSet:
-    # 1..N conditions + 1..N ordered actions.
-    automation.triggers.all().delete()  # cascades owned actions/conditions
-    automation.conditions.all().delete()  # malformed legacy orphans
-    automation.actions.all().delete()  # legacy actions without a trigger
-
-    trigger_by_form_index = {}
-    trigger_by_owner = {}
-    set_indexes = set(active_indexes)
-    for form_index in active_indexes:
-        row = trigger_rows[form_index]
-        trigger = AutomationTrigger.objects.create(
-            automation=automation,
-            trigger_type=AutomationTrigger.TriggerType.SET,
-            config={},
-            enabled=row["enabled"],
-            condition_operator=row["condition_operator"],
-            last_result=False,
-        )
-        trigger_by_form_index[form_index] = trigger
-        trigger_by_owner[_trigger_owner_token(
-            trigger_formset.forms[form_index], form_index
-        )] = trigger
-
-    action_order_by_trigger = {}
-    for form_index, form in enumerate(action_formset.forms):
+    action_orders = {owner: 0 for owner in owner_to_step}
+    for form in action_formset.forms:
         cleaned = form.cleaned_data
         if not cleaned or cleaned.get("DELETE") or not cleaned.get("action_type"):
             continue
-        owner = _action_owner_token(form, form_index, set_indexes)
-        trigger = trigger_by_owner.get(owner)
-        if trigger is None:
+        owner = _owner_key(form, 0, child=True)
+        step = owner_to_step.get(owner)
+        if step is None:
             continue
-        order = action_order_by_trigger.get(trigger.pk, 0) + 1
-        AutomationAction.objects.create(
-            automation=automation,
-            trigger=trigger,
-            order=order,
+        action_orders[owner] += 1
+        Action.objects.create(
+            step=step,
+            order=action_orders[owner],
             action_type=cleaned["action_type"],
             device=cleaned.get("device"),
             function=cleaned.get("function") or "",
             parameter=cleaned.get("parameter"),
-            sequence=cleaned.get("sequence"),
+            target_automation=cleaned.get("target_automation"),
             delay=cleaned.get("delay") or 0,
-        )
-        action_order_by_trigger[trigger.pk] = order
-
-    condition_order_by_trigger = {}
-    for form in condition_formset.forms:
-        cleaned = form.cleaned_data
-        if not cleaned or cleaned.get("DELETE") or not cleaned.get("condition_type"):
-            continue
-        owner = _condition_owner_token(form)
-        trigger = trigger_by_owner.get(owner)
-        if trigger is None:
-            continue
-        order = condition_order_by_trigger.get(trigger.pk, 0) + 1
-        AutomationCondition.objects.create(
-            automation=automation,
-            trigger=trigger,
-            action=None,
-            condition_type=cleaned["condition_type"],
-            config=cleaned["config"],
-            order=order,
-        )
-        condition_order_by_trigger[trigger.pk] = order
-
-    # Convert any legacy v3 trigger fields received by an old browser/test
-    # into an explicit source condition. New UI never enters this branch.
-    for form_index in active_indexes:
-        row = trigger_rows[form_index]
-        legacy_type = row.get("legacy_trigger_type")
-        if legacy_type not in {
-            AutomationTrigger.TriggerType.TIME,
-            AutomationTrigger.TriggerType.MQTT_EVENT,
-            AutomationTrigger.TriggerType.DEVICE_STATE,
-        }:
-            continue
-        trigger = trigger_by_form_index[form_index]
-        config = dict(row.get("legacy_config") or {})
-        order = condition_order_by_trigger.get(trigger.pk, 0) + 1
-        if legacy_type == AutomationTrigger.TriggerType.TIME:
-            condition_type = AutomationCondition.ConditionType.SCHEDULE
-        elif legacy_type == AutomationTrigger.TriggerType.MQTT_EVENT:
-            condition_type = AutomationCondition.ConditionType.MQTT_EVENT
-            config.setdefault("field", "value")
-            config.setdefault("operator", "received")
-            config.setdefault("value", None)
-        else:
-            condition_type = AutomationCondition.ConditionType.DEVICE_STATE
-            # If the v3 POST already supplied a condition on the same device,
-            # that condition is a better source than the old broad watcher.
-            same_device_exists = False
-            for existing in trigger.conditions.filter(
-                condition_type=AutomationCondition.ConditionType.DEVICE_STATE
-            ):
-                existing_config = existing.config or {}
-                if (
-                    config.get("device_id")
-                    and str(existing_config.get("device_id")) == str(config.get("device_id"))
-                ) or (
-                    config.get("device_uid")
-                    and str(existing_config.get("device_uid")) == str(config.get("device_uid"))
-                ):
-                    same_device_exists = True
-                    break
-            if same_device_exists:
-                continue
-            config.update({"key": "*", "operator": "changed", "value": None})
-        AutomationCondition.objects.create(
-            automation=automation,
-            trigger=trigger,
-            action=None,
-            condition_type=condition_type,
-            config=config,
-            order=order,
-        )
-        condition_order_by_trigger[trigger.pk] = order
-
-    # Scheduling and edge state can only be calculated after all conditions
-    # have been attached to the set.
-    for trigger in trigger_by_form_index.values():
-        AutomationService.recalculate_trigger(trigger)
-        AutomationService.refresh_trigger_result(trigger)
-
-
-def _build_execution_blocks(trigger_formset, action_formset, condition_formset):
-    trigger_index_by_id = {
-        trigger_form.instance.pk: index
-        for index, trigger_form in enumerate(trigger_formset.forms)
-        if trigger_form.instance.pk
-    }
-
-    owner_to_index = {}
-    for index, trigger_form in enumerate(trigger_formset.forms):
-        if not trigger_form.is_bound and trigger_form.instance.pk:
-            set_key = _persisted_set_key(trigger_form.instance.pk)
-            trigger_form.fields["set_key"].initial = set_key
-        else:
-            set_key = _bound_owner_key(trigger_form, "set_key")
-        if set_key:
-            owner_to_index[f"key:{set_key}"] = index
-        else:
-            owner_to_index[f"index:{index}"] = index
-
-    actions_by_trigger_index = {}
-    for form_index, action_form in enumerate(action_formset.forms):
-        owner = None
-        if (
-            not action_form.is_bound
-            and action_form.instance.pk
-            and action_form.instance.trigger_id
-        ):
-            trigger_id = action_form.instance.trigger_id
-            set_key = _persisted_set_key(trigger_id)
-            action_form.fields["trigger_key"].initial = set_key
-            trigger_index = trigger_index_by_id.get(trigger_id)
-            action_form.fields["trigger_index"].initial = trigger_index
-            owner = f"key:{set_key}"
-        else:
-            trigger_key = _bound_owner_key(action_form, "trigger_key")
-            if trigger_key:
-                owner = f"key:{trigger_key}"
-            else:
-                trigger_index = _action_trigger_index(action_form)
-                if trigger_index is None and form_index < len(trigger_formset.forms):
-                    # Render old v4 POSTs that lack the explicit owner field.
-                    trigger_index = form_index
-                if trigger_index is not None:
-                    owner = f"index:{trigger_index}"
-        trigger_index = owner_to_index.get(owner)
-        if trigger_index is None:
-            continue
-        actions_by_trigger_index.setdefault(trigger_index, []).append(action_form)
-
-    conditions_by_trigger_index = {}
-    for condition_form in condition_formset.forms:
-        owner = None
-        if (
-            not condition_form.is_bound
-            and condition_form.instance.pk
-            and condition_form.instance.trigger_id
-        ):
-            trigger_id = condition_form.instance.trigger_id
-            set_key = _persisted_set_key(trigger_id)
-            condition_form.fields["trigger_key"].initial = set_key
-            trigger_index = trigger_index_by_id.get(trigger_id)
-            condition_form.fields["trigger_index"].initial = trigger_index
-            owner = f"key:{set_key}"
-        else:
-            trigger_key = _bound_owner_key(condition_form, "trigger_key")
-            if trigger_key:
-                owner = f"key:{trigger_key}"
-            else:
-                trigger_index = _condition_trigger_index(condition_form)
-                if trigger_index is not None:
-                    owner = f"index:{trigger_index}"
-        trigger_index = owner_to_index.get(owner)
-        if trigger_index is None:
-            continue
-        conditions_by_trigger_index.setdefault(trigger_index, []).append(
-            condition_form
+            delay_position=cleaned.get("delay_position") or Action.DelayPosition.AFTER,
         )
 
+    for step in automation.steps.all():
+        AutomationService.recalculate_step(step)
+        AutomationService.refresh_step_result(step)
+
+
+def _build_execution_blocks(step_formset, action_formset, trigger_formset):
     blocks = []
-    for index, trigger_form in enumerate(trigger_formset.forms):
-        blocks.append({
-            "index": index,
-            "trigger_form": trigger_form,
-            "actions": actions_by_trigger_index.get(index, []),
-            "conditions": conditions_by_trigger_index.get(index, []),
-        })
+    owner_to_block = {}
+    for index, form in enumerate(step_formset.forms):
+        if not form.is_bound and form.instance.pk:
+            owner = f"key:step-{form.instance.pk}"
+        else:
+            value = str(form["set_key"].value() or "").strip()
+            owner = f"key:{value}" if value else f"index:{index}"
+        block = {"index": index, "trigger_form": form, "conditions": [], "actions": []}
+        blocks.append(block)
+        owner_to_block[owner] = block
+
+    def child_owner(form):
+        value = str(form["trigger_key"].value() or "").strip()
+        if value:
+            return f"key:{value}"
+        try:
+            return f"index:{int(form['trigger_index'].value())}"
+        except (TypeError, ValueError):
+            return None
+
+    for form in trigger_formset.forms:
+        block = owner_to_block.get(child_owner(form))
+        if block:
+            block["conditions"].append(form)
+    for form in action_formset.forms:
+        block = owner_to_block.get(child_owner(form))
+        if block:
+            block["actions"].append(form)
     return blocks
 
 
 def _action_ui_context():
     action_registry = {
         device_type: [
-            {
-                "code": action.code,
-                "name": action.display_name,
-                "parameter_key": action.parameter_key,
-            }
+            {"code": action.code, "name": action.display_name, "parameter_key": action.parameter_key}
             for action in actions
         ]
         for device_type, actions in DeviceActionRegistry._ACTIONS.items()
     }
     device_types = {
         str(device.pk): device.device_type
-        for device in Device.objects.filter(
-            device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID]
-        )
+        for device in Device.objects.filter(device_role__in=[Device.Role.CONTROL, Device.Role.HYBRID])
     }
     return {
         "action_registry_json": json.dumps(action_registry, ensure_ascii=False),
@@ -544,276 +241,144 @@ def _action_ui_context():
     }
 
 
-def _render_form(request, context):
+def _render_form(request, *, automation, form, step_formset, trigger_formset, action_formset, is_update):
+    _seed_child_owner_fields(step_formset, trigger_formset, action_formset)
+    context = {
+        "automation": automation,
+        "form": form,
+        "trigger_formset": step_formset,
+        "condition_formset": trigger_formset,
+        "action_formset": action_formset,
+        "execution_blocks": _build_execution_blocks(step_formset, action_formset, trigger_formset),
+        "is_update": is_update,
+        "is_immediate": automation.automation_type == Automation.Type.IMMEDIATE,
+    }
     context.update(_action_ui_context())
-    if all(
-        key in context
-        for key in ("trigger_formset", "action_formset", "condition_formset")
-    ):
-        context["execution_blocks"] = _build_execution_blocks(
-            context["trigger_formset"],
-            context["action_formset"],
-            context["condition_formset"],
-        )
     return render(request, "iotcore/automation_form.html", context)
 
 
-def _decorate_automation(automation):
-    triggers = list(automation.triggers.all())
-    automation.summary = " / ".join(
-        describe_trigger(trigger) for trigger in triggers
-    ) or "트리거 세트 없음"
-    next_runs = [
-        trigger.next_run_at for trigger in triggers
-        if trigger.next_run_at is not None
-    ]
+def _decorate(automation):
+    steps = list(automation.steps.all())
+    automation.step_count = len(steps)
+    automation.trigger_count = sum(step.triggers.count() for step in steps)
+    automation.action_count = sum(step.actions.count() for step in steps)
+    automation.summary = " / ".join(describe_step(step) for step in steps) or "Step 없음"
+    next_runs = [step.next_run_at for step in steps if step.next_run_at]
     automation.next_run_at = min(next_runs) if next_runs else None
-
-    conditions = list(automation.conditions.all())
-    condition_count_by_trigger = {}
-    for condition in conditions:
-        if condition.trigger_id is None:
-            continue
-        condition_count_by_trigger[condition.trigger_id] = (
-            condition_count_by_trigger.get(condition.trigger_id, 0) + 1
-        )
-    if triggers:
-        and_count = sum(
-            1 for trigger in triggers
-            if trigger.condition_operator == AutomationTrigger.ConditionOperator.AND
-        )
-        or_count = len(triggers) - and_count
-        parts = [f"세트 {len(triggers)}개", f"조건 {len(conditions)}개"]
-        if and_count:
-            parts.append(f"AND {and_count}개")
-        if or_count:
-            parts.append(f"OR {or_count}개")
-        automation.condition_summary = " / ".join(parts)
-    else:
-        automation.condition_summary = "조건 없음"
-
-    action_summaries = []
-    for action in automation.actions.all():
-        if action.action_type == AutomationAction.ActionType.SEQUENCE:
-            label = action.sequence.name if action.sequence else "-"
-        else:
-            device_name = action.device.name if action.device else "-"
-            device_type = action.device.device_type if action.device else ""
-            function_name = DeviceActionRegistry.get_display_name(
-                device_type,
-                action.function,
-            )
-            label = f"{device_name}: {function_name}"
-        condition_count = condition_count_by_trigger.get(action.trigger_id, 0)
-        if condition_count:
-            operator_label = "AND"
-            if action.trigger_id:
-                try:
-                    operator_label = (
-                        "OR"
-                        if action.trigger.condition_operator == AutomationTrigger.ConditionOperator.OR
-                        else "AND"
-                    )
-                except Exception:
-                    pass
-            label += f" [{operator_label} 조건 {condition_count}개]"
-        if action.delay:
-            label += f" ({action.delay}초 후)"
-        action_summaries.append(label)
-    automation.action_summary = " / ".join(action_summaries) or "실행 동작 없음"
 
 
 @login_required(login_url="common:login")
 def automation_list(request):
-    query = str(request.GET.get("q") or "").strip()
-    scope = str(request.GET.get("scope") or "all").strip()
-    status = str(request.GET.get("status") or "all").strip()
-    trigger_filter = str(request.GET.get("trigger") or "all").strip()
-    action_filter = str(request.GET.get("action") or "all").strip()
-    sort = str(request.GET.get("sort") or "next").strip()
+    selected_type = str(request.GET.get("type") or Automation.Type.SCHEDULED)
+    if selected_type not in {Automation.Type.IMMEDIATE, Automation.Type.SCHEDULED}:
+        selected_type = Automation.Type.SCHEDULED
 
-    if status not in {"all", "enabled", "disabled"}:
-        status = "all"
-    trigger_choices = [
-        (AutomationCondition.ConditionType.SCHEDULE, "예약 시간"),
-        (AutomationCondition.ConditionType.TIME_WINDOW, "시간대"),
-        (AutomationCondition.ConditionType.DEVICE_STATE, "기기 상태"),
-        (AutomationCondition.ConditionType.MQTT_EVENT, "MQTT 이벤트"),
-        (AutomationCondition.ConditionType.WEATHER, "현재 날씨"),
-    ]
-    valid_triggers = {value for value, _ in trigger_choices}
-    if trigger_filter != "all" and trigger_filter not in valid_triggers:
-        trigger_filter = "all"
-    valid_actions = {value for value, _ in AutomationAction.ActionType.choices}
-    if action_filter != "all" and action_filter not in valid_actions:
-        action_filter = "all"
-    if sort not in {"next", "updated", "name"}:
-        sort = "next"
-
+    # automation_type is deliberately user-controlled. Trigger composition must
+    # never move an Automation between the immediate/scheduled libraries.
     queryset = (
-        Automation.objects
+        Automation.objects.filter(automation_type=selected_type)
         .select_related("group")
-        .prefetch_related(
-            "triggers__conditions",
-            "conditions",
-            "actions__trigger",
-            "actions__device",
-            "actions__sequence",
-        )
+        .prefetch_related("steps__triggers", "steps__actions__device", "steps__actions__target_automation")
+        .order_by("name", "id")
     )
-
-    if scope == "favorite":
-        queryset = queryset.filter(is_favorite=True)
-    elif scope == "ungrouped":
-        queryset = queryset.filter(group__isnull=True)
-    elif scope.startswith("group:"):
-        try:
-            group_id = int(scope.split(":", 1)[1])
-        except (TypeError, ValueError):
-            scope = "all"
-        else:
-            if AutomationGroup.objects.filter(pk=group_id).exists():
-                queryset = queryset.filter(group_id=group_id)
-            else:
-                scope = "all"
-
-    if status == "enabled":
-        queryset = queryset.filter(enabled=True)
-    elif status == "disabled":
-        queryset = queryset.filter(enabled=False)
-    if trigger_filter != "all":
-        trigger_query = Q(conditions__condition_type=trigger_filter)
-        legacy_trigger_type = {
-            AutomationCondition.ConditionType.SCHEDULE: AutomationTrigger.TriggerType.TIME,
-            AutomationCondition.ConditionType.DEVICE_STATE: AutomationTrigger.TriggerType.DEVICE_STATE,
-            AutomationCondition.ConditionType.MQTT_EVENT: AutomationTrigger.TriggerType.MQTT_EVENT,
-        }.get(trigger_filter)
-        if legacy_trigger_type:
-            trigger_query |= Q(triggers__trigger_type=legacy_trigger_type)
-        queryset = queryset.filter(trigger_query)
-    if action_filter != "all":
-        queryset = queryset.filter(actions__action_type=action_filter)
-
-    automations = list(queryset.distinct())
+    automations = list(queryset)
     for automation in automations:
-        _decorate_automation(automation)
+        _decorate(automation)
 
-    if query:
-        needle = query.casefold()
-        automations = [
-            automation
-            for automation in automations
-            if needle in " ".join([
-                automation.name,
-                automation.group.name if automation.group else "미분류",
-                "활성" if automation.enabled else "비활성",
-                automation.summary,
-                automation.condition_summary,
-                automation.action_summary,
-            ]).casefold()
-        ]
-
-    if sort == "name":
-        automations.sort(key=lambda item: (item.name.casefold(), item.id))
-    elif sort == "updated":
-        automations.sort(
-            key=lambda item: (item.updated_at, item.id),
-            reverse=True,
-        )
-    else:
-        automations.sort(
-            key=lambda item: (
-                item.next_run_at is None,
-                item.next_run_at,
-                item.name.casefold(),
-            )
-        )
-
-    groups = list(
-        AutomationGroup.objects
-        .annotate(item_count=Count("automations"))
-        .order_by("order", "name", "id")
-    )
-    grouped = {group.id: [] for group in groups}
+    groups = list(AutomationGroup.objects.order_by("order", "name", "id"))
+    items_by_group = {group.id: [] for group in groups}
     ungrouped = []
     for automation in automations:
-        if automation.group_id in grouped:
-            grouped[automation.group_id].append(automation)
+        if automation.group_id in items_by_group:
+            items_by_group[automation.group_id].append(automation)
         else:
             ungrouped.append(automation)
 
-    sections = [
-        {"name": group.name, "group": group, "items": grouped[group.id]}
+    def sort_items(items):
+        if selected_type == Automation.Type.SCHEDULED:
+            return sorted(items, key=lambda item: (not item.enabled, item.name.casefold(), item.id))
+        return sorted(items, key=lambda item: (item.name.casefold(), item.id))
+
+    # Every real group is rendered even when it currently has no Automation of
+    # the selected type. This keeps the library structure visible and stable.
+    group_sections = [
+        {
+            "group": group,
+            "name": group.name,
+            "items": sort_items(items_by_group[group.id]),
+            "is_ungrouped": False,
+        }
         for group in groups
-        if grouped[group.id]
     ]
     if ungrouped:
-        sections.append({"name": "미분류", "group": None, "items": ungrouped})
+        group_sections.append({
+            "group": None,
+            "name": "미분류",
+            "items": sort_items(ungrouped),
+            "is_ungrouped": True,
+        })
 
-    def scope_url(value):
-        params = {
-            "scope": value,
-            "status": status,
-            "trigger": trigger_filter,
-            "action": action_filter,
-            "sort": sort,
-        }
-        if query:
-            params["q"] = query
-        return "?" + urlencode(params)
-
-    group_tabs = [
-        {
-            "name": group.name,
-            "count": group.item_count,
-            "scope": f"group:{group.id}",
-            "url": scope_url(f"group:{group.id}"),
-        }
-        for group in groups
-    ]
-
-    total_count = Automation.objects.count()
-    clear_search_url = "?" + urlencode({
-        "scope": scope,
-        "status": status,
-        "trigger": trigger_filter,
-        "action": action_filter,
-        "sort": sort,
-    })
-    context = {
+    is_scheduled = selected_type == Automation.Type.SCHEDULED
+    return render(request, "iotcore/automation_list.html", {
         "automations": automations,
-        "automation_sections": sections,
-        "groups": groups,
-        "group_tabs": group_tabs,
-        "query": query,
-        "current_scope": scope,
-        "current_status": status,
-        "current_trigger": trigger_filter,
-        "current_action": action_filter,
-        "current_sort": sort,
-        "trigger_choices": trigger_choices,
-        "action_choices": AutomationAction.ActionType.choices,
-        "total_count": total_count,
-        "active_count": Automation.objects.filter(enabled=True).count(),
-        "inactive_count": Automation.objects.filter(enabled=False).count(),
-        "favorite_count": Automation.objects.filter(is_favorite=True).count(),
-        "ungrouped_count": Automation.objects.filter(group__isnull=True).count(),
-        "scope_all_url": scope_url("all"),
-        "scope_favorite_url": scope_url("favorite"),
-        "scope_ungrouped_url": scope_url("ungrouped"),
-        "clear_search_url": clear_search_url,
-        "has_any_automations": total_count > 0,
-    }
-    return render(request, "iotcore/automation_list.html", context)
+        "group_sections": group_sections,
+        "selected_type": selected_type,
+        "is_scheduled": is_scheduled,
+        "is_immediate": not is_scheduled,
+        "scheduled_url": _automation_list_url(Automation.Type.SCHEDULED),
+        "immediate_url": _automation_list_url(Automation.Type.IMMEDIATE),
+    })
 
 
-def _automation_redirect_back(request):
+@login_required(login_url="common:login")
+def automation_create(request):
+    requested_type = str(request.GET.get("type") or request.POST.get("automation_type") or Automation.Type.SCHEDULED)
+    if requested_type not in {Automation.Type.IMMEDIATE, Automation.Type.SCHEDULED}:
+        requested_type = Automation.Type.SCHEDULED
+    automation = Automation(automation_type=requested_type, enabled=True)
+    form, step_formset, trigger_formset, action_formset = _automation_forms(request, automation)
+    if request.method == "POST":
+        valid = all([form.is_valid(), step_formset.is_valid(), trigger_formset.is_valid(), action_formset.is_valid()])
+        if valid:
+            valid = _validate_graph(step_formset, trigger_formset, action_formset)
+        if valid:
+            with transaction.atomic():
+                automation = form.save()
+                _replace_graph(automation, step_formset, trigger_formset, action_formset)
+            messages.success(request, "자동화를 저장했습니다.")
+            return redirect(_automation_list_url(automation.automation_type))
+    return _render_form(request, automation=automation, form=form, step_formset=step_formset, trigger_formset=trigger_formset, action_formset=action_formset, is_update=False)
+
+
+@login_required(login_url="common:login")
+def automation_update(request, automation_id):
+    automation = get_object_or_404(Automation, pk=automation_id)
+    form, step_formset, trigger_formset, action_formset = _automation_forms(request, automation)
+    if request.method == "POST":
+        valid = all([form.is_valid(), step_formset.is_valid(), trigger_formset.is_valid(), action_formset.is_valid()])
+        if valid:
+            valid = _validate_graph(step_formset, trigger_formset, action_formset)
+        if valid:
+            with transaction.atomic():
+                automation = form.save()
+                _replace_graph(automation, step_formset, trigger_formset, action_formset)
+            messages.success(request, "자동화를 저장했습니다.")
+            return redirect(_automation_list_url(automation.automation_type))
+    return _render_form(request, automation=automation, form=form, step_formset=step_formset, trigger_formset=trigger_formset, action_formset=action_formset, is_update=True)
+
+
+@login_required(login_url="common:login")
+@require_POST
+def automation_run(request, automation_id):
+    automation = get_object_or_404(Automation, pk=automation_id)
+    AutomationExecutor.enqueue(automation, source="manual")
+    messages.success(request, f'"{automation.name}" 실행 요청을 등록했습니다.')
+    return _redirect_back(request)
+
+
+def _redirect_back(request):
     target = str(request.POST.get("next") or "")
-    if target and url_has_allowed_host_and_scheme(
-        target,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
-    ):
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
         return redirect(target)
     return redirect("iotcore:automation_list")
 
@@ -824,138 +389,7 @@ def automation_favorite_toggle(request, automation_id):
     automation = get_object_or_404(Automation, pk=automation_id)
     automation.is_favorite = not automation.is_favorite
     automation.save(update_fields=["is_favorite"])
-    return _automation_redirect_back(request)
-
-
-@login_required(login_url="common:login")
-def automation_group_manage(request):
-    if request.method == "POST":
-        action = str(request.POST.get("action") or "").strip()
-        if action == "create":
-            form = AutomationGroupForm(request.POST)
-            if form.is_valid():
-                group = form.save()
-                messages.success(request, f'예약 실행 그룹 "{group.name}"을 만들었습니다.')
-            else:
-                messages.error(
-                    request,
-                    "그룹을 만들지 못했습니다. "
-                    + " ".join(
-                        error
-                        for errors in form.errors.values()
-                        for error in errors
-                    ),
-                )
-        elif action in {"update", "delete"}:
-            group = get_object_or_404(
-                AutomationGroup,
-                pk=request.POST.get("group_id"),
-            )
-            if action == "delete":
-                group_name = group.name
-                group.delete()
-                messages.success(
-                    request,
-                    f'예약 실행 그룹 "{group_name}"을 삭제했습니다. 소속 예약 실행은 미분류로 이동했습니다.',
-                )
-            else:
-                form = AutomationGroupForm(request.POST, instance=group)
-                if form.is_valid():
-                    form.save()
-                    messages.success(request, "예약 실행 그룹을 수정했습니다.")
-                else:
-                    messages.error(
-                        request,
-                        "그룹을 수정하지 못했습니다. "
-                        + " ".join(
-                            error
-                            for errors in form.errors.values()
-                            for error in errors
-                        ),
-                    )
-        return redirect("iotcore:automation_group_manage")
-
-    groups = (
-        AutomationGroup.objects
-        .annotate(item_count=Count("automations"))
-        .order_by("order", "name", "id")
-    )
-    return render(request, "iotcore/group_manage.html", {
-        "group_kind": "automation",
-        "eyebrow": "AUTOMATION GROUPS",
-        "title": "예약 실행 그룹 관리",
-        "description": "예약 실행을 목적별로 묶습니다. 그룹을 삭제해도 예약 실행은 삭제되지 않고 미분류로 이동합니다.",
-        "groups": groups,
-        "back_url_name": "iotcore:automation_list",
-    })
-
-@login_required(login_url="common:login")
-def automation_create(request):
-    automation = Automation()
-    form, trigger_formset, condition_formset, action_formset = _automation_forms(
-        request, automation
-    )
-    if (
-        request.method == "POST"
-        and form.is_valid()
-        and trigger_formset.is_valid()
-        and condition_formset.is_valid()
-        and action_formset.is_valid()
-        and _trigger_sets_have_actions(trigger_formset, action_formset)
-        and _trigger_sets_have_conditions(trigger_formset, condition_formset)
-    ):
-        with transaction.atomic():
-            automation = form.save()
-            _replace_children(
-                automation,
-                trigger_formset,
-                condition_formset,
-                action_formset,
-            )
-        messages.success(request, "예약 실행을 생성했습니다.")
-        return redirect("iotcore:automation_list")
-    return _render_form(request, {
-        "form": form,
-        "trigger_formset": trigger_formset,
-        "condition_formset": condition_formset,
-        "action_formset": action_formset,
-        "is_update": False,
-    })
-
-
-@login_required(login_url="common:login")
-def automation_update(request, automation_id):
-    automation = get_object_or_404(Automation, pk=automation_id)
-    form, trigger_formset, condition_formset, action_formset = _automation_forms(
-        request, automation
-    )
-    if (
-        request.method == "POST"
-        and form.is_valid()
-        and trigger_formset.is_valid()
-        and condition_formset.is_valid()
-        and action_formset.is_valid()
-        and _trigger_sets_have_actions(trigger_formset, action_formset)
-        and _trigger_sets_have_conditions(trigger_formset, condition_formset)
-    ):
-        with transaction.atomic():
-            automation = form.save()
-            _replace_children(
-                automation,
-                trigger_formset,
-                condition_formset,
-                action_formset,
-            )
-        messages.success(request, "예약 실행을 수정했습니다.")
-        return redirect("iotcore:automation_list")
-    return _render_form(request, {
-        "form": form,
-        "trigger_formset": trigger_formset,
-        "condition_formset": condition_formset,
-        "action_formset": action_formset,
-        "automation": automation,
-        "is_update": True,
-    })
+    return _redirect_back(request)
 
 
 @login_required(login_url="common:login")
@@ -965,11 +399,7 @@ def automation_toggle(request, automation_id):
     automation.enabled = not automation.enabled
     automation.save(update_fields=["enabled", "updated_at"])
     AutomationService.recalculate_automation(automation)
-    messages.success(
-        request,
-        f"예약 실행을 {'활성화' if automation.enabled else '비활성화'}했습니다.",
-    )
-    return _automation_redirect_back(request)
+    return _redirect_back(request)
 
 
 @login_required(login_url="common:login")
@@ -977,5 +407,34 @@ def automation_toggle(request, automation_id):
 def automation_delete(request, automation_id):
     automation = get_object_or_404(Automation, pk=automation_id)
     automation.delete()
-    messages.success(request, "예약 실행을 삭제했습니다.")
-    return _automation_redirect_back(request)
+    messages.success(request, "자동화를 삭제했습니다.")
+    return _redirect_back(request)
+
+
+@login_required(login_url="common:login")
+def automation_group_manage(request):
+    if request.method == "POST":
+        action = str(request.POST.get("action") or "create")
+        instance = None
+        if request.POST.get("group_id"):
+            instance = get_object_or_404(AutomationGroup, pk=request.POST["group_id"])
+        if action == "delete" and instance is not None:
+            instance.delete()
+            return redirect("iotcore:automation_group_manage")
+        form = AutomationGroupForm(request.POST, instance=instance)
+        if form.is_valid():
+            form.save()
+            return redirect("iotcore:automation_group_manage")
+    else:
+        form = AutomationGroupForm()
+    groups = list(AutomationGroup.objects.order_by("order", "name", "id"))
+    for group in groups:
+        group.item_count = group.automations.count()
+    return render(request, "iotcore/group_manage.html", {
+        "form": form,
+        "groups": groups,
+        "title": "자동화 그룹 관리",
+        "eyebrow": "AUTOMATION GROUPS",
+        "description": "즉시 실행과 예약 실행에서 공통으로 사용할 그룹을 관리합니다.",
+        "back_url_name": "iotcore:automation_list",
+    })

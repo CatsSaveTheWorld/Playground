@@ -150,6 +150,11 @@ urlpatterns = [
         name="automation_favorite_toggle",
     ),
     path(
+        "automations/<int:automation_id>/run/",
+        automation.automation_run,
+        name="automation_run",
+    ),
+    path(
         "automations/create/",
         schedule.schedule_create,
         name="schedule_create",
@@ -261,6 +266,7 @@ urlpatterns = [
     ),
     path("aircon/mode_fan/", aircon.aircon_mode_fan, name="aircon_mode_fan"),
 
+    path("pc/control/", pc.pc_control, name="pc_control"),
     path("pc/power_on/", pc.pc_power_on, name="pc_power_on"),
     path("pc/power_off/", pc.pc_power_off, name="pc_power_off"),
 

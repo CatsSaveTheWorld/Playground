@@ -1,5 +1,5 @@
 {% extends "iotcore/base_iotcore.html" %}
-{% block title %}{% if is_update %}예약 실행 수정{% else %}새 예약 실행{% endif %}{% endblock %}
+{% block title %}{% if is_update %}{{ automation.name }}{% elif is_immediate %}새 즉시 실행{% else %}새 예약 실행{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
 * { box-sizing: border-box; }
@@ -66,7 +66,6 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
 .hidden, .pending-delete { display: none !important; }
 .automation-form-content .form-actions button[type="submit"] { border-color: var(--iot-accent); background: var(--iot-accent); color: #06251f; font-weight: 750; }
 .automation-form-content .form-actions button[type="submit"]:hover { color: #031612; filter: brightness(1.08); }
-
 @media (max-width: 720px) {
     .automation-form-content, .automation-form-content form, .automation-form-content .section,
     .automation-form-content .trigger-set, .automation-form-content .field,
@@ -102,11 +101,11 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
 <div class="iot-page iot-form-shell automation-form-content">
     <header class="iot-page-header">
         <div>
-            <p class="iot-eyebrow">SCHEDULE EDITOR</p>
-            <h1>{% if is_update %}예약 실행 수정{% else %}새 예약 실행{% endif %}</h1>
-            <p>트리거 세트마다 조건과 실행 동작을 하나 이상 구성하고, 조건 전체가 FALSE에서 TRUE로 바뀌는 순간 해당 세트의 실행 동작들을 순서대로 실행합니다.</p>
+            <p class="iot-eyebrow">AUTOMATION EDITOR</p>
+            <h1>{% if is_update %}{{ automation.name }}{% elif is_immediate %}새 즉시 실행{% else %}새 예약 실행{% endif %}</h1>
+            <p>Step마다 Trigger 0개 이상과 Action 1개 이상을 구성합니다. 한 번 실행과 반복 실행은 같은 엔진을 사용합니다.</p>
         </div>
-        <div class="iot-page-actions"><a class="iot-button" href="{% url 'iotcore:automation_list' %}">예약 실행 목록으로</a></div>
+        <div class="iot-page-actions"><a class="iot-button" href="{% url 'iotcore:automation_list' %}">← 자동화 목록으로</a></div>
     </header>
 
     <form method="post" id="automation-form">
@@ -115,6 +114,8 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
             <h2>기본 설정</h2>
             {{ form.non_field_errors }}
             <div class="field"><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}{{ form.name.errors }}</div>
+            <div class="field"><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>{{ form.description }}{{ form.description.errors }}</div>
+            <div class="field"><label for="{{ form.automation_type.id_for_label }}">{{ form.automation_type.label }}</label>{{ form.automation_type }}<span class="helptext">{{ form.automation_type.help_text }}</span>{{ form.automation_type.errors }}</div>
             <div class="field"><label for="{{ form.group.id_for_label }}">{{ form.group.label }}</label>{{ form.group }}<span class="helptext">그룹이 없으면 미분류로 표시됩니다. 목록의 그룹 관리에서 새 그룹을 만들 수 있습니다.</span>{{ form.group.errors }}</div>
             <div class="field"><label>{{ form.is_favorite }} {{ form.is_favorite.label }}</label>{{ form.is_favorite.errors }}</div>
             <div class="field"><label>{{ form.enabled }} {{ form.enabled.label }}</label>{{ form.enabled.errors }}</div>
@@ -122,8 +123,8 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
         </section>
 
         <section class="section">
-            <h2>실행 트리거</h2>
-            <p>하나의 트리거 세트는 <strong>조건 1개 이상 + 실행 동작 1개 이상</strong>으로 구성됩니다. 같은 조건으로 여러 동작을 실행할 수 있고, 세트끼리는 서로 독립적으로 동작합니다.</p>
+            <h2>실행 Step</h2>
+            <p>Automation의 Step은 <strong>Trigger 0..N + Action 1..N</strong>으로 구성됩니다. 즉시 실행과 예약 실행의 구분은 위의 실행 방식에서 직접 선택하며 Trigger 구성은 분류를 자동으로 바꾸지 않습니다.</p>
             {{ trigger_formset.management_form }}
             {{ action_formset.management_form }}
             {{ condition_formset.management_form }}
@@ -137,18 +138,18 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                 <div class="trigger-set{% if tf.DELETE.value %} pending-delete{% endif %}" data-set-index="{{ block.index }}">
                     {{ tf.id }}{{ tf.set_key }}<span class="hidden">{{ tf.DELETE }}</span>
                     <div class="trigger-set__header">
-                        <div class="trigger-set__heading"><span>TRIGGER SET</span><strong>트리거 세트 {{ forloop.counter }}</strong></div>
-                        <button type="button" class="button remove-button" onclick="removeTriggerSet(this)">세트 삭제</button>
+                        <div class="trigger-set__heading"><span>STEP</span><strong>Step {{ forloop.counter }}</strong></div>
+                        <button type="button" class="button remove-button" onclick="removeTriggerSet(this)">Step 삭제</button>
                     </div>
 
                     {{ tf.non_field_errors }}
                     <div class="field"><label>{{ tf.enabled }} {{ tf.enabled.label }}</label>{{ tf.enabled.errors }}</div>
                     <div class="field"><label>{{ tf.condition_operator.label }}</label>{{ tf.condition_operator }}{{ tf.condition_operator.errors }}</div>
-                    <div class="logic-help">AND는 모든 조건이 참일 때, OR는 하나 이상의 조건이 참일 때 세트 전체를 참으로 평가합니다. 같은 참 상태가 유지되는 동안에는 반복 실행하지 않습니다.</div>
+                    <div class="logic-help">AND는 모든 조건이 참일 때, OR는 하나 이상의 조건이 참일 때 Step 전체를 참으로 평가합니다. 같은 참 상태가 유지되는 동안에는 반복 실행하지 않습니다.</div>
 
                     <div class="set-subsection set-conditions">
                         <div class="set-subsection__header">
-                            <h3>실행 조건</h3>
+                            <h3>Trigger</h3>
                             <p>조건 자체가 감시 대상과 비교 기준을 함께 가집니다. 별도의 감시 기기는 지정하지 않습니다.</p>
                         </div>
                         <div class="condition-list">
@@ -156,24 +157,23 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                             <div class="condition-card{% if cf.DELETE.value %} pending-delete{% endif %}">
                                 {{ cf.id }}{{ cf.trigger_key }}{{ cf.trigger_index }}{{ cf.action_index }}<span class="hidden">{{ cf.DELETE }}</span>
                                 <div class="condition-card__header">
-                                    <strong>실행 조건 {{ forloop.counter }}</strong>
+                                    <strong>Trigger {{ forloop.counter }}</strong>
                                     <button type="button" class="button remove-button" onclick="removeCondition(this)">삭제</button>
                                 </div>
                                 {{ cf.non_field_errors }}
-                                <div class="field"><label>{{ cf.condition_type.label }}</label>{{ cf.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트·현재 날씨는 세트를 깨웁니다. 예약 시간의 시간대 방식은 다른 조건이 변할 때 함께 검사되는 허용 시간 조건입니다.</span>{{ cf.condition_type.errors }}</div>
+                                <div class="field"><label>{{ cf.condition_type.label }}</label>{{ cf.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트·현재 날씨는 Step을 평가합니다. 예약 시간의 시간대 방식은 다른 조건이 변할 때 함께 검사되는 허용 시간 조건입니다.</span>{{ cf.condition_type.errors }}</div>
 
                                 <div class="condition-schedule">
                                     <div class="field"><label>{{ cf.schedule_type.label }}</label>{{ cf.schedule_type }}{{ cf.schedule_type.errors }}</div>
                                     <div class="field schedule-once"><label>{{ cf.run_at.label }}</label>{{ cf.run_at }}{{ cf.run_at.errors }}</div>
                                     <div class="field schedule-weekly weekdays"><label>반복 요일</label>{{ cf.weekdays }}{{ cf.weekdays.errors }}</div>
-                                    <div class="field schedule-weekly schedule-time-mode"><label>{{ cf.schedule_time_mode.label }}</label>{{ cf.schedule_time_mode }}<span class="helptext">지정 시각은 선택한 각 요일에 한 번 세트를 평가합니다. 시간대는 다른 상태/이벤트가 발생했을 때 현재 시각이 허용 범위인지 검사합니다.</span>{{ cf.schedule_time_mode.errors }}</div>
+                                    <div class="field schedule-weekly schedule-time-mode"><label>{{ cf.schedule_time_mode.label }}</label>{{ cf.schedule_time_mode }}<span class="helptext">지정 시각은 선택한 각 요일에 한 번 Step을 평가합니다. 시간대는 다른 상태/이벤트가 발생했을 때 현재 시각이 허용 범위인지 검사합니다.</span>{{ cf.schedule_time_mode.errors }}</div>
                                     <div class="field schedule-at"><label>지정 시각</label>{{ cf.time_of_day }}{{ cf.time_of_day.errors }}</div>
                                     <div class="field schedule-interval"><label>{{ cf.interval_every.label }}</label>{{ cf.interval_every }}{{ cf.interval_every.errors }}</div>
                                     <div class="field schedule-interval"><label>{{ cf.interval_unit.label }}</label>{{ cf.interval_unit }}{{ cf.interval_unit.errors }}</div>
                                 </div>
 
                                 <div class="condition-window-fields">
-                                    <div class="logic-help legacy-time-window-help">이 항목은 기존 데이터 호환용입니다. 새 조건에서는 예약 시간 &gt; 요일 선택 반복 &gt; 시간대를 사용하세요.</div>
                                     <div class="schedule-window-grid">
                                         <div class="field"><label>{{ cf.time_start.label }}</label>{{ cf.time_start }}{{ cf.time_start.errors }}</div>
                                         <div class="field schedule-window-end"><label>{{ cf.time_end.label }}</label>{{ cf.time_end }}{{ cf.time_end.errors }}</div>
@@ -200,29 +200,23 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                                     <div class="field"><label>{{ cf.weather_operator.label }}</label>{{ cf.weather_operator }}{{ cf.weather_operator.errors }}</div>
                                     <div class="field"><label>{{ cf.weather_value.label }}</label>{{ cf.weather_value }}<span class="helptext">{{ cf.weather_value.help_text }} 대시보드와 동일하게 송탄 자료를 우선 사용하고, 없으면 평택 자료를 사용합니다. 날씨는 30분마다 다시 평가됩니다.</span>{{ cf.weather_value.errors }}</div>
                                 </div>
-
-                                <div class="condition-event">
-                                    <div class="field"><label>{{ cf.event_field.label }}</label>{{ cf.event_field }}{{ cf.event_field.errors }}</div>
-                                    <div class="field"><label>{{ cf.event_operator.label }}</label>{{ cf.event_operator }}{{ cf.event_operator.errors }}</div>
-                                    <div class="field condition-value"><label>{{ cf.event_value.label }}</label>{{ cf.event_value }}{{ cf.event_value.errors }}</div>
-                                </div>
                             </div>
                             {% endfor %}
                         </div>
-                        <button type="button" class="button condition-add-button" onclick="addCondition(this)">+ 실행 조건 추가</button>
+                        <button type="button" class="button condition-add-button" onclick="addCondition(this)">+ Trigger 추가</button>
                     </div>
 
                     <div class="set-subsection set-actions">
                         <div class="set-subsection__header">
-                            <h3>실행 동작</h3>
-                            <p>세트가 FALSE → TRUE가 되면 아래 동작을 위에서부터 순서대로 실행합니다.</p>
+                            <h3>Action</h3>
+                            <p>Step 조건이 FALSE → TRUE가 되면 아래 동작을 위에서부터 순서대로 실행합니다.</p>
                         </div>
                         <div class="action-list">
                             {% for af in block.actions %}
                             <div class="action-card{% if af.DELETE.value %} pending-delete{% endif %}">
                                 {{ af.id }}{{ af.trigger_key }}{{ af.trigger_index }}<span class="hidden">{{ af.DELETE }}</span>
                                 <div class="action-card__header">
-                                    <strong>실행 동작 {{ forloop.counter }}</strong>
+                                    <strong>Action {{ forloop.counter }}</strong>
                                     <button type="button" class="button remove-button" onclick="removeAction(this)">삭제</button>
                                 </div>
                                 {{ af.non_field_errors }}
@@ -236,16 +230,17 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                                     <div class="field"><label>{{ af.sequence.label }}</label>{{ af.sequence }}{{ af.sequence.errors }}</div>
                                 </div>
                                 <div class="field"><label>{{ af.delay.label }}</label>{{ af.delay }}{{ af.delay.errors }}</div>
+                                    <div class="field"><label>{{ af.delay_position.label }}</label>{{ af.delay_position }}{{ af.delay_position.errors }}</div>
                             </div>
                             {% endfor %}
                         </div>
-                        <button type="button" class="button action-add-button" onclick="addAction(this)">+ 실행 동작 추가</button>
+                        <button type="button" class="button action-add-button" onclick="addAction(this)">+ Action 추가</button>
                     </div>
                 </div>
                 {% endwith %}
                 {% endfor %}
             </div>
-            <button type="button" class="button" onclick="addTriggerSet()">+ 트리거 세트 추가</button>
+            <button type="button" class="button" onclick="addTriggerSet()">+ Step 추가</button>
         </section>
 
         <div class="form-actions">
@@ -258,23 +253,23 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
         <div class="trigger-set" data-new-form="true">
             {{ trigger_formset.empty_form.id }}{{ trigger_formset.empty_form.set_key }}<span class="hidden">{{ trigger_formset.empty_form.DELETE }}</span>
             <div class="trigger-set__header">
-                <div class="trigger-set__heading"><span>TRIGGER SET</span><strong>새 트리거 세트</strong></div>
-                <button type="button" class="button remove-button" onclick="removeTriggerSet(this)">세트 삭제</button>
+                <div class="trigger-set__heading"><span>STEP</span><strong>새 Step</strong></div>
+                <button type="button" class="button remove-button" onclick="removeTriggerSet(this)">Step 삭제</button>
             </div>
             <div class="field"><label>{{ trigger_formset.empty_form.enabled }} {{ trigger_formset.empty_form.enabled.label }}</label></div>
             <div class="field"><label>{{ trigger_formset.empty_form.condition_operator.label }}</label>{{ trigger_formset.empty_form.condition_operator }}</div>
-            <div class="logic-help">AND는 모든 조건이 참일 때, OR는 하나 이상의 조건이 참일 때 세트 전체를 참으로 평가합니다.</div>
+            <div class="logic-help">AND는 모든 조건이 참일 때, OR는 하나 이상의 조건이 참일 때 Step 전체를 참으로 평가합니다.</div>
 
             <div class="set-subsection set-conditions">
-                <div class="set-subsection__header"><h3>실행 조건</h3><p>조건은 하나 이상 필요합니다.</p></div>
+                <div class="set-subsection__header"><h3>Trigger</h3><p>Trigger는 없어도 됩니다.</p></div>
                 <div class="condition-list"></div>
-                <button type="button" class="button condition-add-button" onclick="addCondition(this)">+ 실행 조건 추가</button>
+                <button type="button" class="button condition-add-button" onclick="addCondition(this)">+ Trigger 추가</button>
             </div>
 
             <div class="set-subsection set-actions">
-                <div class="set-subsection__header"><h3>실행 동작</h3><p>동작은 하나 이상 필요하며 위에서부터 순서대로 실행합니다.</p></div>
+                <div class="set-subsection__header"><h3>Action</h3><p>동작은 하나 이상 필요하며 위에서부터 순서대로 실행합니다.</p></div>
                 <div class="action-list"></div>
-                <button type="button" class="button action-add-button" onclick="addAction(this)">+ 실행 동작 추가</button>
+                <button type="button" class="button action-add-button" onclick="addAction(this)">+ Action 추가</button>
             </div>
         </div>
     </template>
@@ -283,7 +278,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
         <div class="action-card" data-new-form="true">
             {{ action_formset.empty_form.id }}{{ action_formset.empty_form.trigger_key }}{{ action_formset.empty_form.trigger_index }}<span class="hidden">{{ action_formset.empty_form.DELETE }}</span>
             <div class="action-card__header">
-                <strong>새 실행 동작</strong>
+                <strong>새 Action</strong>
                 <button type="button" class="button remove-button" onclick="removeAction(this)">삭제</button>
             </div>
             <div class="field"><label>{{ action_formset.empty_form.action_type.label }}</label>{{ action_formset.empty_form.action_type }}</div>
@@ -294,6 +289,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
             </div>
             <div class="sequence-action-fields"><div class="field"><label>{{ action_formset.empty_form.sequence.label }}</label>{{ action_formset.empty_form.sequence }}</div></div>
             <div class="field"><label>{{ action_formset.empty_form.delay.label }}</label>{{ action_formset.empty_form.delay }}</div>
+            <div class="field"><label>{{ action_formset.empty_form.delay_position.label }}</label>{{ action_formset.empty_form.delay_position }}</div>
         </div>
     </template>
 
@@ -301,10 +297,10 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
         <div class="condition-card" data-new-form="true">
             {{ condition_formset.empty_form.id }}{{ condition_formset.empty_form.trigger_key }}{{ condition_formset.empty_form.trigger_index }}{{ condition_formset.empty_form.action_index }}<span class="hidden">{{ condition_formset.empty_form.DELETE }}</span>
             <div class="condition-card__header">
-                <strong>새 실행 조건</strong>
+                <strong>새 Trigger</strong>
                 <button type="button" class="button remove-button" onclick="removeCondition(this)">삭제</button>
             </div>
-            <div class="field"><label>{{ condition_formset.empty_form.condition_type.label }}</label>{{ condition_formset.empty_form.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트·현재 날씨는 세트를 깨웁니다. 시간대는 예약 시간 안에서 설정하는 허용 시간 조건입니다.</span></div>
+            <div class="field"><label>{{ condition_formset.empty_form.condition_type.label }}</label>{{ condition_formset.empty_form.condition_type }}<span class="helptext">예약 시간의 지정 시각·기기 상태·MQTT 이벤트·현재 날씨는 Step을 평가합니다. 시간대는 예약 시간 안에서 설정하는 허용 시간 조건입니다.</span></div>
             <div class="condition-schedule">
                 <div class="field"><label>{{ condition_formset.empty_form.schedule_type.label }}</label>{{ condition_formset.empty_form.schedule_type }}</div>
                 <div class="field schedule-once"><label>{{ condition_formset.empty_form.run_at.label }}</label>{{ condition_formset.empty_form.run_at }}</div>
@@ -339,11 +335,6 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
                 <div class="field"><label>{{ condition_formset.empty_form.weather_operator.label }}</label>{{ condition_formset.empty_form.weather_operator }}</div>
                 <div class="field"><label>{{ condition_formset.empty_form.weather_value.label }}</label>{{ condition_formset.empty_form.weather_value }}<span class="helptext">{{ condition_formset.empty_form.weather_value.help_text }} 대시보드와 동일하게 송탄 자료를 우선 사용하고, 없으면 평택 자료를 사용합니다. 날씨는 30분마다 다시 평가됩니다.</span></div>
             </div>
-            <div class="condition-event">
-                <div class="field"><label>{{ condition_formset.empty_form.event_field.label }}</label>{{ condition_formset.empty_form.event_field }}</div>
-                <div class="field"><label>{{ condition_formset.empty_form.event_operator.label }}</label>{{ condition_formset.empty_form.event_operator }}</div>
-                <div class="field condition-value"><label>{{ condition_formset.empty_form.event_value.label }}</label>{{ condition_formset.empty_form.event_value }}</div>
-            </div>
         </div>
     </template>
 </div>
@@ -353,7 +344,6 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
 <script>
 const actionRegistry = JSON.parse('{{ action_registry_json|escapejs }}');
 const deviceTypes = JSON.parse('{{ device_types_json|escapejs }}');
-
 function ownField(card, prefix, suffix) {
     return card.querySelector(`[name^="${prefix}-"][name$="-${suffix}"]`);
 }
@@ -371,25 +361,21 @@ function updateCondition(card) {
     const state = card.querySelector('.condition-state');
     const mqtt = card.querySelector('.condition-mqtt');
     const weather = card.querySelector('.condition-weather');
-    const event = card.querySelector('.condition-event');
     if (schedule) schedule.style.display = type === 'schedule' ? 'block' : 'none';
     if (state) state.style.display = type === 'device_state' ? 'block' : 'none';
     if (mqtt) mqtt.style.display = type === 'mqtt_event' ? 'block' : 'none';
     if (weather) weather.style.display = type === 'weather' ? 'block' : 'none';
-    if (event) event.style.display = type === 'event_value' ? 'block' : 'none';
 
     const scheduleType = card.querySelector('select[name$="-schedule_type"]')?.value;
     const timeMode = card.querySelector('input[name$="-schedule_time_mode"]:checked')?.value || 'at';
     const noEnd = card.querySelector('input[name$="-time_no_end"]')?.checked || false;
     const isScheduleWindow = type === 'schedule' && scheduleType === 'weekly' && timeMode === 'window';
-    const isLegacyWindow = type === 'time_window';
-    if (time) time.style.display = (isScheduleWindow || isLegacyWindow) ? 'block' : 'none';
+    if (time) time.style.display = isScheduleWindow ? 'block' : 'none';
     card.querySelectorAll('.schedule-once').forEach(el => el.style.display = scheduleType === 'once' ? 'block' : 'none');
     card.querySelectorAll('.schedule-weekly').forEach(el => el.style.display = scheduleType === 'weekly' ? 'block' : 'none');
     card.querySelectorAll('.schedule-at').forEach(el => el.style.display = scheduleType === 'weekly' && timeMode === 'at' ? 'block' : 'none');
-    card.querySelectorAll('.schedule-window-end').forEach(el => el.style.display = isLegacyWindow || (isScheduleWindow && !noEnd) ? 'block' : 'none');
+    card.querySelectorAll('.schedule-window-end').forEach(el => el.style.display = isScheduleWindow && !noEnd ? 'block' : 'none');
     card.querySelectorAll('.schedule-window-no-end').forEach(el => el.style.display = isScheduleWindow ? 'block' : 'none');
-    card.querySelectorAll('.legacy-time-window-help').forEach(el => el.style.display = isLegacyWindow ? 'block' : 'none');
     card.querySelectorAll('.schedule-interval').forEach(el => el.style.display = scheduleType === 'interval' ? 'block' : 'none');
     updateConditionValueVisibility(card);
 }
@@ -406,10 +392,6 @@ function updateConditionValueVisibility(card) {
         const field = card.querySelector('.condition-mqtt .mqtt-field');
         if (value) value.style.display = ['received', 'changed'].includes(operator) ? 'none' : 'block';
         if (field) field.style.display = operator === 'received' ? 'none' : 'block';
-    } else if (type === 'event_value') {
-        const operator = card.querySelector('select[name$="-event_operator"]')?.value;
-        const value = card.querySelector('.condition-event .condition-value');
-        if (value) value.style.display = operator === 'changed' ? 'none' : 'block';
     }
 }
 
@@ -456,12 +438,14 @@ function updateAction(card) {
     const deviceFields = card.querySelector('.device-action-fields');
     const sequenceFields = card.querySelector('.sequence-action-fields');
     if (deviceFields) deviceFields.style.display = type === 'device' ? 'block' : 'none';
-    if (sequenceFields) sequenceFields.style.display = type === 'sequence' ? 'block' : 'none';
+    if (sequenceFields) sequenceFields.style.display = type === 'automation' ? 'block' : 'none';
     if (type === 'device') refreshFunctionChoices(card);
 }
 
 function bindCondition(card) {
-    card.querySelectorAll('select[name$="-condition_type"], select[name$="-schedule_type"], input[name$="-schedule_time_mode"], input[name$="-time_no_end"]').forEach(field => field.addEventListener('change', () => updateCondition(card)));
+    card.querySelectorAll('select[name$="-condition_type"], select[name$="-schedule_type"], input[name$="-schedule_time_mode"], input[name$="-time_no_end"]').forEach(field => field.addEventListener('change', () => {
+        updateCondition(card);
+    }));
     card.querySelectorAll('select[name$="-state_operator"], select[name$="-mqtt_operator"], select[name$="-event_operator"]').forEach(select => select.addEventListener('change', () => updateConditionValueVisibility(card)));
     updateCondition(card);
 }
@@ -518,12 +502,12 @@ function refreshChildHeadings(setCard) {
     let conditionIndex = 1;
     setCard.querySelectorAll('.condition-card:not(.pending-delete)').forEach(card => {
         const heading = card.querySelector('.condition-card__header strong');
-        if (heading) heading.textContent = `실행 조건 ${conditionIndex++}`;
+        if (heading) heading.textContent = `Trigger ${conditionIndex++}`;
     });
     let actionIndex = 1;
     setCard.querySelectorAll('.action-card:not(.pending-delete)').forEach(card => {
         const heading = card.querySelector('.action-card__header strong');
-        if (heading) heading.textContent = `실행 동작 ${actionIndex++}`;
+        if (heading) heading.textContent = `Action ${actionIndex++}`;
     });
 }
 
@@ -531,7 +515,7 @@ function refreshSetHeadings() {
     let visibleIndex = 1;
     document.querySelectorAll('#trigger-set-list > .trigger-set:not(.pending-delete)').forEach(card => {
         const heading = card.querySelector('.trigger-set__heading strong');
-        if (heading) heading.textContent = `트리거 세트 ${visibleIndex++}`;
+        if (heading) heading.textContent = `Step ${visibleIndex++}`;
         refreshChildHeadings(card);
     });
 }

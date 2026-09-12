@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
-from ...models import Automation, Device, DeviceState, Sequence
+from ...models import Automation, Device, DeviceState
 from ...monitoring.service import NodeTelemetryService
 from ...room_entry.service import RoomEntryService
 from ...weather.service import KmaWeatherService

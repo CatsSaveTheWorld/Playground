@@ -41,6 +41,16 @@ IOTCORE_PI5_NODE_UID = "pi5"
 NODE_TELEMETRY_OFFLINE_SECONDS = 5
 NODE_METRIC_RETENTION_HOURS = 24
 
+# Windows PC shutdown agent. Network identity (IP/MAC/ports) is stored per
+# Device in Device.control_config; the shared authentication secret stays out
+# of the database and source-controlled UI data.
+PC_AGENT_PORT = 5050
+PC_AGENT_SHUTDOWN_PATH = "/shutdown"
+PC_AGENT_TOKEN = os.environ.get(
+    "IOTCORE_PC_AGENT_TOKEN",
+    getattr(my_settings, "PC_AGENT_TOKEN", ""),
+)
+
 # Dashboard outdoor weather (KMA short-term forecast API)
 KMA_SERVICE_KEY = os.environ.get(
     "KMA_SERVICE_KEY",
