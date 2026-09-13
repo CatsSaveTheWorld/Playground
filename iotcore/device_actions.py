@@ -108,7 +108,8 @@ class DeviceActionRegistry:
         ],
 
         "projector": [
-            DeviceAction(code="power", display_name="전원"),
+            DeviceAction(code="power_on", display_name="전원 켜기"),
+            DeviceAction(code="power_off", display_name="전원 끄기"),
             DeviceAction(code="external_input", display_name="External Input"),
             DeviceAction(code="home", display_name="홈"),
             DeviceAction(code="menu", display_name="메뉴"),

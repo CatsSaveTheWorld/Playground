@@ -1,4 +1,5 @@
 import requests
+import time
 from django.conf import settings
 
 from ..repositories.controller_repository import ControllerRepository
@@ -140,17 +141,30 @@ class DeviceService:
                     motion=motion,
                 )
 
-        elif device.device_type == 'projector':
-            if device.protocol == 'ir':
+        elif device.device_type == "projector":
+            if device.protocol == "ir":
                 controller = ControllerRepository.get_controller_by_device(device_id)
 
                 if not controller:
                     return False, "연결된 컨트롤러를 찾을 수 없습니다."
 
-                success, error_message = DeviceService.execute_projector_ir(
-                    controller_id=controller.id,
-                    motion=motion,
-                )
+                if motion == "power_on":
+                    success, error_message = DeviceService.execute_projector_power_on(
+                        device,
+                        controller,
+                    )
+
+                elif motion == "power_off":
+                    success, error_message = DeviceService.execute_projector_power_off(
+                        device,
+                        controller,
+                    )
+
+                else:
+                    success, error_message = DeviceService.execute_projector_ir(
+                        controller_id=controller.id,
+                        motion=motion,
+                    )
 
         elif device.device_type == 'speaker':
             if device.protocol == 'tcpip':
@@ -196,7 +210,6 @@ class DeviceService:
 
         return False, error_message
     
-
 
     @staticmethod
     def _record_control_state(device, motion, parameters=None):
@@ -603,3 +616,81 @@ class DeviceService:
             )
 
         return False, f"지원하지 않는 스피커 동작입니다. ({motion})"
+
+
+    @staticmethod
+    def _get_power_state(device):
+        from ...models import DeviceState
+
+        state = DeviceState.objects.filter(
+            topic=f"iotcore/devices/{device.device_uid}/state",
+            key="power",
+        ).first()
+
+        if state is None:
+            return None
+
+        return state.value
+
+    @staticmethod
+    def execute_projector_power_on(device, controller):
+        current_power = DeviceService._get_power_state(device)
+
+        # 이미 켜져 있다고 알고 있으면 아무것도 하지 않는다.
+        if current_power is True:
+            return True, "프로젝터가 이미 켜져 있습니다."
+
+        # 상태를 모르면 함부로 토글하면 안 됨.
+        if current_power is None:
+            return False, (
+                "프로젝터의 현재 전원 상태를 알 수 없습니다. "
+                "먼저 현재 상태를 동기화하세요."
+            )
+
+        # OFF → ON
+        success, message = DeviceService.execute_projector_ir(
+            controller_id=controller.id,
+            motion="power",
+        )
+
+        if not success:
+            return False, message
+
+        return True, "프로젝터 전원을 켰습니다."
+
+
+    @staticmethod
+    def execute_projector_power_off(device, controller):
+        current_power = DeviceService._get_power_state(device)
+
+        # 이미 꺼져 있음
+        if current_power is False:
+            return True, "프로젝터가 이미 꺼져 있습니다."
+
+        if current_power is None:
+            return False, (
+                "프로젝터의 현재 전원 상태를 알 수 없습니다. "
+                "먼저 현재 상태를 동기화하세요."
+            )
+
+        # 종료 화면 호출
+        success, message = DeviceService.execute_projector_ir(
+            controller_id=controller.id,
+            motion="power",
+        )
+
+        if not success:
+            return False, message
+
+        time.sleep(1.0)
+
+        # 종료 확인
+        success, message = DeviceService.execute_projector_ir(
+            controller_id=controller.id,
+            motion="ok",
+        )
+
+        if not success:
+            return False, message
+
+        return True, "프로젝터 전원을 껐습니다."
