@@ -10,7 +10,7 @@ Type=simple
 User=leedowon
 Group=leedowon
 WorkingDirectory=/home/leedowon/Playground
-ExecStart=/home/leedowon/Playground/venv/bin/python manage.py run_automation_worker --poll-interval 1
+ExecStart=/home/leedowon/Playground/venv/bin/python manage.py run_automation_worker --poll-interval 0.2
 Restart=always
 RestartSec=3
 

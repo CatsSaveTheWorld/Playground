@@ -17,7 +17,7 @@ from ...forms import (
     StepFormSet,
     TriggerFormSet,
 )
-from ...models import Action, Automation, AutomationGroup, AutomationRun, Device, Step, Trigger
+from ...models import Action, ActionRun, Automation, AutomationGroup, AutomationRun, Device, Step, Trigger
 from ...scheduler.calculator import describe_step
 from ...scheduler.executor import AutomationExecutor
 from ...scheduler.service import AutomationService
@@ -125,13 +125,27 @@ def _replace_graph(automation, step_formset, trigger_formset, action_formset):
         owner = _owner_key(form, index)
         step_rows.append((owner, cleaned))
 
-    # Pending runs may refer to Step ids that are about to be rebuilt. Cancel
-    # them explicitly instead of letting them execute against a different graph.
-    automation.runs.filter(status=AutomationRun.Status.PENDING).update(
-        status=AutomationRun.Status.CANCELLED,
-        message="자동화 수정으로 취소됨",
-        finished_at=timezone.now(),
+    # Queued/planned runs may refer to Step/Action ids that are about to be
+    # rebuilt.  The non-blocking executor keeps delayed ActionRuns in the DB, so
+    # cancel those rows as well before replacing the graph.
+    active_runs = automation.runs.filter(
+        status__in=[AutomationRun.Status.PENDING, AutomationRun.Status.RUNNING]
     )
+    active_run_ids = list(active_runs.values_list("id", flat=True))
+    if active_run_ids:
+        ActionRun.objects.filter(
+            automation_run_id__in=active_run_ids,
+            status=AutomationRun.Status.PENDING,
+        ).update(
+            status=AutomationRun.Status.CANCELLED,
+            message="자동화 수정으로 취소됨",
+            finished_at=timezone.now(),
+        )
+        active_runs.update(
+            status=AutomationRun.Status.CANCELLED,
+            message="자동화 수정으로 취소됨",
+            finished_at=timezone.now(),
+        )
 
     # Deliberately rebuild the small graph atomically. It makes edit code and
     # debugging much easier than trying to diff nested form payloads.

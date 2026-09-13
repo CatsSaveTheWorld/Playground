@@ -11,7 +11,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--once", action="store_true")
-        parser.add_argument("--poll-interval", type=float, default=1)
+        parser.add_argument("--poll-interval", type=float, default=0.2)
 
     def handle(self, *args, **options):
         while True:
@@ -36,4 +36,8 @@ class Command(BaseCommand):
             if options["once"]:
                 return
             if processed is None:
-                time.sleep(max(options["poll_interval"], 0.2))
+                time.sleep(
+                    AutomationExecutor.next_poll_delay(
+                        options["poll_interval"]
+                    )
+                )

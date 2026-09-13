@@ -48,11 +48,16 @@ class DeviceService:
                 device.id,
                 step.function,
                 fan_value=fan_value,
+                supersede_pending=False,
             )
         if device.device_type == "pc":
-            return DeviceService.control(device.id, step.function)
+            return DeviceService.control(
+                device.id, step.function, supersede_pending=False
+            )
         if device.device_type == "light":
-            return DeviceService.control(device.id, step.function)
+            return DeviceService.control(
+                device.id, step.function, supersede_pending=False
+            )
         if device.device_type == "media_server":
             return DeviceService.execute_media_server(step)
         if device.device_type == "projector":
@@ -65,6 +70,7 @@ class DeviceService:
                 music_id=parameters.get("music_id"),
                 volume=parameters.get("volume"),
                 repeat_mode=parameters.get("repeat_mode"),
+                supersede_pending=False,
             )
 
         return False, f"지원하지 않는 장치 타입입니다. ({device.device_type})"
@@ -93,6 +99,7 @@ class DeviceService:
         volume=None,
         repeat_mode=None,
         fan_value=None,
+        supersede_pending=True,
     ) -> tuple:
 
         device = DeviceRepository.get_by_id(device_id)
@@ -206,6 +213,18 @@ class DeviceService:
                     "fan_value": fan_value,
                 },
             )
+            if supersede_pending:
+                # Direct Device Control is the newest intent for this Device.
+                # Replace only delayed/pending actions for the same Device;
+                # other Devices in those AutomationRuns are left untouched.
+                from ...scheduler.supersession import (
+                    DeviceControlSupersessionService,
+                )
+
+                DeviceControlSupersessionService.cancel_pending_for_device(
+                    device,
+                    message=f"수동 {device.name} 제어로 대체됨",
+                )
             return True, success_message or f"{device.name} 제어를 완료했습니다."
 
         return False, error_message
@@ -409,6 +428,7 @@ class DeviceService:
             motion=step.function,
             bits=(step.parameter or {}).get("bits")
             or (step.parameter or {}).get("temperature"),
+            supersede_pending=False,
         )
 
     @staticmethod
@@ -531,6 +551,7 @@ class DeviceService:
         return DeviceService.control(
             device_id=step.device.id,
             motion=step.function,
+            supersede_pending=False,
         )
 
     @staticmethod

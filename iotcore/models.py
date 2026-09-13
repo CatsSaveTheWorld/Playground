@@ -469,6 +469,10 @@ class ActionRun(models.Model):
     order = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=AutomationRun.Status.choices)
     message = models.TextField(blank=True)
+    # Future device actions are kept as pending rows instead of blocking the
+    # single automation worker with time.sleep().  ``scheduled_for`` is the
+    # earliest time at which the worker may claim this ActionRun.
+    scheduled_for = models.DateTimeField(blank=True, null=True, db_index=True)
     started_at = models.DateTimeField(blank=True, null=True)
     finished_at = models.DateTimeField(blank=True, null=True)
 
