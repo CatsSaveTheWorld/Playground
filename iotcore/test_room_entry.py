@@ -25,10 +25,10 @@ class RoomEntryServiceTests(TestCase):
         self.canonical_topic = AutomationService.canonical_state_topic(self.device)
 
     def test_snapshot_maps_contact_true_to_closed(self):
-        DeviceState.objects.create(
+        DeviceState.objects.update_or_create(
             topic=self.canonical_topic,
             key="contact",
-            value=True,
+            defaults={"value": True},
         )
 
         snapshot = RoomEntryService.snapshot()

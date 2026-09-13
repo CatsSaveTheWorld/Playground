@@ -6,7 +6,8 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone as dt_timezone
 
-from ...models import Device, DeviceState
+from ...models import Device
+from .device_state_service import DeviceStateService
 
 
 class DeviceReachabilityService:
@@ -126,20 +127,12 @@ class DeviceReachabilityService:
             return cls._tcp(endpoint["host"], endpoint["port"], timeout)
         return cls._ping(endpoint["host"], timeout)
 
-    @staticmethod
-    def _state_topic(device: Device) -> str:
-        return f"iotcore/devices/{device.device_uid}/state"
-
     @classmethod
     def _persist_state(cls, device: Device, *, key: str, value: bool) -> None:
         # Reachability refreshes are observational health data.  Persist them in
         # canonical DeviceState without invoking Automation execution as a side
         # effect of simply opening the Device Control page.
-        DeviceState.objects.update_or_create(
-            topic=cls._state_topic(device),
-            key=key,
-            defaults={"value": bool(value)},
-        )
+        DeviceStateService.set_state(device, key, bool(value))
 
     @classmethod
     def check_many(cls, devices: list[Device]) -> dict[int, dict]:

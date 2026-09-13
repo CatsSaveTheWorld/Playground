@@ -514,11 +514,20 @@ class AutomationService:
                     trigger_payload=trigger_payload,
                 )
             state = DeviceState.objects.filter(topic=state_topic, key=key).first()
-            current = state.value if state is not None else _MISSING
+            # Schema-created rows use JSON null to mean "unknown".  Treat that
+            # exactly like a missing observation so an unknown power state does
+            # not accidentally satisfy e.g. ``power != true``.
+            current = (
+                state.value
+                if state is not None and state.value is not None
+                else _MISSING
+            )
             previous = cls._trigger_previous_value(
                 config=config, device=device, state_topic=state_topic, key=key,
                 trigger_payload=trigger_payload,
             )
+            if previous is None:
+                previous = _MISSING
             return compare_value(operator, current, config.get("value"), previous)
 
         if trigger.trigger_type == Trigger.Type.WEATHER:
@@ -572,7 +581,10 @@ class AutomationService:
     def _changed_keys(payload, previous, *, require_previous):
         changed = set()
         for key, current in flatten_payload(payload).items():
-            if key not in previous:
+            # ``None`` is the initialized/unknown sentinel for canonical state
+            # rows.  With require_previous=True it must behave like no prior
+            # observation, preserving the old first-event suppression semantics.
+            if key not in previous or previous[key] is None:
                 if not require_previous:
                     changed.add(key)
             elif previous[key] != current:

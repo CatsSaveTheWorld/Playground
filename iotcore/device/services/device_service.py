@@ -200,11 +200,25 @@ class DeviceService:
 
     @staticmethod
     def _record_control_state(device, motion, parameters=None):
-        """Store an optimistic last-known state after a successful control."""
+        """Store last-known state after a successful control operation.
+
+        For IR Devices, an HTTP 2xx response from the dedicated ESP32 means the
+        controller received/handled the request, so keep that command separately
+        from the physical Device state.  Physical state remains optimistic: for
+        example Zeus L1300's raw ``power`` action is a toggle and therefore does
+        not by itself prove ON or OFF.
+        """
         patch = DeviceService._infer_state_patch(motion, parameters or {})
+
+        if device.protocol == "ir":
+            patch["controller_online"] = True
+            patch["controller_last_command"] = str(motion)
+
         if not patch:
             return
-        # Local import avoids coupling the device executor to scheduler startup.
+
+        # Use the Automation state recorder so state-trigger evaluation still
+        # receives the same canonical update event as before.
         from ...scheduler.service import AutomationService
 
         AutomationService.record_device_state(

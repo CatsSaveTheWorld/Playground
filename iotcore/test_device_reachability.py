@@ -104,7 +104,7 @@ class DeviceReachabilityServiceTests(TestCase):
                     topic=f"iotcore/devices/{device.device_uid}/state"
                 ).values_list("key", flat=True)
             ),
-            {"online", "controller_online"},
+            {"power", "online", "controller_online", "controller_last_command"},
         )
 
     def test_device_control_contains_status_slots(self):

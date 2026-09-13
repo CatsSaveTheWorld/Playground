@@ -47,7 +47,7 @@ class RoomEntryService:
             topic=canonical_topic,
             key=key,
         ).first()
-        if state is not None:
+        if state is not None and state.value is not None:
             return state
 
         return DeviceState.objects.filter(

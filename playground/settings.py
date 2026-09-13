@@ -120,7 +120,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "common",
     "board",
-    "iotcore",
+    "iotcore.apps.IoTCoreConfig",
 ]
 
 MIDDLEWARE = [
