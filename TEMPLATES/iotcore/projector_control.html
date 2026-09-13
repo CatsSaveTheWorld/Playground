@@ -91,6 +91,83 @@
     text-align: center;
 }
 
+.projector-power-state {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 14px;
+    border: 1px solid var(--iot-border);
+    border-radius: 12px;
+    background: #0d1419;
+}
+
+.projector-power-state__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.projector-power-state__summary span {
+    color: var(--iot-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.projector-power-state__summary strong {
+    font-size: 14px;
+}
+
+.projector-power-state__summary strong[data-state="on"] {
+    color: var(--iot-accent);
+}
+
+.projector-power-state__summary strong[data-state="off"] {
+    color: #ff9aa1;
+}
+
+.projector-power-state__summary strong[data-state="unknown"] {
+    color: var(--iot-muted);
+}
+
+.projector-power-state__sync {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.projector-sync-key {
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid var(--iot-border);
+    border-radius: 9px;
+    background: transparent;
+    color: var(--iot-muted);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.projector-sync-key:hover,
+.projector-sync-key:focus-visible {
+    border-color: var(--iot-accent);
+    color: var(--iot-text);
+    outline: none;
+}
+
+.projector-sync-key:disabled {
+    cursor: wait;
+    opacity: 0.5;
+}
+
+.projector-power-state__hint {
+    margin: 0;
+    color: var(--iot-muted);
+    font-size: 10px;
+    line-height: 1.5;
+}
+
 .projector-remote-row {
     display: grid;
     gap: 10px;
@@ -265,9 +342,26 @@
     <section class="projector-panel" aria-label="빔 프로젝터 리모컨">
         <div class="projector-panel-title">PROJECTOR CONTROL</div>
 
-        <div class="projector-remote-row projector-remote-row--2">
-            <button type="button" class="projector-key projector-key--power" data-motion="power">
-                ⏻ 전원
+        <div class="projector-power-state">
+            <div class="projector-power-state__summary">
+                <span>TRACKED POWER STATE</span>
+                <strong id="projectorPowerState" data-state="{{ power_state_code }}">{{ power_state_label }}</strong>
+            </div>
+            <div class="projector-power-state__sync">
+                <button type="button" class="projector-sync-key" data-sync-power="true">실제 상태: 켜짐</button>
+                <button type="button" class="projector-sync-key" data-sync-power="false">실제 상태: 꺼짐</button>
+            </div>
+            <p class="projector-power-state__hint">
+                IR은 실제 전원 상태를 읽을 수 없습니다. 처음 한 번 또는 상태가 어긋났을 때만 실제 프로젝터 상태와 맞춰 주세요.
+            </p>
+        </div>
+
+        <div class="projector-remote-row projector-remote-row--3">
+            <button type="button" class="projector-key" data-motion="power_on">
+                ⏻ 켜기
+            </button>
+            <button type="button" class="projector-key projector-key--power" data-motion="power_off">
+                ⏻ 끄기
             </button>
             <button type="button" class="projector-key" data-motion="external_input">
                 External Input
@@ -314,11 +408,32 @@
 <script>
 (() => {
     const actionUrl = "{% url 'iotcore:projector_action' device.id %}";
+    const syncUrl = "{% url 'iotcore:projector_power_state_sync' device.id %}";
     const statusEl = document.getElementById('projectorStatus');
+    const powerStateEl = document.getElementById('projectorPowerState');
+    const syncButtons = Array.from(document.querySelectorAll('[data-sync-power]'));
 
     function setStatus(message, isError = false) {
         statusEl.textContent = message;
         statusEl.classList.toggle('is-error', isError);
+    }
+
+    function renderPowerState(value) {
+        if (!powerStateEl) return;
+
+        if (value === true || value === 'true' || value === 'on') {
+            powerStateEl.dataset.state = 'on';
+            powerStateEl.textContent = '켜짐';
+            return;
+        }
+        if (value === false || value === 'false' || value === 'off') {
+            powerStateEl.dataset.state = 'off';
+            powerStateEl.textContent = '꺼짐';
+            return;
+        }
+
+        powerStateEl.dataset.state = 'unknown';
+        powerStateEl.textContent = '알 수 없음';
     }
 
     async function sendProjectorAction(button) {
@@ -326,7 +441,7 @@
         if (!motion) return;
 
         button.disabled = true;
-        setStatus('IR 신호를 전송하고 있습니다.');
+        setStatus('프로젝터 명령을 처리하고 있습니다.');
 
         try {
             const data = await window.IOTCORE_POST_FORM(
@@ -338,7 +453,8 @@
                 throw new Error(data.message || '프로젝터 제어에 실패했습니다.');
             }
 
-            setStatus(data.message || 'IR 신호를 전송했습니다.');
+            renderPowerState(data.power_state);
+            setStatus(data.message || '프로젝터 명령을 처리했습니다.');
         } catch (error) {
             setStatus(error.message || '프로젝터 제어 요청에 실패했습니다.', true);
         } finally {
@@ -346,8 +462,38 @@
         }
     }
 
+    async function synchronizePowerState(button) {
+        const power = button.dataset.syncPower;
+        if (!power) return;
+
+        syncButtons.forEach(item => { item.disabled = true; });
+        setStatus('IoTCore의 전원 상태를 실제 프로젝터와 동기화하고 있습니다.');
+
+        try {
+            const data = await window.IOTCORE_POST_FORM(
+                syncUrl,
+                new URLSearchParams({ power })
+            );
+
+            if (data.success === false || data.status === 'fail') {
+                throw new Error(data.message || '전원 상태 동기화에 실패했습니다.');
+            }
+
+            renderPowerState(data.power_state);
+            setStatus(data.message || '전원 상태를 동기화했습니다.');
+        } catch (error) {
+            setStatus(error.message || '전원 상태 동기화 요청에 실패했습니다.', true);
+        } finally {
+            syncButtons.forEach(item => { item.disabled = false; });
+        }
+    }
+
     document.querySelectorAll('.projector-key[data-motion]').forEach(button => {
         button.addEventListener('click', () => sendProjectorAction(button));
+    });
+
+    syncButtons.forEach(button => {
+        button.addEventListener('click', () => synchronizePowerState(button));
     });
 })();
 </script>

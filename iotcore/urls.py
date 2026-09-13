@@ -255,6 +255,12 @@ urlpatterns = [
         name="projector_action",
     ),
 
+    path(
+        "projector/<int:device_id>/power-state/",
+        projector.projector_power_state_sync,
+        name="projector_power_state_sync",
+    ),
+
     path("aircon/power_on/", aircon.aircon_power_on, name="aircon_power_on"),
     path("aircon/power_off/", aircon.aircon_power_off, name="aircon_power_off"),
     path("aircon/set_temp/", aircon.aircon_set_temp, name="aircon_set_temp"),

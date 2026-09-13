@@ -66,6 +66,22 @@ class DeviceStateService:
         return DeviceState.objects.count() - created_before
 
     @classmethod
+    def get_state(cls, device: Device, key: str) -> DeviceState | None:
+        """Return one canonical state row without creating or mutating it."""
+        if device is None or not device.pk:
+            return None
+        return DeviceState.objects.filter(
+            topic=cls.canonical_topic(device),
+            key=str(key),
+        ).first()
+
+    @classmethod
+    def get_value(cls, device: Device, key: str, default=None):
+        """Return the stored value for ``key`` or ``default`` when unavailable."""
+        state = cls.get_state(device, key)
+        return default if state is None else state.value
+
+    @classmethod
     def set_state(cls, device: Device, key: str, value) -> DeviceState:
         state, _created = DeviceState.objects.update_or_create(
             topic=cls.canonical_topic(device),

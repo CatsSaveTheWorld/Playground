@@ -17,6 +17,9 @@ class ProjectorIRCodeTests(SimpleTestCase):
             for action in DeviceActionRegistry.get_actions("projector")
         }
 
+        self.assertIn("power_on", actions)
+        self.assertIn("power_off", actions)
+        self.assertNotIn("power", actions)
         self.assertIn("external_input", actions)
         self.assertIn("menu", actions)
         self.assertNotIn("mouse_mode", actions)

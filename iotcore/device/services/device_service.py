@@ -223,9 +223,22 @@ class DeviceService:
         """
         patch = DeviceService._infer_state_patch(motion, parameters or {})
 
+        # Backward compatibility for existing projector Actions that still store
+        # the raw IR ``power`` toggle.  Once the operator has synchronized the
+        # initial state, a successful raw POWER transmission can safely invert
+        # the tracked state.  If the state is unknown, keep it unknown.
+        if device.device_type == "projector" and motion == "power":
+            current_power = DeviceService._get_power_state(device)
+            if isinstance(current_power, bool):
+                patch["power"] = not current_power
+
         if device.protocol == "ir":
             patch["controller_online"] = True
-            patch["controller_last_command"] = str(motion)
+            # Projector commands can be logical operations (power_off ->
+            # physical POWER then OK).  execute_projector_ir() records each
+            # physical command, so do not overwrite that diagnostic value here.
+            if device.device_type != "projector":
+                patch["controller_last_command"] = str(motion)
 
         if not patch:
             return
@@ -542,6 +555,23 @@ class DeviceService:
 
         if not success:
             return False, message or "프로젝터 ESP32와 통신에 실패했습니다."
+
+        # This is the physical IR command that the ESP32 successfully handled.
+        # Keep it separate from the logical Device action.  For example,
+        # power_off is implemented as POWER -> OK, therefore the final
+        # controller_last_command must be ``ok`` while DeviceState.power becomes
+        # False at the logical-operation layer.
+        if controller.device_id:
+            from ...scheduler.service import AutomationService
+
+            AutomationService.record_device_state(
+                controller.device,
+                {
+                    "controller_online": True,
+                    "controller_last_command": str(motion),
+                },
+                source="projector_ir",
+            )
 
         return True, message or "프로젝터 제어 신호를 전송했습니다."
 
