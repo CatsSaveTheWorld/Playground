@@ -1,6 +1,18 @@
 # IoTCore automation services
 
-After deploying the Django code to `/home/leedowon/Playground`:
+After deploying the Django code to `/home/leedowon/Playground`, install the
+server-side stack with:
+
+```bash
+sudo bash deploy/systemd/install_iotcore_stack.sh
+```
+
+The installer performs all of the steps below, removes the legacy worker from
+the active service set, and links Mosquitto and Zigbee2MQTT to Apache's
+lifecycle. `ytmusic-cookie-agent` is intentionally excluded because it runs on
+the separate Pi host.
+
+Manual installation steps:
 
 
 > 기존 설치에서 업그레이드하는 경우 먼저 구형 워커를 제거하세요.
@@ -20,13 +32,23 @@ sudo systemctl reenable --now iotcore-scheduler iotcore-automation-worker iotcor
 sudo systemctl status iotcore-scheduler iotcore-automation-worker iotcore-automation-listener --no-pager
 ```
 
-These units are bound to `apache2.service`: starting Apache starts them, and
-stopping or restarting Apache stops or restarts them with it. Verify the link
-after installation with:
+Install the Apache lifecycle drop-ins for Mosquitto and Zigbee2MQTT:
+
+```bash
+sudo install -D -m 0644 deploy/systemd/drop-ins/apache2-iotcore-stack.conf /etc/systemd/system/apache2.service.d/iotcore-stack.conf
+sudo install -D -m 0644 deploy/systemd/drop-ins/mosquitto-iotcore-apache.conf /etc/systemd/system/mosquitto.service.d/iotcore-apache.conf
+sudo install -D -m 0644 deploy/systemd/drop-ins/zigbee2mqtt-iotcore-apache.conf /etc/systemd/system/zigbee2mqtt.service.d/iotcore-apache.conf
+sudo systemctl daemon-reload
+```
+
+The listener, scheduler, worker, Mosquitto, and Zigbee2MQTT are bound to
+`apache2.service`: starting Apache starts them, and stopping or restarting
+Apache stops or restarts them with it. Verify the links after installation
+with:
 
 ```bash
 sudo systemctl restart apache2
-sudo systemctl status apache2 iotcore-scheduler iotcore-automation-worker iotcore-automation-listener --no-pager
+sudo systemctl status apache2 mosquitto zigbee2mqtt iotcore-scheduler iotcore-automation-worker iotcore-automation-listener --no-pager
 ```
 
 The scheduler converts due time triggers into pending `AutomationRun` rows.
