@@ -4,6 +4,8 @@ from django.shortcuts import render
 
 from ...device.repositories.device_repository import DeviceRepository
 from ...device.services.reachability_service import DeviceReachabilityService
+from ...device.services.device_state_service import DeviceStateService
+from ...device.services.window_pusher_service import WindowPusherService
 from ...infrastructure.music_assistant.client import MusicAssistantClient
 from ...models import Controller, Device
 
@@ -58,6 +60,18 @@ def device_control(request):
         for d in visible_devices
         if d.device_type == "electric_fan" and d.protocol == Device.Protocol.TUYA
     ]
+    window_pusher_devices = [
+        d
+        for d in visible_devices
+        if d.device_type == WindowPusherService.DEVICE_TYPE
+        and d.protocol == Device.Protocol.ZIGBEE
+    ]
+    for device in window_pusher_devices:
+        DeviceStateService.ensure_device_states(device)
+    window_pusher_cards = [
+        {"device": device, "state": WindowPusherService.snapshot(device)}
+        for device in window_pusher_devices
+    ]
     light_devices = [d for d in visible_devices if d.device_type == "light"]
     projector_devices = [d for d in visible_devices if d.device_type == "projector"]
     media_server_devices = [
@@ -69,6 +83,7 @@ def device_control(request):
         "pc",
         "aircon",
         "electric_fan",
+        "window_pusher",
         "light",
         "projector",
         "media_server",
@@ -91,6 +106,7 @@ def device_control(request):
         "pc_devices": pc_devices,
         "aircon_controllers": aircon_controllers,
         "fan_devices": fan_devices,
+        "window_pusher_cards": window_pusher_cards,
         "light_devices": light_devices,
         "projector_devices": projector_devices,
         "media_server_devices": media_server_devices,
@@ -128,6 +144,23 @@ def device_status(request):
 
     devices = list(queryset)
     statuses = DeviceReachabilityService.check_many(devices)
+
+    # Zigbee devices do not expose an IP endpoint that can be pinged.  Their
+    # online state comes from Zigbee2MQTT's `<friendly_name>/availability`
+    # topic and is mirrored into canonical DeviceState by the MQTT listener.
+    for device in devices:
+        if device.protocol != Device.Protocol.ZIGBEE:
+            continue
+        if statuses[device.id]["device"] is not None:
+            continue
+        online = DeviceStateService.get_value(device, "online")
+        if isinstance(online, bool):
+            statuses[device.id]["device"] = {
+                "online": online,
+                "host": f"zigbee2mqtt/{device.device_uid}",
+                "method": "zigbee",
+            }
+
     return JsonResponse({
         "devices": statuses,
         "poll_interval_ms": 10000,

@@ -58,6 +58,21 @@ DEVICE_STATE_SCHEMA = {
     "media_node": {
         "online": {"default": None, "label": "기기 연결 상태", "value_type": "boolean"},
     },
+    "window_pusher": {
+        "online": {"default": None, "label": "기기 연결 상태", "value_type": "boolean"},
+        "state": {"default": None, "label": "Zigbee 커버 상태", "value_type": "string"},
+        "position": {"default": None, "label": "창문 위치", "value_type": "number"},
+        "window_state": {"default": None, "label": "창문 개폐 상태", "value_type": "string"},
+        "motion_direction": {"default": None, "label": "이동 방향", "value_type": "string"},
+        "target_position": {"default": None, "label": "목표 위치", "value_type": "number"},
+        "battery": {"default": None, "label": "배터리", "value_type": "number"},
+        "charging": {"default": None, "label": "충전 상태", "value_type": "boolean"},
+        "linkquality": {"default": None, "label": "링크 품질", "value_type": "number"},
+        "automatic_mode": {"default": None, "label": "자동 보조 모드", "value_type": "string"},
+        "slow_stop": {"default": None, "label": "저속 정지", "value_type": "string"},
+        "button_position": {"default": None, "label": "물리 버튼 방향", "value_type": "string"},
+        "last_command": {"default": None, "label": "마지막 제어 명령", "value_type": "string"},
+    },
     "door_sensor": {
         "contact": {"default": None, "label": "문 접촉 상태", "value_type": "boolean"},
         "battery": {"default": None, "label": "배터리", "value_type": "number"},

@@ -15,6 +15,7 @@ from iotcore.api.views import (
     schedule,
     sequence,
     speaker,
+    window_pusher,
 )
 
 app_name = "iotcore"
@@ -297,6 +298,17 @@ urlpatterns = [
         "main_led/power_off/",
         main_led.main_led_power_off,
         name="main_led_power_off",
+    ),
+
+    path(
+        "devices/window-pusher/<int:device_id>/control/",
+        window_pusher.window_pusher_control,
+        name="window_pusher_control",
+    ),
+    path(
+        "devices/window-pusher/<int:device_id>/state/",
+        window_pusher.window_pusher_state,
+        name="window_pusher_state",
     ),
 
     # Speaker control endpoints

@@ -100,6 +100,17 @@ class DeviceActionRegistry:
             ),
         ],
 
+        "window_pusher": [
+            DeviceAction(code="move_left", display_name="왼쪽 이동"),
+            DeviceAction(code="stop", display_name="정지"),
+            DeviceAction(code="move_right", display_name="오른쪽 이동"),
+            DeviceAction(
+                code="set_position",
+                display_name="창문 위치 설정 (0~100%)",
+                parameter_key="position",
+            ),
+        ],
+
         "media_server": [
             DeviceAction(
                 code="ytmusic.refresh_cookie",

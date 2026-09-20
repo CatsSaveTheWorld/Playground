@@ -324,11 +324,19 @@ class AutomationExecutor:
                     cls._cancel_action(candidate, "사용자가 작업을 취소했습니다.")
                     continue
 
-                if candidate.device_id and ActionRun.objects.filter(
-                    device_id=candidate.device_id,
-                    id__lt=candidate.id,
-                    status__in=cls.ACTIVE_STATUSES,
-                ).exists():
+                is_safety_stop = bool(
+                    isinstance(candidate.parameter, dict)
+                    and candidate.parameter.get("safety_stop") is True
+                )
+                if (
+                    candidate.device_id
+                    and not is_safety_stop
+                    and ActionRun.objects.filter(
+                        device_id=candidate.device_id,
+                        id__lt=candidate.id,
+                        status__in=cls.ACTIVE_STATUSES,
+                    ).exists()
+                ):
                     continue
 
                 candidate.status = AutomationRun.Status.RUNNING

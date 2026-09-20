@@ -12,6 +12,7 @@ from ...infrastructure.music_assistant.client import MusicAssistantClient
 from ...infrastructure.remote_tasks.client import RemoteTaskClient
 from ...infrastructure.tuya.client import TuyaClient
 from ...infrastructure.wol.client import WOLClient
+from .window_pusher_service import WindowPusherService
 
 
 class DeviceService:
@@ -66,6 +67,12 @@ class DeviceService:
                 volume=parameters.get("volume"),
                 repeat_mode=parameters.get("repeat_mode"),
             )
+        if device.device_type == WindowPusherService.DEVICE_TYPE:
+            return DeviceService.control(
+                device.id,
+                step.function,
+                window_position=parameters.get("position"),
+            )
 
         return False, f"지원하지 않는 장치 타입입니다. ({device.device_type})"
 
@@ -93,6 +100,7 @@ class DeviceService:
         volume=None,
         repeat_mode=None,
         fan_value=None,
+        window_position=None,
     ) -> tuple:
 
         device = DeviceRepository.get_by_id(device_id)
@@ -190,22 +198,48 @@ class DeviceService:
                 fan_value=fan_value,
             )
 
+        elif device.device_type == WindowPusherService.DEVICE_TYPE:
+            if device.protocol != 'zigbee':
+                return False, (
+                    "창문 푸셔는 Zigbee 프로토콜로 등록되어야 합니다. "
+                    f"(현재 {device.protocol})"
+                )
+            success, error_message = WindowPusherService.execute(
+                device=device,
+                action=motion,
+                position=window_position,
+            )
+
         else:
             return False, f"지원하지 않는 기기 종류입니다. ({device.device_type})"
 
         if success:
-            DeviceService._record_control_state(
-                device,
-                motion,
-                {
-                    "bits": bits,
-                    "playlist_id": playlist_id,
-                    "music_id": music_id,
-                    "volume": volume,
-                    "repeat_mode": repeat_mode,
-                    "fan_value": fan_value,
-                },
-            )
+            if device.device_type == WindowPusherService.DEVICE_TYPE:
+                from ...scheduler.service import AutomationService
+
+                AutomationService.record_device_state(
+                    device,
+                    WindowPusherService.optimistic_state_patch(
+                        motion,
+                        position=window_position,
+                    ),
+                    source="iotcore_control",
+                )
+            else:
+                DeviceService._record_control_state(
+                    device,
+                    motion,
+                    {
+                        "bits": bits,
+                        "playlist_id": playlist_id,
+                        "music_id": music_id,
+                        "volume": volume,
+                        "repeat_mode": repeat_mode,
+                        "fan_value": fan_value,
+                    },
+                )
+            if device.device_type == WindowPusherService.DEVICE_TYPE:
+                return True, success_message or error_message or f"{device.name} 제어를 완료했습니다."
             return True, success_message or f"{device.name} 제어를 완료했습니다."
 
         return False, error_message

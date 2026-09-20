@@ -5,6 +5,7 @@ import paho.mqtt.client as mqtt
 from django.db import transaction
 from django.utils import timezone
 
+from ..device.services.window_pusher_service import WindowPusherService
 from ..models import Automation, AutomationRun, Device, DeviceState, Step, Trigger
 from ..room_entry.service import RoomEntryService
 from ..weather.service import KmaWeatherService
@@ -262,7 +263,7 @@ class AutomationService:
         previous_device = {}
         normalized_payload = payload
         if device is not None:
-            normalized_payload = cls._normalize_device_payload(payload)
+            normalized_payload = cls._normalize_device_payload(payload, device=device, topic=topic)
             canonical_topic = cls.canonical_state_topic(device)
             previous_device = previous_raw if canonical_topic == topic else cls._update_device_state(canonical_topic, normalized_payload)
 
@@ -302,7 +303,11 @@ class AutomationService:
         if device is None or not state_patch:
             return []
         now = now or timezone.now()
-        payload = cls._normalize_device_payload(state_patch)
+        payload = cls._normalize_device_payload(
+            state_patch,
+            device=device,
+            topic=cls.canonical_state_topic(device),
+        )
         topic = cls.canonical_state_topic(device)
         previous = cls._update_device_state(topic, payload)
         changed_keys = cls._changed_keys(payload, previous, require_previous=False)
@@ -565,7 +570,10 @@ class AutomationService:
         if device is not None:
             canonical_topic = cls.canonical_state_topic(device)
             if canonical_topic != topic:
-                cls._update_device_state(canonical_topic, cls._normalize_device_payload(payload))
+                cls._update_device_state(
+                    canonical_topic,
+                    cls._normalize_device_payload(payload, device=device, topic=topic),
+                )
         cls.refresh_all_step_results()
         return previous
 
@@ -603,24 +611,45 @@ class AutomationService:
             uid = topic[len(canonical_prefix):-len("/state")]
             if uid and "/" not in uid:
                 return Device.objects.filter(device_uid=uid).first()
+
         prefix = "zigbee2mqtt/"
         if topic.startswith(prefix):
-            uid = topic[len(prefix):]
-            if uid and "/" not in uid:
+            remainder = topic[len(prefix):]
+            uid, separator, suffix = remainder.partition("/")
+            if uid and (not separator or suffix == "availability"):
                 return Device.objects.filter(device_uid=uid).first()
         return None
 
-    @staticmethod
-    def _normalize_device_payload(payload):
+    @classmethod
+    def _normalize_device_payload(cls, payload, *, device=None, topic=None):
         if not isinstance(payload, dict):
-            return {"value": payload}
+            payload = {"value": payload}
+
         normalized = dict(payload)
+        topic = str(topic or "")
+
+        # Zigbee2MQTT availability uses a dedicated subtopic and reports
+        # {"state": "online"|"offline"}.  Do not copy that value into the
+        # canonical cover/light `state` key; expose it as the generic online
+        # boolean instead.
+        if topic.endswith("/availability"):
+            availability = normalized.get("state", normalized.get("value"))
+            if isinstance(availability, str):
+                availability = availability.strip().lower()
+                if availability in {"online", "offline"}:
+                    return {"online": availability == "online"}
+            return {}
+
         state = normalized.get("state")
         if "power" not in normalized and isinstance(state, str):
             if state.upper() == "ON":
                 normalized["power"] = True
             elif state.upper() == "OFF":
                 normalized["power"] = False
+
+        if device is not None and device.device_type == WindowPusherService.DEVICE_TYPE:
+            normalized = WindowPusherService.normalize_report(device, normalized)
+
         return normalized
 
     @classmethod

@@ -428,6 +428,9 @@ function refreshActionParameterHelp(card) {
     } else if (action?.parameter_key === 'horizontal_angle') {
         parameterField.placeholder = '{"horizontal_angle": "60"}';
         if (help) help.textContent = '좌우 회전 각도는 문자열 "30", "60", "90"만 사용합니다.';
+    } else if (action?.parameter_key === 'position') {
+        parameterField.placeholder = '{"position": 50}';
+        if (help) help.textContent = '창문 위치는 0부터 100 사이의 정수로 입력합니다. 예: {"position": 50}';
     } else if (help) {
         help.textContent = '설정 값이 필요한 동작만 JSON으로 입력합니다.';
     }

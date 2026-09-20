@@ -394,6 +394,16 @@ class ActionForm(forms.ModelForm):
             else:
                 cleaned["parameter"] = {"horizontal_angle": command[1]}
 
+        if device is not None and device.device_type == "window_pusher" and function == "set_position":
+            from .device.services.window_pusher_service import WindowPusherService
+            parameter = cleaned.get("parameter") or {}
+            try:
+                position = WindowPusherService.parse_position(parameter.get("position"))
+            except ValueError as exc:
+                self.add_error("parameter_json", str(exc))
+            else:
+                cleaned["parameter"] = {"position": position}
+
         cleaned["target_automation"] = None
         return cleaned
 

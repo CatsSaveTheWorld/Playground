@@ -322,6 +322,111 @@
     letter-spacing: .06em;
 }
 
+/* Window pusher */
+.window-pusher-summary-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--iot-muted);
+    font-size: 11px;
+}
+
+.window-pusher-summary-state strong {
+    color: var(--iot-text);
+    font-weight: 750;
+}
+
+.window-pusher-state-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.window-pusher-state-item {
+    min-width: 0;
+    padding: 9px 10px;
+    border: 1px solid #263d38;
+    border-radius: 8px;
+    background: #0d1519;
+}
+
+.window-pusher-state-item span {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--iot-muted);
+    font-size: 10px;
+}
+
+.window-pusher-state-item strong {
+    display: block;
+    color: var(--iot-text);
+    font-size: 13px;
+    font-weight: 760;
+    overflow-wrap: anywhere;
+}
+
+.window-pusher-control-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.dropdown-content .window-pusher-control-button {
+    min-height: 42px;
+    margin: 0;
+    padding: 8px 6px;
+    border: 1px solid var(--iot-border);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.dropdown-content .window-pusher-control-button:hover,
+.dropdown-content .window-pusher-control-button:focus-visible {
+    border-color: var(--iot-accent);
+}
+
+.window-pusher-position-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px auto;
+    align-items: center;
+    gap: 8px;
+    margin-top: 9px;
+}
+
+.window-pusher-position-range {
+    min-width: 0;
+    width: 100%;
+    accent-color: var(--iot-accent);
+}
+
+.window-pusher-position-value {
+    color: var(--iot-accent);
+    font-size: 12px;
+    text-align: right;
+}
+
+.dropdown-content .window-pusher-position-apply {
+    width: auto;
+    margin: 0;
+    padding-inline: 12px;
+    border: 1px solid var(--iot-border);
+    border-radius: 8px;
+}
+
+.window-pusher-safety-note {
+    margin: 10px 0 0;
+    color: var(--iot-muted);
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+.window-pusher-updated {
+    margin: 8px 0 0;
+    color: #71808d;
+    font-size: 10px;
+}
+
 /* Music Assistant / speaker panel */
 .device-control-content .speaker-card {
     box-sizing: border-box;
@@ -572,6 +677,14 @@
         min-height: 100px;
     }
 
+    .window-pusher-state-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .window-pusher-position-row {
+        grid-template-columns: minmax(0, 1fr) 38px auto;
+    }
+
     .speaker-card-header {
         align-items: flex-start;
         flex-direction: column;
@@ -653,7 +766,7 @@
   </section>
   {% endif %}
 
-  {% if aircon_controllers or fan_devices %}
+  {% if aircon_controllers or fan_devices or window_pusher_cards %}
   <section class="device-category" aria-labelledby="device-category-environment">
     <div class="device-category__header">
       <h2 id="device-category-environment">환경 제어</h2>
@@ -727,6 +840,65 @@
             <button onclick="sendFanAction(event, 'beep_off')">버튼음 끄기</button>
           </div>
         </div>
+      {% endfor %}
+
+      {% for card in window_pusher_cards %}
+        {% with device=card.device state=card.state %}
+        <div class="card device-card window-pusher-card"
+             onclick="toggleDropdown(this)"
+             data-device-id="{{ device.id }}"
+             data-device-type="{{ device.device_type }}"
+             data-control-url="{% url 'iotcore:window_pusher_control' device.id %}"
+             data-state-url="{% url 'iotcore:window_pusher_state' device.id %}"
+             data-safety-seconds="{{ state.safety_stop_seconds|default:15 }}">
+          <div class="device-card__summary">
+            <span class="device-card__status" data-device-status="{{ device.id }}" aria-live="polite"></span>
+            <span class="device-card__eyebrow">WINDOW PUSHER</span>
+            <strong class="device-card__name">{{ device.name }}</strong>
+            <span class="device-card__meta">{{ device.location }} · {{ device.get_protocol_display }}</span>
+            <span class="window-pusher-summary-state">
+              배터리 <strong data-window-pusher-summary-battery>{% if state.battery != None %}{{ state.battery }}%{% else %}--{% endif %}</strong>
+              · <strong data-window-pusher-summary-state>상태 확인 중</strong>
+            </span>
+          </div>
+          <div class="dropdown-content" onclick="event.stopPropagation()">
+            <div class="window-pusher-state-grid">
+              <div class="window-pusher-state-item">
+                <span>창문 상태</span>
+                <strong data-window-pusher-state>확인 중</strong>
+              </div>
+              <div class="window-pusher-state-item">
+                <span>현재 위치</span>
+                <strong data-window-pusher-position>--</strong>
+              </div>
+              <div class="window-pusher-state-item">
+                <span>배터리</span>
+                <strong data-window-pusher-battery>{% if state.battery != None %}{{ state.battery }}%{% else %}--{% endif %}</strong>
+              </div>
+              <div class="window-pusher-state-item">
+                <span>충전</span>
+                <strong data-window-pusher-charging>--</strong>
+              </div>
+            </div>
+
+            <span class="fan-control-label">수동 이동</span>
+            <div class="window-pusher-control-row">
+              <button type="button" class="window-pusher-control-button" onclick="sendWindowPusherAction(event, 'move_left')">← 왼쪽</button>
+              <button type="button" class="window-pusher-control-button" onclick="sendWindowPusherAction(event, 'stop')">■ 정지</button>
+              <button type="button" class="window-pusher-control-button" onclick="sendWindowPusherAction(event, 'move_right')">오른쪽 →</button>
+            </div>
+
+            <span class="fan-control-label">위치 지정</span>
+            <div class="window-pusher-position-row">
+              <input type="range" class="window-pusher-position-range" min="0" max="100" step="1" value="50" aria-label="창문 위치" oninput="updateWindowPusherPositionLabel(event)">
+              <output class="window-pusher-position-value">50%</output>
+              <button type="button" class="window-pusher-position-apply" onclick="sendWindowPusherPosition(event)">이동</button>
+            </div>
+            <p class="window-pusher-safety-note">모터 이동 명령은 최대 <span data-window-pusher-safety>15</span>초 후 자동으로 STOP 명령을 전송합니다.</p>
+            <p class="window-pusher-updated" data-window-pusher-updated>상태 동기화 대기 중</p>
+          </div>
+        </div>
+        {% endwith %}
       {% endfor %}
     </div>
   </section>
@@ -977,6 +1149,215 @@
     }
 
     document.addEventListener('DOMContentLoaded', refreshDeviceStatuses);
+
+    let windowPusherStateTimer = null;
+    const windowPusherSafetyTimers = new Map();
+
+    function clearWindowPusherBrowserStop(card) {
+        if (!card) return;
+        const deviceId = card.dataset.deviceId;
+        const timer = windowPusherSafetyTimers.get(deviceId);
+        if (timer) {
+            window.clearTimeout(timer);
+            windowPusherSafetyTimers.delete(deviceId);
+        }
+    }
+
+    function scheduleWindowPusherBrowserStop(card, seconds) {
+        if (!card) return;
+        clearWindowPusherBrowserStop(card);
+        const delayMs = Math.max(1, Number(seconds) || 15) * 1000;
+        const deviceId = card.dataset.deviceId;
+        const timer = window.setTimeout(async () => {
+            windowPusherSafetyTimers.delete(deviceId);
+            try {
+                const data = await window.IOTCORE_POST_FORM(
+                    card.dataset.controlUrl,
+                    new URLSearchParams({ action: 'stop' }),
+                );
+                if (data?.state) renderWindowPusherState(card, data.state);
+            } catch (error) {
+                // The durable automation-worker safety STOP is the primary path.
+            }
+        }, delayMs);
+        windowPusherSafetyTimers.set(deviceId, timer);
+    }
+
+    function windowPusherStateLabel(state) {
+        return {
+            closed: '닫힘',
+            open: '열림',
+            partial: '일부 열림',
+        }[state] || '알 수 없음';
+    }
+
+    function renderWindowPusherState(card, state) {
+        if (!card || !state) return;
+
+        if (!state.motion_direction) {
+            clearWindowPusherBrowserStop(card);
+        }
+
+        const batteryText = Number.isFinite(Number(state.battery))
+            ? `${Number(state.battery)}%`
+            : '--';
+        const positionText = Number.isFinite(Number(state.position))
+            ? `${Number(state.position)}%`
+            : '--';
+        let stateText = windowPusherStateLabel(state.window_state);
+        if (state.motion_direction === 'left') stateText += ' · 왼쪽 이동 중';
+        if (state.motion_direction === 'right') stateText += ' · 오른쪽 이동 중';
+        if (state.motion_direction === 'position') stateText += ' · 위치 이동 중';
+
+        card.querySelectorAll('[data-window-pusher-summary-battery], [data-window-pusher-battery]').forEach(el => {
+            el.textContent = batteryText;
+        });
+        card.querySelectorAll('[data-window-pusher-summary-state], [data-window-pusher-state]').forEach(el => {
+            el.textContent = stateText;
+        });
+        const positionEl = card.querySelector('[data-window-pusher-position]');
+        if (positionEl) positionEl.textContent = positionText;
+
+        const chargingEl = card.querySelector('[data-window-pusher-charging]');
+        if (chargingEl) {
+            chargingEl.textContent = state.charging === true
+                ? '충전 중'
+                : (state.charging === false ? '배터리 사용 중' : '--');
+        }
+
+        const safetyEl = card.querySelector('[data-window-pusher-safety]');
+        if (safetyEl && state.safety_stop_seconds) {
+            safetyEl.textContent = String(state.safety_stop_seconds);
+        }
+
+        const slider = card.querySelector('.window-pusher-position-range');
+        const output = card.querySelector('.window-pusher-position-value');
+        if (Number.isFinite(Number(state.position)) && document.activeElement !== slider) {
+            const value = String(Number(state.position));
+            if (slider) slider.value = value;
+            if (output) output.textContent = `${value}%`;
+        }
+
+        const updated = card.querySelector('[data-window-pusher-updated]');
+        if (updated) {
+            const timestamp = state.updated_at?.position || state.updated_at?.battery || state.updated_at?.online;
+            if (timestamp) {
+                const date = new Date(timestamp);
+                updated.textContent = Number.isNaN(date.getTime())
+                    ? '상태 갱신됨'
+                    : `최근 상태 ${date.toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit', second: '2-digit'})}`;
+            }
+        }
+    }
+
+    async function refreshOneWindowPusher(card) {
+        const stateUrl = card.dataset.stateUrl;
+        if (!stateUrl) return;
+        try {
+            const response = await fetch(stateUrl, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                cache: 'no-store',
+            });
+            if (!response.ok) return;
+            const payload = await response.json();
+            renderWindowPusherState(card, payload.state);
+        } catch (error) {
+            // Generic ONLINE/OFFLINE polling remains independent of this panel.
+        }
+    }
+
+    async function refreshWindowPusherStates() {
+        const cards = Array.from(document.querySelectorAll('.window-pusher-card'));
+        if (!cards.length) return;
+        await Promise.all(cards.map(refreshOneWindowPusher));
+        window.clearTimeout(windowPusherStateTimer);
+        windowPusherStateTimer = window.setTimeout(refreshWindowPusherStates, 3000);
+    }
+
+    document.addEventListener('DOMContentLoaded', refreshWindowPusherStates);
+
+    async function sendWindowPusherAction(event, action) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const card = button.closest('.window-pusher-card');
+        const controlUrl = card ? card.dataset.controlUrl : null;
+        if (!card || !controlUrl) {
+            showToast('창문 푸셔 제어 정보를 찾지 못했습니다.');
+            return false;
+        }
+
+        button.disabled = true;
+        try {
+            const data = await window.IOTCORE_POST_FORM(
+                controlUrl,
+                new URLSearchParams({ action }),
+            );
+            if (data.success === false) {
+                throw new Error(data.message || '창문 푸셔 제어에 실패했습니다.');
+            }
+            renderWindowPusherState(card, data.state);
+            if (action === 'stop') {
+                clearWindowPusherBrowserStop(card);
+            } else {
+                const safetySeconds = data.state?.safety_stop_seconds || card.dataset.safetySeconds || 15;
+                scheduleWindowPusherBrowserStop(card, safetySeconds);
+            }
+            showToast(data.message || '창문 푸셔 제어를 완료했습니다.');
+            window.setTimeout(() => refreshOneWindowPusher(card), 500);
+        } catch (error) {
+            showToast('창문 푸셔 제어 실패: ' + (error.message || error));
+        } finally {
+            button.disabled = false;
+        }
+        return false;
+    }
+
+    function updateWindowPusherPositionLabel(event) {
+        const row = event.currentTarget.closest('.window-pusher-position-row');
+        const output = row ? row.querySelector('.window-pusher-position-value') : null;
+        if (output) output.textContent = `${event.currentTarget.value}%`;
+    }
+
+    async function sendWindowPusherPosition(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const card = button.closest('.window-pusher-card');
+        const slider = card ? card.querySelector('.window-pusher-position-range') : null;
+        const controlUrl = card ? card.dataset.controlUrl : null;
+        const position = slider ? Number(slider.value) : NaN;
+        if (!card || !controlUrl || !Number.isInteger(position) || position < 0 || position > 100) {
+            showToast('0부터 100 사이의 창문 위치를 선택하세요.');
+            return false;
+        }
+
+        button.disabled = true;
+        try {
+            const data = await window.IOTCORE_POST_FORM(
+                controlUrl,
+                new URLSearchParams({
+                    action: 'set_position',
+                    position: String(position),
+                }),
+            );
+            if (data.success === false) {
+                throw new Error(data.message || '창문 위치 제어에 실패했습니다.');
+            }
+            renderWindowPusherState(card, data.state);
+            const safetySeconds = data.state?.safety_stop_seconds || card.dataset.safetySeconds || 15;
+            scheduleWindowPusherBrowserStop(card, safetySeconds);
+            showToast(data.message || '창문 위치 이동을 시작했습니다.');
+            window.setTimeout(() => refreshOneWindowPusher(card), 500);
+        } catch (error) {
+            showToast('창문 위치 제어 실패: ' + (error.message || error));
+        } finally {
+            button.disabled = false;
+        }
+        return false;
+    }
 
     function showToast(message) {
         const toast = document.getElementById('toast');
