@@ -8,7 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}IoTCore{% endblock %} · Either One</title>
     <link rel="stylesheet" href="{% static 'bootstrap.min.css' %}">
-    <link rel="stylesheet" href="{% static 'css/iotcore-shell.css' %}?v=20260920-1">
+    <link rel="stylesheet" href="{% static 'css/iotcore-shell.css' %}?v=20260920-2">
     <link rel="stylesheet" href="{% static 'css/iotcore-pages.css' %}?v=20260906-1">
     {% block extra_css %}{% endblock %}
 </head>
@@ -41,11 +41,11 @@
                 id="iotExecutionToggle"
                 aria-label="실행 현황 열기"
                 aria-controls="iotExecutionPanel"
-                aria-expanded="false">⇥</button>
+                aria-expanded="false">◀</button>
             {% if request.user.is_authenticated %}
                 <div class="iot-user-menu">
                     <span>{{ request.user.username }}</span>
-                    <a href="{% url 'iotcore:logout_view' %}">로그아웃</a>
+                    <a class="iot-logout-link" href="{% url 'iotcore:logout_view' %}">로그아웃</a>
                 </div>
             {% endif %}
         </div>

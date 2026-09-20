@@ -66,7 +66,20 @@ button, input, select, textarea { font: inherit; }
 .iot-user-menu { display: flex; align-items: center; gap: 10px; padding-left: 14px; border-left: 1px solid var(--iot-border-soft); font-size: 12px; }
 .iot-user-menu span { color: var(--iot-text); }
 .iot-user-menu a { color: var(--iot-muted); text-decoration: none; }
-.iot-user-menu a:hover { color: var(--iot-accent); }
+.iot-logout-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--iot-border-soft);
+    background: #000000;
+    white-space: nowrap;
+}
+.iot-user-menu .iot-logout-link:hover {
+    border-color: var(--iot-accent);
+    color: var(--iot-accent);
+}
 .iot-icon-button, .iot-panel-close {
     border: 1px solid var(--iot-accent);
     border-radius: 0;
