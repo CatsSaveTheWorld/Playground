@@ -5,7 +5,6 @@ from django.views.decorators.http import require_GET, require_POST
 
 from ...infrastructure.remote_tasks.client import RemoteTaskClient
 from ...models import Device
-from ...scheduler.supersession import DeviceControlSupersessionService
 from .common import parse_request_data
 
 
@@ -43,14 +42,6 @@ def _remote_result(device, action, parameters=None, timeout=12):
         agent_id=device.device_uid,
         timeout=timeout,
     )
-
-
-def _supersede_pending_if_success(device, result):
-    if result.get("success"):
-        DeviceControlSupersessionService.cancel_pending_for_device(
-            device,
-            message=f"수동 {device.name} 제어로 대체됨",
-        )
 
 
 @login_required(login_url="common:login")
@@ -114,7 +105,6 @@ def media_server_play_video(request, device_id):
         "media.play_video",
         {"video_id": video_id},
     )
-    _supersede_pending_if_success(device, result)
     return JsonResponse(
         {
             "success": bool(result.get("success")),
@@ -130,7 +120,6 @@ def media_server_play_video(request, device_id):
 def media_server_stop(request, device_id):
     device = _get_media_server(device_id)
     result = _remote_result(device, "media.stop", timeout=8)
-    _supersede_pending_if_success(device, result)
     return JsonResponse(
         {
             "success": bool(result.get("success")),

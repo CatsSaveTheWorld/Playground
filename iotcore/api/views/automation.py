@@ -17,7 +17,7 @@ from ...forms import (
     StepFormSet,
     TriggerFormSet,
 )
-from ...models import Action, ActionRun, Automation, AutomationGroup, AutomationRun, Device, Step, Trigger
+from ...models import Action, Automation, AutomationGroup, AutomationRun, Device, Step, Trigger
 from ...scheduler.calculator import describe_step
 from ...scheduler.executor import AutomationExecutor
 from ...scheduler.service import AutomationService
@@ -125,27 +125,13 @@ def _replace_graph(automation, step_formset, trigger_formset, action_formset):
         owner = _owner_key(form, index)
         step_rows.append((owner, cleaned))
 
-    # Queued/planned runs may refer to Step/Action ids that are about to be
-    # rebuilt.  The non-blocking executor keeps delayed ActionRuns in the DB, so
-    # cancel those rows as well before replacing the graph.
-    active_runs = automation.runs.filter(
-        status__in=[AutomationRun.Status.PENDING, AutomationRun.Status.RUNNING]
+    # Pending runs may refer to Step ids that are about to be rebuilt. Cancel
+    # them explicitly instead of letting them execute against a different graph.
+    automation.runs.filter(status=AutomationRun.Status.PENDING).update(
+        status=AutomationRun.Status.CANCELLED,
+        message="자동화 수정으로 취소됨",
+        finished_at=timezone.now(),
     )
-    active_run_ids = list(active_runs.values_list("id", flat=True))
-    if active_run_ids:
-        ActionRun.objects.filter(
-            automation_run_id__in=active_run_ids,
-            status=AutomationRun.Status.PENDING,
-        ).update(
-            status=AutomationRun.Status.CANCELLED,
-            message="자동화 수정으로 취소됨",
-            finished_at=timezone.now(),
-        )
-        active_runs.update(
-            status=AutomationRun.Status.CANCELLED,
-            message="자동화 수정으로 취소됨",
-            finished_at=timezone.now(),
-        )
 
     # Deliberately rebuild the small graph atomically. It makes edit code and
     # debugging much easier than trying to diff nested form payloads.
@@ -387,6 +373,22 @@ def automation_run(request, automation_id):
     automation = get_object_or_404(Automation, pk=automation_id)
     AutomationExecutor.enqueue(automation, source="manual")
     messages.success(request, f'"{automation.name}" 실행 요청을 등록했습니다.')
+    return _redirect_back(request)
+
+
+@login_required(login_url="common:login")
+@require_POST
+def automation_run_cancel(request, run_id):
+    run = get_object_or_404(AutomationRun, pk=run_id)
+    cancelled, message = AutomationExecutor.cancel_run(run)
+    if cancelled:
+        messages.success(
+            request,
+            f'"{run.automation_name or "자동화"}" 작업을 취소했습니다. '
+            "현재 기기 상태는 변경하지 않습니다.",
+        )
+    else:
+        messages.warning(request, message)
     return _redirect_back(request)
 
 

@@ -156,6 +156,11 @@ urlpatterns = [
         name="automation_run",
     ),
     path(
+        "execution-runs/<int:run_id>/cancel/",
+        automation.automation_run_cancel,
+        name="automation_run_cancel",
+    ),
+    path(
         "automations/create/",
         schedule.schedule_create,
         name="schedule_create",

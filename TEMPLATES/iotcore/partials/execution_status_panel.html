@@ -1,3 +1,5 @@
+{% load execution_status %}
+{% execution_status_snapshot 5 as execution_status %}
 <aside class="iot-execution-panel" id="iotExecutionPanel" aria-label="실행 현황">
     <div class="iot-execution-panel__header">
         <div>
@@ -11,41 +13,94 @@
             aria-label="실행 현황 닫기">×</button>
     </div>
 
-    {# 정적 프론트 UI만 제공한다. 실제 큐 조회와 polling은 후속 구현 범위다. #}
     <section class="iot-execution-section" data-execution-section="pending">
         <div class="iot-execution-section__title">
             <h3>실행 대기</h3>
-            <span class="iot-count">0</span>
+            <span class="iot-count">{{ execution_status.pending_count }}</span>
         </div>
         <div class="iot-execution-columns">
             <span>작업 내용</span>
             <span>실행 방식</span>
         </div>
+        {% for run in execution_status.pending_runs %}
+        <div class="iot-execution-job">
+            <div class="iot-execution-columns">
+                <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
+                <span>{{ run.get_source_display }}</span>
+            </div>
+            <form method="post"
+                  action="{% url 'iotcore:automation_run_cancel' run.id %}"
+                  onsubmit="return confirm('대기 중인 작업을 취소할까요? 기기 상태는 변경되지 않습니다.');">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="iot-execution-cancel">대기 취소</button>
+            </form>
+        </div>
+        {% empty %}
         <div class="iot-execution-empty">대기 중인 작업이 없습니다.</div>
+        {% endfor %}
     </section>
 
     <section class="iot-execution-section" data-execution-section="running">
         <div class="iot-execution-section__title">
             <h3>실행 중</h3>
-            <span class="iot-count">0</span>
+            <span class="iot-count">{{ execution_status.running_count }}</span>
         </div>
         <div class="iot-execution-columns">
             <span>작업 내용</span>
             <span>실행 방식</span>
         </div>
+        {% for run in execution_status.running_runs %}
+        <div class="iot-execution-job">
+            <div class="iot-execution-columns">
+                <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
+                <span>{{ run.get_source_display }}</span>
+            </div>
+            {% if run.waiting_action %}
+            <p class="iot-execution-job__state">
+                지연 대기 · {{ run.waiting_action.available_at|date:"H:i" }}
+                {% if run.waiting_action.device %}
+                    · {{ run.waiting_action.device.name }}
+                {% endif %}
+                {% if run.waiting_action.function %}
+                    · {{ run.waiting_action.function }}
+                {% endif %}
+            </p>
+            {% elif run.running_action %}
+            <p class="iot-execution-job__state">
+                실행 중 · {{ run.running_action.device.name }}
+            </p>
+            {% endif %}
+            <form method="post"
+                  action="{% url 'iotcore:automation_run_cancel' run.id %}"
+                  onsubmit="return confirm('이 작업을 취소할까요? 현재 기기 상태는 유지되며 아직 시작하지 않은 작업만 취소됩니다.');">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="iot-execution-cancel">작업 취소</button>
+            </form>
+        </div>
+        {% empty %}
         <div class="iot-execution-empty">현재 실행 중인 작업이 없습니다.</div>
+        {% endfor %}
     </section>
 
     <section class="iot-execution-section" data-execution-section="completed">
         <div class="iot-execution-section__title">
             <h3>실행 완료</h3>
-            <span class="iot-count">0</span>
+            <span class="iot-count">{{ execution_status.completed_count }}</span>
         </div>
         <div class="iot-execution-columns">
             <span>작업 내용</span>
             <span>실행 정보</span>
         </div>
+        {% for run in execution_status.completed_runs %}
+        <div class="iot-execution-columns">
+            <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
+            <span>{{ run.get_status_display }}</span>
+        </div>
+        {% empty %}
         <div class="iot-execution-empty">최근 실행 결과가 여기에 표시됩니다.</div>
+        {% endfor %}
     </section>
 
     <a

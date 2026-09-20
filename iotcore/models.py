@@ -383,6 +383,7 @@ class AutomationRun(models.Model):
 
     class Status(models.TextChoices):
         PENDING = "pending", "대기"
+        WAITING = "waiting", "지연 대기"
         RUNNING = "running", "실행 중"
         SUCCESS = "success", "성공"
         FAILED = "failed", "실패"
@@ -406,6 +407,21 @@ class AutomationRun(models.Model):
         null=True,
         related_name="runs",
     )
+    root_run = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        related_name="descendant_runs",
+    )
+    parent_action_run = models.OneToOneField(
+        "ActionRun",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="child_automation_run",
+    )
+    planned_at = models.DateTimeField(blank=True, null=True, db_index=True)
     step = models.ForeignKey(
         Step,
         on_delete=models.SET_NULL,
@@ -465,17 +481,63 @@ class ActionRun(models.Model):
         null=True,
         related_name="runs",
     )
+    root_run = models.ForeignKey(
+        AutomationRun,
+        on_delete=models.CASCADE,
+        related_name="queued_action_runs",
+    )
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="queued_action_runs",
+    )
+    target_automation = models.ForeignKey(
+        Automation,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="queued_parent_actions",
+    )
     step_order = models.PositiveIntegerField(default=1)
     order = models.PositiveIntegerField()
-    status = models.CharField(max_length=20, choices=AutomationRun.Status.choices)
+    action_type = models.CharField(
+        max_length=20,
+        choices=Action.Type.choices,
+        default=Action.Type.DEVICE,
+    )
+    function = models.CharField(max_length=100, blank=True)
+    parameter = models.JSONField(blank=True, null=True)
+    target_automation_name = models.CharField(max_length=100, blank=True)
+    delay = models.PositiveIntegerField(default=0)
+    delay_position = models.CharField(
+        max_length=10,
+        choices=Action.DelayPosition.choices,
+        default=Action.DelayPosition.AFTER,
+    )
+    delay_applied = models.BooleanField(default=False)
+    available_at = models.DateTimeField(default=timezone.now, db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=AutomationRun.Status.choices,
+        default=AutomationRun.Status.PENDING,
+        db_index=True,
+    )
     message = models.TextField(blank=True)
-    # Future device actions are kept as pending rows instead of blocking the
-    # single automation worker with time.sleep().  ``scheduled_for`` is the
-    # earliest time at which the worker may claim this ActionRun.
-    scheduled_for = models.DateTimeField(blank=True, null=True, db_index=True)
     started_at = models.DateTimeField(blank=True, null=True)
     finished_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["step_order", "order", "id"]
-
+        indexes = [
+            models.Index(
+                fields=["device", "status", "available_at"],
+                name="iotcore_device_queue_idx",
+            ),
+            models.Index(
+                fields=["root_run", "status"],
+                name="iotcore_root_queue_idx",
+            ),
+        ]

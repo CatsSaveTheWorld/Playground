@@ -165,6 +165,22 @@ body.is-nav-collapsed .iot-primary-nav { visibility: hidden; transform: translat
 .iot-count { display: grid; place-items: center; min-width: 23px; height: 20px; padding: 0 6px; border: 1px solid var(--iot-border-soft); border-radius: 0; background: #000000; color: var(--iot-accent); font-size: 10px; }
 .iot-execution-columns { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 8px; padding: 0 11px 7px; color: var(--iot-muted); font-size: 10px; }
 .iot-execution-columns span:last-child { text-align: right; }
+.iot-execution-job { padding: 0 0 9px; }
+.iot-execution-job + .iot-execution-job { padding-top: 7px; border-top: 1px solid rgba(0, 255, 200, .16); }
+.iot-execution-job .iot-execution-columns { padding-bottom: 4px; }
+.iot-execution-job__state { margin: 0 11px 7px; color: var(--iot-warning); font-size: 10px; line-height: 1.45; }
+.iot-execution-job form { display: flex; justify-content: flex-end; padding: 0 11px; }
+.iot-execution-cancel {
+    min-height: 25px;
+    padding: 0 8px;
+    border: 1px solid #555555;
+    border-radius: 0;
+    background: #000000;
+    color: var(--iot-muted);
+    cursor: pointer;
+    font-size: 10px;
+}
+.iot-execution-cancel:hover { border-color: var(--iot-danger); color: var(--iot-danger); }
 .iot-execution-empty { min-height: 72px; display: grid; place-items: center; padding: 14px; border: 1px dashed var(--iot-border-soft); border-radius: 0; color: var(--iot-muted-2); font-size: 11px; text-align: center; }
 .iot-execution-history-link { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding: 12px 11px; border-top: 1px solid var(--iot-border); color: var(--iot-muted); text-decoration: none; font-size: 12px; }
 .iot-execution-history-link:hover { color: var(--iot-accent); }
