@@ -47,6 +47,19 @@ services=(
 )
 
 for service in "${services[@]}"; do
-    systemctl is-active --quiet "${service}"
+    # Apache can become active before its asynchronous Wants dependencies have
+    # finished starting. Wait briefly so a healthy stack is not reported as a
+    # failed installation merely because a dependency is still "activating".
+    for _ in {1..30}; do
+        state="$(systemctl is-active "${service}" 2>/dev/null || true)"
+        [[ ${state} == active ]] && break
+        [[ ${state} == failed ]] && break
+        sleep 1
+    done
+
+    if ! systemctl is-active --quiet "${service}"; then
+        systemctl --no-pager --full status "${service}" || true
+        exit 1
+    fi
     echo "active ${service}"
 done
