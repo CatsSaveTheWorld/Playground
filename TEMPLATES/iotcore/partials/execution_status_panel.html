@@ -23,9 +23,18 @@
             <span>실행 방식</span>
         </div>
         {% for run in execution_status.pending_runs %}
-        <div class="iot-execution-columns">
-            <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
-            <span>{{ run.get_source_display }}</span>
+        <div class="iot-execution-job">
+            <div class="iot-execution-columns">
+                <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
+                <span>{{ run.get_source_display }}</span>
+            </div>
+            <form method="post"
+                  action="{% url 'iotcore:automation_run_cancel' run.id %}"
+                  onsubmit="return confirm('대기 중인 작업을 취소할까요? 기기 상태는 변경되지 않습니다.');">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="iot-execution-cancel">대기 취소</button>
+            </form>
         </div>
         {% empty %}
         <div class="iot-execution-empty">대기 중인 작업이 없습니다.</div>
@@ -42,9 +51,33 @@
             <span>실행 방식</span>
         </div>
         {% for run in execution_status.running_runs %}
-        <div class="iot-execution-columns">
-            <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
-            <span>{{ run.get_source_display }}</span>
+        <div class="iot-execution-job">
+            <div class="iot-execution-columns">
+                <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
+                <span>{{ run.get_source_display }}</span>
+            </div>
+            {% if run.waiting_action %}
+            <p class="iot-execution-job__state">
+                지연 대기 · {{ run.waiting_action.available_at|date:"H:i" }}
+                {% if run.waiting_action.device %}
+                    · {{ run.waiting_action.device.name }}
+                {% endif %}
+                {% if run.waiting_action.function %}
+                    · {{ run.waiting_action.function }}
+                {% endif %}
+            </p>
+            {% elif run.running_action %}
+            <p class="iot-execution-job__state">
+                실행 중 · {{ run.running_action.device.name }}
+            </p>
+            {% endif %}
+            <form method="post"
+                  action="{% url 'iotcore:automation_run_cancel' run.id %}"
+                  onsubmit="return confirm('이 작업을 취소할까요? 현재 기기 상태는 유지되며 아직 시작하지 않은 작업만 취소됩니다.');">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="iot-execution-cancel">작업 취소</button>
+            </form>
         </div>
         {% empty %}
         <div class="iot-execution-empty">현재 실행 중인 작업이 없습니다.</div>

@@ -376,6 +376,22 @@ def automation_run(request, automation_id):
     return _redirect_back(request)
 
 
+@login_required(login_url="common:login")
+@require_POST
+def automation_run_cancel(request, run_id):
+    run = get_object_or_404(AutomationRun, pk=run_id)
+    cancelled, message = AutomationExecutor.cancel_run(run)
+    if cancelled:
+        messages.success(
+            request,
+            f'"{run.automation_name or "자동화"}" 작업을 취소했습니다. '
+            "현재 기기 상태는 변경하지 않습니다.",
+        )
+    else:
+        messages.warning(request, message)
+    return _redirect_back(request)
+
+
 def _redirect_back(request):
     target = str(request.POST.get("next") or "")
     if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):

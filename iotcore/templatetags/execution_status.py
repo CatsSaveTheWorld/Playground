@@ -1,6 +1,6 @@
 from django import template
 
-from iotcore.models import AutomationRun
+from iotcore.models import ActionRun, AutomationRun
 
 
 register = template.Library()
@@ -14,7 +14,11 @@ def execution_status_snapshot(limit=5):
     except (TypeError, ValueError):
         limit = 5
 
-    runs = AutomationRun.objects.select_related("automation")
+    # Child runs are represented inside their root job. Showing both would make
+    # one click appear as several independently cancellable executions.
+    runs = AutomationRun.objects.select_related("automation").filter(
+        root_run__isnull=True
+    )
     pending = runs.filter(status=AutomationRun.Status.PENDING).order_by(
         "created_at", "id"
     )
@@ -30,11 +34,24 @@ def execution_status_snapshot(limit=5):
         ]
     ).order_by("-finished_at", "-id")
 
+    pending_runs = list(pending[:limit])
+    running_runs = list(running[:limit])
+
+    for run in pending_runs + running_runs:
+        queue = ActionRun.objects.filter(root_run=run).select_related("device")
+        run.waiting_action = queue.filter(
+            status=AutomationRun.Status.WAITING
+        ).order_by("available_at", "id").first()
+        run.running_action = queue.filter(
+            status=AutomationRun.Status.RUNNING,
+            device__isnull=False,
+        ).order_by("started_at", "id").first()
+
     return {
         "pending_count": pending.count(),
-        "pending_runs": list(pending[:limit]),
+        "pending_runs": pending_runs,
         "running_count": running.count(),
-        "running_runs": list(running[:limit]),
+        "running_runs": running_runs,
         "completed_runs": list(completed[:limit]),
         "completed_count": min(completed.count(), limit),
     }
