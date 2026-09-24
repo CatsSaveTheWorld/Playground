@@ -28,8 +28,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = my_settings.SECRET_KEY('secret')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
-# DEBUG = True
+# DEBUG = False
+DEBUG = True
 
 # MQTT 테스트 용 장고 서버 IP주소
 MQTT_HOST = "127.0.0.1"   # IoT 서버 IP
@@ -96,9 +96,34 @@ MUSIC_ASSISTANT_TOKEN = os.environ.get(
 )
 MUSIC_ASSISTANT_TIMEOUT = 30
 
+
+# ASR / NLP / TTS 설정
+# Android 음성 업로드는 DEBUG=True일 때만 디스크에 보관합니다.
+# 운영(DEBUG=False)에서는 ASR Worker로 바로 전달하고 파일을 남기지 않습니다.
+VOICE_UPLOAD_ROOT = BASE_DIR / "runtime" / "voice_uploads"
+VOICE_SAVE_UPLOADS = DEBUG
+
+VOICE_ASR_ENABLED = True
+VOICE_ASR_BASE_URL = os.environ.get(
+    "VOICE_ASR_BASE_URL",
+    "http://127.0.0.1:6101",
+)
+VOICE_ASR_CONNECT_TIMEOUT = 2
+VOICE_ASR_READ_TIMEOUT = 30
+
+VOICE_NLP_ENABLED = True
+VOICE_NLP_BASE_URL = os.environ.get(
+    "VOICE_NLP_BASE_URL",
+    "http://127.0.0.1:6201",
+)
+VOICE_NLP_CONNECT_TIMEOUT = 2.0
+VOICE_NLP_READ_TIMEOUT = 10.0
+
+
 ALLOWED_HOSTS = [
     "211.209.134.102",
     "192.168.0.8",
+    "192.168.0.4",
     "localhost",
     "127.0.0.1",
 ]
@@ -110,7 +135,6 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Application definition
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

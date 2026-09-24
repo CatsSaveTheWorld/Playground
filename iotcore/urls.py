@@ -16,6 +16,7 @@ from iotcore.api.views import (
     sequence,
     speaker,
     window_pusher,
+    voice,
 )
 
 app_name = "iotcore"
@@ -362,4 +363,7 @@ urlpatterns = [
         speaker.speaker_set_repeat,
         name="speaker_set_repeat",
     ),
+
+    # Voice Control
+    path("api/voice/upload/", voice.voice_upload, name="voice_upload"),
 ]

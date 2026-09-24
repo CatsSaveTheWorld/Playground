@@ -19,8 +19,20 @@ class AIControlService:
     def resolve_device(*, device_uid=None, device_type=None, location=None):
         if device_uid:
             return Device.objects.filter(device_uid=device_uid).first()
+
         if device_type and location:
-            return Device.objects.filter(device_type=device_type, location=location).first()
+            device = Device.objects.filter(
+                device_type=device_type,
+                location=location,
+            ).first()
+            if device:
+                return device
+
+        if device_type:
+            devices = Device.objects.filter(device_type=device_type)
+            if devices.count() == 1:
+                return devices.first()
+
         return None
 
     @staticmethod
