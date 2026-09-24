@@ -102,19 +102,59 @@ MUSIC_ASSISTANT_TIMEOUT = 30
 VOICE_UPLOAD_ROOT = BASE_DIR / "runtime" / "voice_uploads"
 VOICE_SAVE_UPLOADS = DEBUG
 
+# AI Worker 노드
+# - Home-AI-Main : 192.168.0.4
+# - Home-AI-Sub1 : 192.168.0.2
+#
+# 각 값은 환경변수 또는 ignored my_settings.py에서 덮어쓸 수 있습니다.
+# 예:
+#   VOICE_AI_MAIN_HOST=192.168.0.4
+#   VOICE_AI_SUB1_HOST=192.168.0.2
+#   VOICE_ASR_ACTIVE_NODE=sub1
+#   VOICE_NLP_ACTIVE_NODE=main
+VOICE_AI_NODE_HOSTS = {
+    "main": os.environ.get(
+        "VOICE_AI_MAIN_HOST",
+        getattr(my_settings, "VOICE_AI_MAIN_HOST", "192.168.0.4"),
+    ).strip(),
+    "sub1": os.environ.get(
+        "VOICE_AI_SUB1_HOST",
+        getattr(my_settings, "VOICE_AI_SUB1_HOST", "192.168.0.2"),
+    ).strip(),
+}
+
+
+def _voice_active_node(setting_name: str, default: str = "main") -> str:
+    node = os.environ.get(
+        setting_name,
+        getattr(my_settings, setting_name, default),
+    ).strip().lower()
+
+    if node not in VOICE_AI_NODE_HOSTS:
+        raise ImproperlyConfigured(
+            f"{setting_name} must be one of: "
+            f"{', '.join(sorted(VOICE_AI_NODE_HOSTS))}"
+        )
+    return node
+
+
 VOICE_ASR_ENABLED = True
-VOICE_ASR_BASE_URL = os.environ.get(
-    "VOICE_ASR_BASE_URL",
-    "http://127.0.0.1:6101",
-)
+VOICE_ASR_ACTIVE_NODE = _voice_active_node("VOICE_ASR_ACTIVE_NODE")
+VOICE_ASR_NODES = {
+    name: f"http://{host}:6101"
+    for name, host in VOICE_AI_NODE_HOSTS.items()
+}
+VOICE_ASR_BASE_URL = VOICE_ASR_NODES[VOICE_ASR_ACTIVE_NODE]
 VOICE_ASR_CONNECT_TIMEOUT = 2
 VOICE_ASR_READ_TIMEOUT = 30
 
 VOICE_NLP_ENABLED = True
-VOICE_NLP_BASE_URL = os.environ.get(
-    "VOICE_NLP_BASE_URL",
-    "http://127.0.0.1:6201",
-)
+VOICE_NLP_ACTIVE_NODE = _voice_active_node("VOICE_NLP_ACTIVE_NODE")
+VOICE_NLP_NODES = {
+    name: f"http://{host}:6201"
+    for name, host in VOICE_AI_NODE_HOSTS.items()
+}
+VOICE_NLP_BASE_URL = VOICE_NLP_NODES[VOICE_NLP_ACTIVE_NODE]
 VOICE_NLP_CONNECT_TIMEOUT = 2.0
 VOICE_NLP_READ_TIMEOUT = 10.0
 
