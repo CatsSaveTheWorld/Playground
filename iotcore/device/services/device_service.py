@@ -431,20 +431,33 @@ class DeviceService:
 
         return False, f"지원하지 않는 PC 동작입니다. ({motion})"
 
+
     @staticmethod
     def execute_aircon(step):
-        """
-        detail.py 의 공통 제어 함수를 그대로 사용.
-        """
         print(f"[DEBUG] execute_aircon device_id : {step.device.id}")
         print(f"[DEBUG] execute_aircon motion : {step.function}")
+
+        motion = step.function
+        parameter = step.parameter or {}
+        bits = parameter.get("bits")
+
+        if motion == "set_temp":
+            temperature = parameter.get("temperature")
+
+            if temperature is None:
+                return False, "설정 온도가 없습니다."
+
+            # 현재 aircon_control_code.csv 형식에 맞춤
+            motion = f"{temperature}도"
+            bits = 24
+
         return DeviceService.control(
             device_id=step.device.id,
-            motion=step.function,
-            bits=(step.parameter or {}).get("bits")
-            or (step.parameter or {}).get("temperature"),
+            motion=motion,
+            bits=bits,
         )
 
+    
     @staticmethod
     def execute_fan(step):
         controller = ControllerRepository.get_controller_by_device(step.device.id)
