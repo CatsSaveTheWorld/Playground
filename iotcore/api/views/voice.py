@@ -104,24 +104,51 @@ def voice_upload(request):
     execution = None
 
     if nlp_result and nlp_result.ok:
-        device = AIControlService.resolve_device(
-            device_uid=nlp_result.device_uid,
-            device_type=nlp_result.device,
-            location=nlp_result.location,
-        )
 
-        if device:
-            success, message = AIControlService.execute_device_action(
-                device=device,
-                function=nlp_result.function,
-                parameter=nlp_result.parameters,
+        if nlp_result.intent == "automation":
+            automation = AIControlService.resolve_automation(
+                automation_name=nlp_result.automation_name,
             )
 
-            execution = {
-                "ok": success,
-                "device_uid": device.device_uid,
-                "message": message,
-            }
+            if automation:
+                run = AIControlService.run_automation(automation.id)
+
+                execution = {
+                    "ok": True,
+                    "type": "automation",
+                    "automation_id": automation.id,
+                    "automation_name": automation.name,
+                    "run_id": getattr(run, "id", None),
+                    "message": f"{automation.name} 실행 요청을 등록했습니다.",
+                }
+            else:
+                execution = {
+                    "ok": False,
+                    "type": "automation",
+                    "automation_name": nlp_result.automation_name,
+                    "message": "실행 가능한 자동화를 찾을 수 없습니다.",
+                }
+
+        elif nlp_result.intent == "device_action":
+            device = AIControlService.resolve_device(
+                device_uid=nlp_result.device_uid,
+                device_type=nlp_result.device,
+                location=nlp_result.location,
+            )
+
+            if device:
+                success, message = AIControlService.execute_device_action(
+                    device=device,
+                    function=nlp_result.function,
+                    parameter=nlp_result.parameters,
+                )
+
+                execution = {
+                    "ok": success,
+                    "type": "device_action",
+                    "device_uid": device.device_uid,
+                    "message": message,
+                }
 
     message = "voice received"
     if asr_result.ok:

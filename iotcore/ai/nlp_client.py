@@ -13,6 +13,8 @@ class NLPResult:
     text: str = ""
     normalized_text: str = ""
     language: str = ""
+    intent: str = ""
+    automation_name: str | None = None
     location: str | None = None
     device: str | None = None
     device_uid: str | None = None
@@ -30,6 +32,8 @@ class NLPResult:
             "text": self.text,
             "normalized_text": self.normalized_text,
             "language": self.language,
+            "intent": self.intent,
+            "automation_name": self.automation_name,
             "location": self.location,
             "device": self.device,
             "device_uid": self.device_uid,
@@ -146,6 +150,8 @@ class NLPClient:
             language=str(
                 payload.get("language", language)
             ),
+            intent=str(payload.get("intent", "")),
+            automation_name=payload.get("automation_name"),
             location=payload.get("location"),
             device=payload.get("device"),
             device_uid=payload.get("device_uid"),

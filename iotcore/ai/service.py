@@ -36,6 +36,16 @@ class AIControlService:
         return None
 
     @staticmethod
+    def resolve_automation(*, automation_name=None):
+        if not automation_name:
+            return None
+
+        return Automation.objects.filter(
+            name=automation_name,
+            enabled=True,
+        ).first()
+
+    @staticmethod
     def execute_device_action(*, device, function, parameter=None):
         supported = {action.code for action in DeviceActionRegistry.get_actions(device.device_type)}
         if function not in supported:
