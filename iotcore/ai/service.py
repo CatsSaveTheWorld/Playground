@@ -4,6 +4,8 @@ AI is deliberately a caller of IoTCore, never an alternative execution engine.
 All device commands and Automation runs pass through the same deterministic
 services used by the web UI, scheduler and MQTT listener.
 """
+import re
+import unicodedata
 from types import SimpleNamespace
 
 from django.core.exceptions import ValidationError
@@ -34,6 +36,51 @@ class AIControlService:
                 return devices.first()
 
         return None
+
+    @staticmethod
+    def normalize_voice_text(value):
+        text = unicodedata.normalize("NFKC", str(value or "")).strip().lower()
+        text = re.sub(r"[,.!?~]+", " ", text)
+        return re.sub(r"\s+", " ", text).strip()
+
+    @classmethod
+    def resolve_automation_from_text(cls, text):
+        """Resolve an enabled Automation by DB name/voice aliases.
+
+        Matching is whitespace-insensitive and prefers an exact/longer phrase,
+        so a routine name such as ``에어컨 냉방 실행`` wins before NLP can
+        reduce the same utterance to a single device action such as mode_cool.
+        """
+        normalized_text = cls.normalize_voice_text(text)
+        compact_text = normalized_text.replace(" ", "")
+        if not compact_text:
+            return None
+
+        matches = []
+        for automation in Automation.objects.filter(enabled=True).only(
+            "id", "name", "voice_aliases"
+        ):
+            phrases = [automation.name]
+            aliases = automation.voice_aliases or []
+            if isinstance(aliases, (list, tuple)):
+                phrases.extend(aliases)
+
+            for phrase in phrases:
+                normalized_phrase = cls.normalize_voice_text(phrase)
+                compact_phrase = normalized_phrase.replace(" ", "")
+                if not compact_phrase:
+                    continue
+                if compact_phrase not in compact_text:
+                    continue
+                exact = compact_phrase == compact_text
+                matches.append((exact, len(compact_phrase), automation.id, automation))
+                break
+
+        if not matches:
+            return None
+
+        matches.sort(key=lambda item: (item[0], item[1], -item[2]), reverse=True)
+        return matches[0][3]
 
     @staticmethod
     def resolve_automation(*, automation_name=None):

@@ -115,6 +115,7 @@ input[type=checkbox], input[type=radio] { margin-right: 8px; }
             {{ form.non_field_errors }}
             <div class="field"><label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>{{ form.name }}{{ form.name.errors }}</div>
             <div class="field"><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>{{ form.description }}{{ form.description.errors }}</div>
+            <div class="field"><label for="{{ form.voice_aliases.id_for_label }}">{{ form.voice_aliases.label }}</label>{{ form.voice_aliases }}<span class="helptext">{{ form.voice_aliases.help_text }}</span>{{ form.voice_aliases.errors }}</div>
             <div class="field"><label for="{{ form.automation_type.id_for_label }}">{{ form.automation_type.label }}</label>{{ form.automation_type }}<span class="helptext">{{ form.automation_type.help_text }}</span>{{ form.automation_type.errors }}</div>
             <div class="field"><label for="{{ form.group.id_for_label }}">{{ form.group.label }}</label>{{ form.group }}<span class="helptext">그룹이 없으면 미분류로 표시됩니다. 목록의 그룹 관리에서 새 그룹을 만들 수 있습니다.</span>{{ form.group.errors }}</div>
             <div class="field"><label>{{ form.is_favorite }} {{ form.is_favorite.label }}</label>{{ form.is_favorite.errors }}</div>

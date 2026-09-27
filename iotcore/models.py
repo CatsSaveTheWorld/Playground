@@ -123,6 +123,7 @@ class Automation(models.Model):
 
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
+    voice_aliases = models.JSONField(default=list, blank=True)
     automation_type = models.CharField(
         max_length=20,
         choices=Type.choices,

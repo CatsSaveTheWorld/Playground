@@ -32,11 +32,19 @@ class AutomationGroupForm(forms.ModelForm):
 
 
 class AutomationForm(forms.ModelForm):
+    voice_aliases = forms.CharField(
+        required=False,
+        label="음성 호출 별칭",
+        help_text="쉼표 또는 줄바꿈으로 여러 별칭을 구분합니다. 자동화 이름 자체는 별도로 자동 인식됩니다.",
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "예: 게임 세팅, 게임 설정"}),
+    )
+
     class Meta:
         model = Automation
         fields = [
             "name",
             "description",
+            "voice_aliases",
             "automation_type",
             "group",
             "is_favorite",
@@ -46,6 +54,7 @@ class AutomationForm(forms.ModelForm):
         labels = {
             "name": "이름",
             "description": "설명",
+            "voice_aliases": "음성 호출 별칭",
             "automation_type": "실행 방식",
             "group": "그룹",
             "is_favorite": "즐겨찾기",
@@ -63,6 +72,24 @@ class AutomationForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["group"].queryset = AutomationGroup.objects.order_by("order", "name", "id")
         self.fields["group"].empty_label = "미분류"
+        if not self.is_bound and self.instance.pk:
+            aliases = self.instance.voice_aliases or []
+            self.initial["voice_aliases"] = ", ".join(str(alias) for alias in aliases if str(alias).strip())
+
+    def clean_voice_aliases(self):
+        raw = str(self.cleaned_data.get("voice_aliases") or "")
+        aliases = []
+        seen = set()
+        for part in raw.replace("\r", "\n").replace(",", "\n").split("\n"):
+            alias = part.strip()
+            if not alias:
+                continue
+            key = alias.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            aliases.append(alias)
+        return aliases
 
 
 class StepForm(forms.ModelForm):

@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from iotcore.ai.asr_client import ASRClient
-from iotcore.ai.nlp_client import NLPClient
+from iotcore.ai.nlp_client import NLPClient, NLPResult
 from iotcore.ai.service import AIControlService
 
 MAX_VOICE_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -92,21 +92,38 @@ def voice_upload(request):
     )
 
     nlp_result = None
+    matched_automation = None
 
     if asr_result.ok and asr_result.text:
-        nlp_result = NLPClient().parse(
-            text=asr_result.text,
-            request_id=request_id,
-            client_id=client_id,
-            language=asr_result.language or "ko",
-        )
+        # Automation names/aliases live in Django DB. Resolve them before the
+        # rule NLP worker so multi-step routines are not collapsed into a
+        # single device action (e.g. "에어컨 냉방 실행" -> mode_cool only).
+        matched_automation = AIControlService.resolve_automation_from_text(asr_result.text)
+        if matched_automation is not None:
+            nlp_result = NLPResult(
+                ok=True,
+                text=asr_result.text,
+                normalized_text=AIControlService.normalize_voice_text(asr_result.text),
+                language=asr_result.language or "ko",
+                intent="automation",
+                automation_name=matched_automation.name,
+                confidence=1.0,
+                matched_by="automation.database",
+            )
+        else:
+            nlp_result = NLPClient().parse(
+                text=asr_result.text,
+                request_id=request_id,
+                client_id=client_id,
+                language=asr_result.language or "ko",
+            )
 
     execution = None
 
     if nlp_result and nlp_result.ok:
 
         if nlp_result.intent == "automation":
-            automation = AIControlService.resolve_automation(
+            automation = matched_automation or AIControlService.resolve_automation(
                 automation_name=nlp_result.automation_name,
             )
 
