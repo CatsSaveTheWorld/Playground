@@ -139,6 +139,20 @@ class DeviceActionRegistry:
             DeviceAction(
                 code="play_playlist",
                 display_name="플레이 리스트 재생",
+                parameter_key="playlist_id",
+            ),
+            DeviceAction(
+                code="play_music",
+                display_name="음악 재생",
+                parameter_key="music_id",
+            ),
+            DeviceAction(
+                code="play_previous",
+                display_name="이전 곡 재생",
+            ),
+            DeviceAction(
+                code="resume",
+                display_name="현재 곡 재생 재개",
             ),
             DeviceAction(
                 code="pause",
@@ -151,6 +165,7 @@ class DeviceActionRegistry:
             DeviceAction(
                 code="adjust_music_volume",
                 display_name="음량 설정",
+                parameter_key="volume",
             ),
             DeviceAction(
                 code="activate_shuffle",
@@ -159,6 +174,11 @@ class DeviceActionRegistry:
             DeviceAction(
                 code="deactivate_shuffle",
                 display_name="셔플 비활성화",
+            ),
+            DeviceAction(
+                code="set_repeat",
+                display_name="반복 재생 설정",
+                parameter_key="repeat_mode",
             ),
         ],
     }
