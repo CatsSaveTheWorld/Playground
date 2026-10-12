@@ -3,12 +3,14 @@ import json
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from ...automation_graph import AutomationGraph, GRAPH_VERSION, GraphValidationError
 from ...device_actions import DeviceActionRegistry
 from ...forms import (
     ActionFormSet,
@@ -17,7 +19,16 @@ from ...forms import (
     StepFormSet,
     TriggerFormSet,
 )
-from ...models import Action, Automation, AutomationGroup, AutomationRun, Device, Step, Trigger
+from ...models import (
+    Action,
+    Automation,
+    AutomationActionItem,
+    AutomationGroup,
+    AutomationRun,
+    Device,
+    Step,
+    Trigger,
+)
 from ...scheduler.calculator import describe_step
 from ...scheduler.executor import AutomationExecutor
 from ...scheduler.service import AutomationService
@@ -127,7 +138,10 @@ def _replace_graph(automation, step_formset, trigger_formset, action_formset):
 
     # Pending runs may refer to Step ids that are about to be rebuilt. Cancel
     # them explicitly instead of letting them execute against a different graph.
-    automation.runs.filter(status=AutomationRun.Status.PENDING).update(
+    automation.runs.filter(
+        graph_version=0,
+        status=AutomationRun.Status.PENDING,
+    ).update(
         status=AutomationRun.Status.CANCELLED,
         message="자동화 수정으로 취소됨",
         finished_at=timezone.now(),
@@ -188,6 +202,11 @@ def _replace_graph(automation, step_formset, trigger_formset, action_formset):
     for step in automation.steps.all():
         AutomationService.recalculate_step(step)
         AutomationService.refresh_step_result(step)
+
+    # Keep the new graph schema synchronized while the legacy editor remains
+    # available during rollout. This gives every successful edit a graph-native
+    # representation without sacrificing rollback compatibility.
+    AutomationGraph.sync_from_legacy(automation)
 
 
 def _build_execution_blocks(step_formset, action_formset, trigger_formset):
@@ -257,7 +276,90 @@ def _render_form(request, *, automation, form, step_formset, trigger_formset, ac
     return render(request, "iotcore/automation_form.html", context)
 
 
+def _graph_editor_context(automation, graph_payload):
+    devices = list(Device.objects.order_by("location", "name", "id"))
+    action_registry = {
+        device_type: [
+            {
+                "code": action.code,
+                "name": action.display_name,
+                "parameter_key": action.parameter_key,
+            }
+            for action in actions
+        ]
+        for device_type, actions in DeviceActionRegistry._ACTIONS.items()
+    }
+    return {
+        "graph_payload": graph_payload,
+        "graph_devices": [
+            {
+                "id": device.pk,
+                "name": device.name,
+                "location": device.location,
+                "device_type": device.device_type,
+                "device_role": device.device_role,
+                "protocol": device.protocol,
+                # Keep the graph picker aligned with ActionForm. Legacy IR
+                # electric-fan rows are intentionally excluded from generic
+                # action execution; Tuya fans remain selectable.
+                "controllable": bool(
+                    device.is_controllable
+                    and not (
+                        device.device_type == "electric_fan"
+                        and device.protocol != Device.Protocol.TUYA
+                    )
+                ),
+            }
+            for device in devices
+        ],
+        "graph_automations": [
+            {"id": item.pk, "name": item.name}
+            for item in Automation.objects.exclude(pk=automation.pk).order_by("name", "id")
+        ] if automation.pk else [
+            {"id": item.pk, "name": item.name}
+            for item in Automation.objects.order_by("name", "id")
+        ],
+        "graph_action_registry": action_registry,
+    }
+
+
+def _render_graph_form(request, *, automation, form, is_update, graph_payload=None):
+    if graph_payload is None:
+        graph_payload = AutomationGraph.editor_payload(automation)
+    context = {
+        "automation": automation,
+        "form": form,
+        "is_update": is_update,
+        "is_immediate": automation.automation_type == Automation.Type.IMMEDIATE,
+    }
+    context.update(_graph_editor_context(automation, graph_payload))
+    return render(request, "iotcore/automation_graph_form.html", context)
+
+
+def _parse_graph_post(request):
+    raw = str(request.POST.get("graph_json") or "").strip()
+    if not raw:
+        raise GraphValidationError("그래프 데이터가 전송되지 않았습니다.")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise GraphValidationError("그래프 JSON 형식이 올바르지 않습니다.") from exc
+
+
 def _decorate(automation):
+    graph_nodes = list(automation.graph_nodes.all()) if automation.graph_version else []
+    if automation.graph_version == GRAPH_VERSION and graph_nodes:
+        automation.uses_graph = True
+        automation.graph_node_count = len(graph_nodes)
+        automation.step_count = len([n for n in graph_nodes if n.node_type == "action"])
+        automation.trigger_count = sum(n.conditions.count() for n in graph_nodes)
+        automation.action_count = sum(n.actions.count() for n in graph_nodes)
+        automation.summary = f"Graph Node {len(graph_nodes)}개"
+        next_runs = [n.next_run_at for n in graph_nodes if n.next_run_at]
+        automation.next_run_at = min(next_runs) if next_runs else None
+        return
+
+    automation.uses_graph = False
     steps = list(automation.steps.all())
     automation.step_count = len(steps)
     automation.trigger_count = sum(step.triggers.count() for step in steps)
@@ -278,7 +380,14 @@ def automation_list(request):
     queryset = (
         Automation.objects.filter(automation_type=selected_type)
         .select_related("group")
-        .prefetch_related("steps__triggers", "steps__actions__device", "steps__actions__target_automation")
+        .prefetch_related(
+            "steps__triggers",
+            "steps__actions__device",
+            "steps__actions__target_automation",
+            "graph_nodes__conditions",
+            "graph_nodes__actions__device",
+            "graph_nodes__actions__target_automation",
+        )
         .order_by("name", "id")
     )
     automations = list(queryset)
@@ -336,35 +445,96 @@ def automation_create(request):
     if requested_type not in {Automation.Type.IMMEDIATE, Automation.Type.SCHEDULED}:
         requested_type = Automation.Type.SCHEDULED
     automation = Automation(automation_type=requested_type, enabled=True)
-    form, step_formset, trigger_formset, action_formset = _automation_forms(request, automation)
+
+    # Old formset POSTs remain accepted during rollout so existing tests,
+    # bookmarks and emergency rollback workflows continue to work.
+    graph_post = request.method == "POST" and "graph_json" in request.POST
+    legacy_requested = request.GET.get("legacy") == "1" or (request.method == "POST" and not graph_post)
+    if legacy_requested:
+        form, step_formset, trigger_formset, action_formset = _automation_forms(request, automation)
+        if request.method == "POST":
+            valid = all([form.is_valid(), step_formset.is_valid(), trigger_formset.is_valid(), action_formset.is_valid()])
+            if valid:
+                valid = _validate_graph(step_formset, trigger_formset, action_formset)
+            if valid:
+                with transaction.atomic():
+                    automation = form.save()
+                    _replace_graph(automation, step_formset, trigger_formset, action_formset)
+                messages.success(request, "자동화를 저장했습니다.")
+                return redirect(_automation_list_url(automation.automation_type))
+        return _render_form(request, automation=automation, form=form, step_formset=step_formset, trigger_formset=trigger_formset, action_formset=action_formset, is_update=False)
+
+    form = AutomationForm(request.POST or None, instance=automation)
+    graph_payload = AutomationGraph.new_editor_payload()
     if request.method == "POST":
-        valid = all([form.is_valid(), step_formset.is_valid(), trigger_formset.is_valid(), action_formset.is_valid()])
-        if valid:
-            valid = _validate_graph(step_formset, trigger_formset, action_formset)
-        if valid:
-            with transaction.atomic():
-                automation = form.save()
-                _replace_graph(automation, step_formset, trigger_formset, action_formset)
-            messages.success(request, "자동화를 저장했습니다.")
-            return redirect(_automation_list_url(automation.automation_type))
-    return _render_form(request, automation=automation, form=form, step_formset=step_formset, trigger_formset=trigger_formset, action_formset=action_formset, is_update=False)
+        form_valid = form.is_valid()
+        graph_valid = True
+        try:
+            graph_payload = _parse_graph_post(request)
+            graph_payload = AutomationGraph.normalize_editor_payload(graph_payload)
+        except GraphValidationError as exc:
+            graph_valid = False
+            form.add_error(None, str(exc))
+        if form_valid and graph_valid:
+            try:
+                with transaction.atomic():
+                    automation = form.save()
+                    AutomationGraph.replace_from_payload(automation, graph_payload)
+                    AutomationService.recalculate_automation(automation)
+                messages.success(request, "자동화 그래프를 저장했습니다.")
+                return redirect(_automation_list_url(automation.automation_type))
+            except GraphValidationError as exc:
+                form.add_error(None, str(exc))
+    return _render_graph_form(
+        request, automation=automation, form=form, is_update=False,
+        graph_payload=graph_payload,
+    )
 
 
 @login_required(login_url="common:login")
 def automation_update(request, automation_id):
     automation = get_object_or_404(Automation, pk=automation_id)
-    form, step_formset, trigger_formset, action_formset = _automation_forms(request, automation)
+    graph_post = request.method == "POST" and "graph_json" in request.POST
+    legacy_requested = request.GET.get("legacy") == "1" or (request.method == "POST" and not graph_post)
+    if legacy_requested:
+        form, step_formset, trigger_formset, action_formset = _automation_forms(request, automation)
+        if request.method == "POST":
+            valid = all([form.is_valid(), step_formset.is_valid(), trigger_formset.is_valid(), action_formset.is_valid()])
+            if valid:
+                valid = _validate_graph(step_formset, trigger_formset, action_formset)
+            if valid:
+                with transaction.atomic():
+                    automation = form.save()
+                    _replace_graph(automation, step_formset, trigger_formset, action_formset)
+                messages.success(request, "자동화를 저장했습니다.")
+                return redirect(_automation_list_url(automation.automation_type))
+        return _render_form(request, automation=automation, form=form, step_formset=step_formset, trigger_formset=trigger_formset, action_formset=action_formset, is_update=True)
+
+    form = AutomationForm(request.POST or None, instance=automation)
+    graph_payload = AutomationGraph.editor_payload(automation)
     if request.method == "POST":
-        valid = all([form.is_valid(), step_formset.is_valid(), trigger_formset.is_valid(), action_formset.is_valid()])
-        if valid:
-            valid = _validate_graph(step_formset, trigger_formset, action_formset)
-        if valid:
-            with transaction.atomic():
-                automation = form.save()
-                _replace_graph(automation, step_formset, trigger_formset, action_formset)
-            messages.success(request, "자동화를 저장했습니다.")
-            return redirect(_automation_list_url(automation.automation_type))
-    return _render_form(request, automation=automation, form=form, step_formset=step_formset, trigger_formset=trigger_formset, action_formset=action_formset, is_update=True)
+        form_valid = form.is_valid()
+        graph_valid = True
+        try:
+            graph_payload = _parse_graph_post(request)
+            graph_payload = AutomationGraph.normalize_editor_payload(graph_payload)
+        except GraphValidationError as exc:
+            graph_valid = False
+            form.add_error(None, str(exc))
+        if form_valid and graph_valid:
+            try:
+                with transaction.atomic():
+                    automation = form.save()
+                    AutomationGraph.replace_from_payload(automation, graph_payload)
+                    AutomationService.recalculate_automation(automation)
+                messages.success(request, "자동화 그래프를 저장했습니다.")
+                return redirect(_automation_list_url(automation.automation_type))
+            except GraphValidationError as exc:
+                form.add_error(None, str(exc))
+    return _render_graph_form(
+        request, automation=automation, form=form, is_update=True,
+        graph_payload=graph_payload,
+    )
 
 
 @login_required(login_url="common:login")
@@ -422,7 +592,24 @@ def automation_toggle(request, automation_id):
 @require_POST
 def automation_delete(request, automation_id):
     automation = get_object_or_404(Automation, pk=automation_id)
-    automation.delete()
+    try:
+        automation.delete()
+    except ProtectedError as exc:
+        referencing_names = set()
+        for protected in exc.protected_objects:
+            if isinstance(protected, Action):
+                referencing_names.add(protected.step.automation.name)
+            elif isinstance(protected, AutomationActionItem):
+                referencing_names.add(protected.node.automation.name)
+        referencing_names = sorted(referencing_names)
+        referencing_text = ", ".join(referencing_names) or "다른 자동화"
+        messages.error(
+            request,
+            f'"{automation.name}"을 삭제할 수 없습니다. '
+            f'다음 자동화에서 사용 중입니다: {referencing_text}. '
+            "해당 자동화의 호출 액션을 변경하거나 제거한 뒤 삭제하세요.",
+        )
+        return _redirect_back(request)
     messages.success(request, "자동화를 삭제했습니다.")
     return _redirect_back(request)
 

@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.utils import timezone
 
@@ -111,10 +113,11 @@ class AutomationGroup(models.Model):
 class Automation(models.Model):
     """A user-facing routine.
 
-    Immediate and scheduled execution intentionally share the exact same Step /
-    Trigger / Action graph. ``automation_type`` is an explicit user choice that
-    selects whether the Automation belongs to the one-shot or monitored library;
-    Trigger composition never changes that choice automatically.
+    Immediate and scheduled execution share one user-facing automation model.
+    The graph runtime uses AutomationNode/AutomationEdge while legacy
+    Step/Trigger/Action rows remain available during the compatibility rollout.
+    ``automation_type`` is an explicit user choice; condition composition never
+    changes that choice automatically.
     """
 
     class Type(models.TextChoices):
@@ -143,6 +146,10 @@ class Automation(models.Model):
     last_triggered_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Graph editor/runtime version. 0 keeps the legacy Step engine available as
+    # a rollback path; version 1 uses AutomationNode/AutomationEdge.
+    graph_version = models.PositiveSmallIntegerField(default=0, db_index=True)
+    graph_revision = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["name", "id"]
@@ -297,6 +304,199 @@ class Action(models.Model):
     def __str__(self):
         return f"{self.step} 동작 #{self.order}"
 
+class AutomationNode(models.Model):
+    """One visual/control-flow node in the Automation graph.
+
+    The legacy Step model remains during the compatibility period. New graph
+    execution is represented independently so the old schema can be rolled
+    back without data loss.
+    """
+
+    class Type(models.TextChoices):
+        START = "start", "시작"
+        CONDITION = "condition", "조건"
+        ACTION = "action", "동작"
+        DELAY = "delay", "지연"
+        END = "end", "종료"
+
+    automation = models.ForeignKey(
+        Automation,
+        on_delete=models.CASCADE,
+        related_name="graph_nodes",
+    )
+    key = models.UUIDField(default=uuid.uuid4, editable=False)
+    node_type = models.CharField(max_length=20, choices=Type.choices)
+    title = models.CharField(max_length=100, blank=True)
+    position_x = models.IntegerField(default=0)
+    position_y = models.IntegerField(default=0)
+    enabled = models.BooleanField(default=True)
+    delay_seconds = models.PositiveIntegerField(default=0)
+    legacy_step = models.ForeignKey(
+        Step,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="graph_nodes",
+    )
+
+    # Entry-condition runtime state. Keeping it on the node lets the graph
+    # scheduler replace Step.next_run_at/last_result without overloading the
+    # legacy model.
+    last_result = models.BooleanField(default=False)
+    next_run_at = models.DateTimeField(blank=True, null=True, db_index=True)
+    last_triggered_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position_y", "position_x", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["automation", "key"],
+                name="unique_automation_node_key",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.automation} · {self.get_node_type_display()}"
+
+
+class AutomationConditionItem(models.Model):
+    """One predicate inside a CONDITION node. Multiple items are ANDed."""
+
+    node = models.ForeignKey(
+        AutomationNode,
+        on_delete=models.CASCADE,
+        related_name="conditions",
+    )
+    order = models.PositiveIntegerField(default=1)
+    condition_type = models.CharField(max_length=20, choices=Trigger.Type.choices)
+    config = models.JSONField(default=dict)
+    legacy_trigger = models.ForeignKey(
+        Trigger,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="graph_condition_items",
+    )
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["node", "order"],
+                name="unique_graph_condition_order",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.node} 조건 #{self.order}"
+
+
+class AutomationActionItem(models.Model):
+    """One ordered action inside an ACTION node."""
+
+    node = models.ForeignKey(
+        AutomationNode,
+        on_delete=models.CASCADE,
+        related_name="actions",
+    )
+    order = models.PositiveIntegerField(default=1)
+    action_type = models.CharField(
+        max_length=20,
+        choices=Action.Type.choices,
+        default=Action.Type.DEVICE,
+    )
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name="graph_action_items",
+    )
+    function = models.CharField(max_length=100, blank=True)
+    parameter = models.JSONField(blank=True, null=True)
+    target_automation = models.ForeignKey(
+        Automation,
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name="graph_referenced_by_actions",
+    )
+    # Legacy per-action delay remains representable for lossless migration.
+    # New UI should prefer a dedicated DELAY node.
+    delay = models.PositiveIntegerField(default=0)
+    delay_position = models.CharField(
+        max_length=10,
+        choices=Action.DelayPosition.choices,
+        default=Action.DelayPosition.AFTER,
+    )
+    legacy_action = models.ForeignKey(
+        Action,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="graph_action_items",
+    )
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["node", "order"],
+                name="unique_graph_action_order",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.node} 동작 #{self.order}"
+
+
+class AutomationEdge(models.Model):
+    """Directed control-flow edge. AND/OR is compiled into TRUE/FALSE flow."""
+
+    class Outcome(models.TextChoices):
+        ALWAYS = "always", "항상"
+        TRUE = "true", "참"
+        FALSE = "false", "거짓"
+
+    automation = models.ForeignKey(
+        Automation,
+        on_delete=models.CASCADE,
+        related_name="graph_edges",
+    )
+    source = models.ForeignKey(
+        AutomationNode,
+        on_delete=models.CASCADE,
+        related_name="outgoing_edges",
+    )
+    target = models.ForeignKey(
+        AutomationNode,
+        on_delete=models.CASCADE,
+        related_name="incoming_edges",
+    )
+    outcome = models.CharField(
+        max_length=10,
+        choices=Outcome.choices,
+        default=Outcome.ALWAYS,
+    )
+    # UI rewrites this from top-to-bottom target position. Runtime only trusts
+    # this stable integer, so moving a node without saving cannot reorder work.
+    order = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ["source_id", "outcome", "order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "outcome", "order"],
+                name="unique_graph_edge_order",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.source_id} -{self.outcome}-> {self.target_id}"
+
+
 class DeviceState(models.Model):
     topic = models.CharField(max_length=255)
     key = models.CharField(max_length=255)
@@ -446,6 +646,9 @@ class AutomationRun(models.Model):
     scheduled_for = models.DateTimeField(blank=True, null=True)
     source_event_id = models.CharField(max_length=100, blank=True, null=True)
     trigger_payload = models.JSONField(default=dict, blank=True)
+    graph_version = models.PositiveSmallIntegerField(default=0)
+    graph_snapshot = models.JSONField(default=dict, blank=True)
+    entry_node_key = models.UUIDField(blank=True, null=True)
     started_at = models.DateTimeField(blank=True, null=True)
     finished_at = models.DateTimeField(blank=True, null=True)
     message = models.TextField(blank=True)
@@ -461,6 +664,14 @@ class AutomationRun(models.Model):
             models.UniqueConstraint(
                 fields=["step", "source_event_id"],
                 name="unique_step_source_event",
+            ),
+            models.UniqueConstraint(
+                fields=["automation", "entry_node_key", "scheduled_for"],
+                name="unique_graph_entry_run_time",
+            ),
+            models.UniqueConstraint(
+                fields=["automation", "entry_node_key", "source_event_id"],
+                name="unique_graph_entry_event",
             ),
         ]
 
@@ -511,6 +722,8 @@ class ActionRun(models.Model):
     function = models.CharField(max_length=100, blank=True)
     parameter = models.JSONField(blank=True, null=True)
     target_automation_name = models.CharField(max_length=100, blank=True)
+    graph_node_key = models.UUIDField(blank=True, null=True, db_index=True)
+    graph_item_order = models.PositiveIntegerField(blank=True, null=True)
     delay = models.PositiveIntegerField(default=0)
     delay_position = models.CharField(
         max_length=10,
@@ -542,3 +755,53 @@ class ActionRun(models.Model):
                 name="iotcore_root_queue_idx",
             ),
         ]
+
+
+class AutomationNodeRun(models.Model):
+    """Durable queue/history row for a graph node within one AutomationRun."""
+
+    automation_run = models.ForeignKey(
+        AutomationRun,
+        on_delete=models.CASCADE,
+        related_name="node_runs",
+    )
+    node = models.ForeignKey(
+        AutomationNode,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="runs",
+    )
+    node_key = models.UUIDField()
+    node_type = models.CharField(max_length=20, choices=AutomationNode.Type.choices)
+    queue_order = models.PositiveBigIntegerField(default=0)
+    status = models.CharField(
+        max_length=20,
+        choices=AutomationRun.Status.choices,
+        default=AutomationRun.Status.PENDING,
+        db_index=True,
+    )
+    available_at = models.DateTimeField(default=timezone.now, db_index=True)
+    result = models.JSONField(default=dict, blank=True)
+    message = models.TextField(blank=True)
+    started_at = models.DateTimeField(blank=True, null=True)
+    finished_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["queue_order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["automation_run", "node_key"],
+                name="unique_run_node_key",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["status", "available_at", "queue_order"],
+                name="iotcore_node_run_queue_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Run {self.automation_run_id} · {self.node_type} · {self.status}"

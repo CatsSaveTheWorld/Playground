@@ -1,0 +1,137 @@
+{% extends "iotcore/base_iotcore.html" %}
+{% load static %}
+{% block title %}{% if is_update %}{{ automation.name }}{% elif is_immediate %}새 즉시 실행{% else %}새 예약 실행{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/iotcore-automation-graph.css' %}?v=20261012-1">
+{% endblock %}
+
+{% block content %}
+<div class="iot-page iot-graph-page">
+    <header class="iot-page-header iot-graph-page__header">
+        <div>
+            <p class="iot-eyebrow">AUTOMATION GRAPH EDITOR</p>
+            <h1>{% if is_update %}{{ automation.name }}{% elif is_immediate %}새 즉시 실행{% else %}새 예약 실행{% endif %}</h1>
+            <p>조건과 동작의 실행 흐름을 Node와 Edge로 구성합니다. 같은 Node의 여러 조건은 모두 AND로 평가됩니다.</p>
+        </div>
+        <div class="iot-page-actions">
+            <a class="iot-button" href="{% url 'iotcore:automation_list' %}?type={{ automation.automation_type|default:'scheduled' }}">← 목록</a>
+            {% if is_update %}
+            <a class="iot-button" href="{% url 'iotcore:automation_update' automation.id %}?legacy=1" title="문제 발생 시 기존 Step 편집기를 사용할 수 있습니다.">Legacy 편집기</a>
+            {% endif %}
+        </div>
+    </header>
+
+    <form method="post" id="automation-graph-form" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="graph_json" id="automation-graph-json">
+
+        {% if form.non_field_errors %}
+        <section class="iot-graph-errors" role="alert">
+            {{ form.non_field_errors }}
+        </section>
+        {% endif %}
+
+        <details class="iot-panel iot-graph-settings" open>
+            <summary>
+                <span>기본 설정</span>
+                <small>이름 · 실행 방식 · 그룹 · 재실행 대기</small>
+            </summary>
+            <div class="iot-graph-settings__grid">
+                <div class="iot-graph-field iot-graph-field--wide">
+                    <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                    {{ form.name }}{{ form.name.errors }}
+                </div>
+                <div class="iot-graph-field">
+                    <label for="{{ form.automation_type.id_for_label }}">{{ form.automation_type.label }}</label>
+                    {{ form.automation_type }}{{ form.automation_type.errors }}
+                </div>
+                <div class="iot-graph-field">
+                    <label for="{{ form.group.id_for_label }}">{{ form.group.label }}</label>
+                    {{ form.group }}{{ form.group.errors }}
+                </div>
+                <div class="iot-graph-field">
+                    <label for="{{ form.cooldown_seconds.id_for_label }}">{{ form.cooldown_seconds.label }}</label>
+                    {{ form.cooldown_seconds }}{{ form.cooldown_seconds.errors }}
+                </div>
+                <div class="iot-graph-field iot-graph-field--check">
+                    <label>{{ form.enabled }} <span>{{ form.enabled.label }}</span></label>
+                    {{ form.enabled.errors }}
+                </div>
+                <div class="iot-graph-field iot-graph-field--check">
+                    <label>{{ form.is_favorite }} <span>{{ form.is_favorite.label }}</span></label>
+                    {{ form.is_favorite.errors }}
+                </div>
+                <div class="iot-graph-field iot-graph-field--wide">
+                    <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+                    {{ form.description }}{{ form.description.errors }}
+                </div>
+                <div class="iot-graph-field iot-graph-field--wide">
+                    <label for="{{ form.voice_aliases.id_for_label }}">{{ form.voice_aliases.label }}</label>
+                    {{ form.voice_aliases }}
+                    {% if form.voice_aliases.help_text %}<small>{{ form.voice_aliases.help_text }}</small>{% endif %}
+                    {{ form.voice_aliases.errors }}
+                </div>
+            </div>
+        </details>
+
+        <section class="iot-graph-editor" aria-label="자동화 그래프 편집기">
+            <div class="iot-graph-toolbar">
+                <div class="iot-graph-toolbar__group">
+                    <button type="button" class="iot-button iot-button--primary" data-add-node="condition">+ 조건</button>
+                    <button type="button" class="iot-button" data-add-node="action">+ 동작</button>
+                    <button type="button" class="iot-button" data-add-node="delay">+ 지연</button>
+                </div>
+                <div class="iot-graph-toolbar__status" id="graph-status" aria-live="polite">그래프 준비 중</div>
+                <div class="iot-graph-toolbar__group">
+                    <button type="button" class="iot-button" id="graph-zoom-out" title="축소">−</button>
+                    <span class="iot-graph-zoom" id="graph-zoom-label">100%</span>
+                    <button type="button" class="iot-button" id="graph-zoom-in" title="확대">＋</button>
+                    <button type="button" class="iot-button" id="graph-fit">맞춤</button>
+                </div>
+            </div>
+
+            <div class="iot-graph-editor__body">
+                <div class="iot-graph-viewport" id="automation-graph-viewport" tabindex="0" aria-label="그래프 캔버스">
+                    <div class="iot-graph-world" id="automation-graph-world">
+                        <svg class="iot-graph-edges" id="automation-graph-edges" aria-hidden="true"></svg>
+                        <div class="iot-graph-nodes" id="automation-graph-nodes"></div>
+                    </div>
+                    <div class="iot-graph-help">
+                        <span>빈 공간 드래그: 이동</span>
+                        <span>휠: 확대/축소</span>
+                        <span>출력 포트 → 입력 포트: 연결</span>
+                    </div>
+                </div>
+
+                <aside class="iot-graph-inspector" id="automation-graph-inspector">
+                    <div class="iot-graph-inspector__empty">
+                        <strong>Node를 선택하세요</strong>
+                        <p>선택한 조건·동작·지연의 상세 설정이 여기에 표시됩니다.</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <div class="iot-graph-savebar">
+            <div>
+                <strong id="graph-save-state">저장 전 검증 대기</strong>
+                <small>Edge 실행 순서는 같은 출력에서 대상 Node의 화면상 위 → 아래 순서로 저장됩니다.</small>
+            </div>
+            <div class="iot-page-actions">
+                <a class="iot-button" href="{% url 'iotcore:automation_list' %}?type={{ automation.automation_type|default:'scheduled' }}">취소</a>
+                <button class="iot-button iot-button--primary" type="submit">저장</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+{{ graph_payload|json_script:"automation-graph-data" }}
+{{ graph_devices|json_script:"automation-graph-devices" }}
+{{ graph_automations|json_script:"automation-graph-automations" }}
+{{ graph_action_registry|json_script:"automation-graph-action-registry" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/iotcore-automation-graph.js' %}?v=20261012-1"></script>
+{% endblock %}

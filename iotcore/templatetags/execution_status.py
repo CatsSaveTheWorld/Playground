@@ -1,6 +1,7 @@
 from django import template
+from django.db.models import Q
 
-from iotcore.models import ActionRun, AutomationRun
+from iotcore.models import ActionRun, AutomationNode, AutomationNodeRun, AutomationRun
 
 
 register = template.Library()
@@ -46,6 +47,22 @@ def execution_status_snapshot(limit=5):
             status=AutomationRun.Status.RUNNING,
             device__isnull=False,
         ).order_by("started_at", "id").first()
+
+        # Graph DELAY nodes are intentionally separate from legacy ActionRun
+        # delays. Include both the root run and nested automation runs so the
+        # global panel still tells the user what the whole execution tree is
+        # waiting for.
+        run.waiting_node = (
+            AutomationNodeRun.objects
+            .filter(
+                Q(automation_run=run) | Q(automation_run__root_run=run),
+                status=AutomationRun.Status.WAITING,
+                node_type=AutomationNode.Type.DELAY,
+            )
+            .select_related("node")
+            .order_by("available_at", "queue_order", "id")
+            .first()
+        )
 
     return {
         "pending_count": pending.count(),

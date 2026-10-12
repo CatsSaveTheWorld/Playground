@@ -80,7 +80,7 @@
                     </div>
 
                     {% if automation.description %}<p class="iot-entity-card__description">{{ automation.description }}</p>{% endif %}
-                    <p class="iot-entity-card__description"><strong>Step</strong> {{ automation.step_count }}개 · <strong>Trigger</strong> {{ automation.trigger_count }}개 · <strong>Action</strong> {{ automation.action_count }}개</p>
+                    <p class="iot-entity-card__description">{% if automation.uses_graph %}<strong>Node</strong> {{ automation.graph_node_count }}개 · <strong>조건</strong> {{ automation.trigger_count }}개 · <strong>동작</strong> {{ automation.action_count }}개{% else %}<strong>Step</strong> {{ automation.step_count }}개 · <strong>Trigger</strong> {{ automation.trigger_count }}개 · <strong>Action</strong> {{ automation.action_count }}개{% endif %}</p>
 
                     {% if is_scheduled %}
                     <div class="iot-entity-card__meta">{% if automation.next_run_at %}다음 예약 {{ automation.next_run_at|date:"Y.m.d H:i" }}{% else %}이벤트 대기 또는 예약 없음{% endif %}</div>

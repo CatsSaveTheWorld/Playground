@@ -1,12 +1,24 @@
 import math
 import uuid
+from types import SimpleNamespace
 
 import paho.mqtt.client as mqtt
 from django.db import transaction
 from django.utils import timezone
 
+from ..automation_graph import AutomationGraph, GRAPH_VERSION
 from ..device.services.window_pusher_service import WindowPusherService
-from ..models import Automation, AutomationRun, Device, DeviceState, Step, Trigger
+from ..models import (
+    Automation,
+    AutomationConditionItem,
+    AutomationEdge,
+    AutomationNode,
+    AutomationRun,
+    Device,
+    DeviceState,
+    Step,
+    Trigger,
+)
 from ..room_entry.service import RoomEntryService
 from ..weather.service import KmaWeatherService
 from .calculator import calculate_next_schedule, is_schedule_window, schedule_window_matches
@@ -97,6 +109,75 @@ class AutomationService:
             .first()
         )
 
+    @staticmethod
+    def _condition_item_trigger(item):
+        return SimpleNamespace(
+            pk=item.legacy_trigger_id or item.pk,
+            trigger_type=item.condition_type,
+            config=item.config or {},
+        )
+
+    @classmethod
+    def _entry_condition_nodes(cls):
+        return AutomationNode.objects.filter(
+            node_type=AutomationNode.Type.CONDITION,
+            enabled=True,
+            automation__enabled=True,
+            automation__graph_version=GRAPH_VERSION,
+            automation__automation_type=Automation.Type.SCHEDULED,
+            incoming_edges__source__node_type=AutomationNode.Type.START,
+        ).distinct()
+
+    @classmethod
+    def _schedule_condition(cls, node):
+        return (
+            node.conditions
+            .filter(condition_type=Trigger.Type.SCHEDULE)
+            .order_by("order", "id")
+            .first()
+        )
+
+    @classmethod
+    def recalculate_graph_node(cls, node, after=None):
+        previous_next = node.next_run_at
+        node.next_run_at = None
+        if (
+            node.enabled
+            and node.automation.enabled
+            and node.automation.automation_type == Automation.Type.SCHEDULED
+        ):
+            item = cls._schedule_condition(node)
+            if item is not None:
+                node.next_run_at = calculate_next_schedule(
+                    item.config or {},
+                    after=after,
+                    previous_next=previous_next,
+                )
+        node.save(update_fields=["next_run_at", "updated_at"])
+        return node.next_run_at
+
+    @classmethod
+    def refresh_graph_node_result(cls, node, now=None):
+        now = now or timezone.now()
+        conditions = [
+            cls._condition_item_trigger(item)
+            for item in node.conditions.order_by("order", "id")
+        ]
+        result = cls.trigger_list_matches(
+            conditions,
+            now,
+            trigger_payload={},
+            operator=Step.TriggerOperator.AND,
+            resting=True,
+            empty_matches=False,
+        )
+        if result is None:
+            return bool(node.last_result)
+        if node.last_result != result:
+            node.last_result = result
+            node.save(update_fields=["last_result", "updated_at"])
+        return result
+
     @classmethod
     def recalculate_step(cls, step, after=None):
         previous_next = step.next_run_at
@@ -118,9 +199,20 @@ class AutomationService:
 
     @classmethod
     def recalculate_automation(cls, automation, after=None):
+        # Keep legacy runtime state warm for rollback, but graph-enabled
+        # automations use entry-node state for live scheduling.
         for step in automation.steps.select_related("automation"):
             cls.recalculate_step(step, after=after)
             cls.refresh_step_result(step, now=after)
+        if automation.graph_version == GRAPH_VERSION:
+            for node in (
+                cls._entry_condition_nodes()
+                .filter(automation=automation)
+                .select_related("automation")
+                .prefetch_related("conditions")
+            ):
+                cls.recalculate_graph_node(node, after=after)
+                cls.refresh_graph_node_result(node, now=after)
 
     @classmethod
     def refresh_step_result(cls, step, now=None):
@@ -149,19 +241,82 @@ class AutomationService:
                 enabled=True,
                 automation__enabled=True,
                 automation__automation_type=Automation.Type.SCHEDULED,
+                automation__graph_version=0,
             ).select_related("automation")
         ):
             cls.refresh_step_result(step, now=now)
+        for node in (
+            cls._entry_condition_nodes()
+            .select_related("automation")
+            .prefetch_related("conditions")
+        ):
+            cls.refresh_graph_node_result(node, now=now)
 
     @classmethod
     def enqueue_due(cls, now=None):
         now = now or timezone.now()
         enqueued = []
+
+        # Graph-native schedules. Each START-connected Condition node is an
+        # independent wake-up source; recurring weekday schedules create a new
+        # AutomationRun rather than a graph cycle.
+        due_node_ids = list(
+            cls._entry_condition_nodes().filter(
+                next_run_at__isnull=False,
+                next_run_at__lte=now,
+            ).values_list("id", flat=True)
+        )
+        for node_id in due_node_ids:
+            with transaction.atomic():
+                node = (
+                    AutomationNode.objects.select_for_update()
+                    .select_related("automation")
+                    .prefetch_related("conditions")
+                    .get(pk=node_id)
+                )
+                if (
+                    not node.enabled
+                    or not node.automation.enabled
+                    or node.automation.graph_version != GRAPH_VERSION
+                    or node.next_run_at is None
+                    or node.next_run_at > now
+                ):
+                    continue
+                scheduled_for = node.next_run_at
+                schedule_item = cls._schedule_condition(node)
+                if schedule_item is None:
+                    node.next_run_at = None
+                    node.save(update_fields=["next_run_at", "updated_at"])
+                    continue
+                effective_trigger_id = schedule_item.legacy_trigger_id or schedule_item.pk
+                run = cls._enqueue_graph_node_locked(
+                    node,
+                    now=now,
+                    scheduled_for=scheduled_for,
+                    source=AutomationRun.Source.SCHEDULER,
+                    trigger_payload={
+                        "type": "schedule",
+                        "source_trigger_id": effective_trigger_id,
+                        "source_condition_item_id": schedule_item.pk,
+                    },
+                )
+                node.next_run_at = calculate_next_schedule(
+                    schedule_item.config or {},
+                    after=now,
+                    previous_next=scheduled_for,
+                )
+                node.save(update_fields=["next_run_at", "updated_at"])
+                if run is not None:
+                    enqueued.append(run)
+
+        # Legacy-only schedules remain active as a rollback path for rows that
+        # could not be migrated to a valid graph.
         due_ids = list(
             Step.objects.filter(
                 enabled=True,
                 automation__enabled=True,
                 automation__automation_type=Automation.Type.SCHEDULED,
+                automation__graph_version=0,
                 next_run_at__isnull=False,
                 next_run_at__lte=now,
             ).values_list("id", flat=True)
@@ -200,15 +355,21 @@ class AutomationService:
     @classmethod
     def process_weather_conditions(cls, now=None):
         now = now or timezone.now()
-        step_ids = list(
+        graph_node_ids = list(
+            cls._entry_condition_nodes().filter(
+                conditions__condition_type=Trigger.Type.WEATHER,
+            ).distinct().values_list("id", flat=True)
+        )
+        legacy_step_ids = list(
             Step.objects.filter(
                 enabled=True,
                 automation__enabled=True,
                 automation__automation_type=Automation.Type.SCHEDULED,
+                automation__graph_version=0,
                 triggers__trigger_type=Trigger.Type.WEATHER,
             ).distinct().values_list("id", flat=True)
         )
-        if not step_ids:
+        if not graph_node_ids and not legacy_step_ids:
             return []
         try:
             weather = KmaWeatherService.snapshot()
@@ -221,7 +382,30 @@ class AutomationService:
             return []
         payload = cls._weather_snapshot_payload(weather)
         enqueued = []
-        for step_id in step_ids:
+
+        for node_id in graph_node_ids:
+            with transaction.atomic():
+                node = (
+                    AutomationNode.objects.select_for_update()
+                    .select_related("automation")
+                    .prefetch_related("conditions")
+                    .get(pk=node_id)
+                )
+                run = cls._enqueue_graph_node_locked(
+                    node,
+                    now=now,
+                    source=AutomationRun.Source.WEATHER,
+                    source_event_id=f"weather:{token}"[:100],
+                    trigger_payload={
+                        "type": "weather",
+                        "weather_token": token,
+                        "weather": payload,
+                    },
+                )
+                if run is not None:
+                    enqueued.append(run)
+
+        for step_id in legacy_step_ids:
             with transaction.atomic():
                 step = Step.objects.select_for_update().select_related("automation").get(pk=step_id)
                 run = cls._enqueue_step_locked(
@@ -338,11 +522,47 @@ class AutomationService:
     @classmethod
     def _process_event_steps(cls, *, topic, device, device_changed_keys, now, source, source_event_id, trigger_payload):
         enqueued = []
+
+        node_ids = list(
+            cls._entry_condition_nodes().filter(
+                conditions__condition_type__in=[
+                    Trigger.Type.MQTT_EVENT,
+                    Trigger.Type.DEVICE_STATE,
+                ],
+            ).distinct().values_list("id", flat=True)
+        )
+        for node_id in node_ids:
+            with transaction.atomic():
+                node = (
+                    AutomationNode.objects.select_for_update()
+                    .select_related("automation")
+                    .prefetch_related("conditions")
+                    .get(pk=node_id)
+                )
+                if not cls._graph_node_has_event_source(
+                    node,
+                    topic=topic,
+                    device=device,
+                    device_changed_keys=device_changed_keys,
+                    trigger_payload=trigger_payload,
+                ):
+                    continue
+                run = cls._enqueue_graph_node_locked(
+                    node,
+                    now=now,
+                    source=source,
+                    source_event_id=source_event_id,
+                    trigger_payload=trigger_payload,
+                )
+                if run is not None:
+                    enqueued.append(run)
+
         step_ids = list(
             Step.objects.filter(
                 enabled=True,
                 automation__enabled=True,
                 automation__automation_type=Automation.Type.SCHEDULED,
+                automation__graph_version=0,
                 triggers__trigger_type__in=[Trigger.Type.MQTT_EVENT, Trigger.Type.DEVICE_STATE],
             ).distinct().values_list("id", flat=True)
         )
@@ -367,6 +587,204 @@ class AutomationService:
                 if run is not None:
                     enqueued.append(run)
         return enqueued
+
+    @classmethod
+    def _graph_node_has_event_source(cls, node, *, topic, device, device_changed_keys, trigger_payload):
+        for item in node.conditions.order_by("order", "id"):
+            config = item.config or {}
+            if item.condition_type == Trigger.Type.MQTT_EVENT:
+                pattern = str(config.get("topic") or "")
+                if pattern and mqtt.topic_matches_sub(pattern, topic):
+                    return True
+            elif item.condition_type == Trigger.Type.DEVICE_STATE:
+                if cls._device_trigger_was_affected(
+                    config,
+                    topic=topic,
+                    device=device,
+                    device_changed_keys=device_changed_keys,
+                    trigger_payload=trigger_payload,
+                ):
+                    return True
+        return False
+
+    @classmethod
+    def _enqueue_graph_node_locked(
+        cls, node, *, now, source, scheduled_for=None, source_event_id=None,
+        trigger_payload=None,
+    ):
+        automation = Automation.objects.select_for_update().get(pk=node.automation_id)
+        if (
+            not automation.enabled
+            or not node.enabled
+            or automation.graph_version != GRAPH_VERSION
+            or automation.automation_type != Automation.Type.SCHEDULED
+        ):
+            return None
+
+        items = list(node.conditions.order_by("order", "id"))
+        if not items:
+            return None
+        triggers = [cls._condition_item_trigger(item) for item in items]
+        payload = dict(trigger_payload or {})
+        if any(item.condition_type == Trigger.Type.WEATHER for item in items) and "weather" not in payload:
+            try:
+                weather = KmaWeatherService.snapshot()
+            except Exception:
+                weather = None
+            payload["weather"] = (
+                cls._weather_snapshot_payload(weather)
+                if isinstance(weather, dict) and not weather.get("stale")
+                else {"stale": True}
+            )
+
+        # During the compatibility period, migrated legacy OR Steps can map to
+        # multiple entry nodes.  Their wake-up edge state must stay shared just
+        # like Step.last_result did before migration; otherwise A=true followed
+        # by B=true would fire the same old OR Step twice. Graph-native nodes do
+        # not have legacy_step_id and use their own independent state.
+        legacy_step = None
+        evaluation_triggers = triggers
+        evaluation_operator = Step.TriggerOperator.AND
+        previous_result = bool(node.last_result)
+        last_triggered_at = node.last_triggered_at
+        if node.legacy_step_id:
+            legacy_step = (
+                Step.objects.select_for_update()
+                .prefetch_related("triggers")
+                .get(pk=node.legacy_step_id)
+            )
+            evaluation_triggers = list(legacy_step.triggers.order_by("order", "id"))
+            evaluation_operator = legacy_step.trigger_operator
+            previous_result = bool(legacy_step.last_result)
+            last_triggered_at = legacy_step.last_triggered_at
+
+        current_result = cls.trigger_list_matches(
+            evaluation_triggers,
+            now,
+            trigger_payload=payload,
+            operator=evaluation_operator,
+            resting=False,
+            empty_matches=False,
+        )
+        resting_result = cls.trigger_list_matches(
+            evaluation_triggers,
+            now,
+            trigger_payload=payload,
+            operator=evaluation_operator,
+            resting=True,
+            empty_matches=False,
+        )
+        if current_result is None or resting_result is None:
+            return None
+
+        def save_resting():
+            if legacy_step is not None:
+                if legacy_step.last_result != resting_result:
+                    legacy_step.last_result = resting_result
+                    legacy_step.save(update_fields=["last_result", "updated_at"])
+                AutomationNode.objects.filter(
+                    automation=automation, legacy_step_id=legacy_step.pk
+                ).exclude(last_result=resting_result).update(last_result=resting_result)
+                node.last_result = resting_result
+                return
+            if node.last_result != resting_result:
+                node.last_result = resting_result
+                node.save(update_fields=["last_result", "updated_at"])
+
+        if not current_result or previous_result:
+            save_resting()
+            return None
+        if (
+            automation.cooldown_seconds
+            and last_triggered_at
+            and (now - last_triggered_at).total_seconds() < automation.cooldown_seconds
+        ):
+            save_resting()
+            return None
+
+        entry_node_key = node.key
+        if legacy_step is not None and evaluation_operator == Step.TriggerOperator.OR:
+            # A legacy OR Step is one predicate group, even though migration
+            # expands each item into its own entry Condition node for graph
+            # readability. The event source node is not necessarily the item
+            # that made the old OR expression true, so enter through the first
+            # actually true predicate to preserve legacy execution semantics.
+            for trigger in evaluation_triggers:
+                if cls.trigger_matches(
+                    trigger,
+                    now,
+                    trigger_payload=payload,
+                    resting=False,
+                ) is not True:
+                    continue
+                candidate = AutomationGraph.legacy_trigger_entry_key(
+                    automation, trigger.pk
+                )
+                if candidate is not None:
+                    entry_node_key = candidate
+                    break
+
+        snapshot = AutomationGraph.snapshot(automation)
+        AutomationGraph.validate_snapshot(snapshot)
+        payload["entry_node_key"] = str(entry_node_key)
+        defaults = {
+            "automation": automation,
+            "automation_name": automation.name,
+            "step_id": node.legacy_step_id,
+            "source": source,
+            "trigger_payload": payload,
+            "graph_version": GRAPH_VERSION,
+            "graph_snapshot": snapshot,
+        }
+
+        # Migrated legacy OR Steps become multiple entry Condition nodes.  The
+        # old engine created only one run per Step/event (or Step/scheduled time),
+        # so preserve that exact deduplication while legacy_step_id exists. New
+        # graph-native entry nodes intentionally remain independent wake sources.
+        if node.legacy_step_id:
+            legacy_lookup = {"step_id": node.legacy_step_id}
+            if scheduled_for is not None:
+                legacy_lookup["scheduled_for"] = scheduled_for
+            else:
+                legacy_lookup["source_event_id"] = source_event_id
+            if AutomationRun.objects.filter(**legacy_lookup).exists():
+                save_resting()
+                return None
+
+        if scheduled_for is not None:
+            run, created = AutomationRun.objects.get_or_create(
+                automation=automation,
+                entry_node_key=entry_node_key,
+                scheduled_for=scheduled_for,
+                defaults=defaults,
+            )
+        else:
+            run, created = AutomationRun.objects.get_or_create(
+                automation=automation,
+                entry_node_key=entry_node_key,
+                source_event_id=source_event_id,
+                defaults=defaults,
+            )
+        if not created:
+            save_resting()
+            return None
+
+        if legacy_step is not None:
+            legacy_step.last_result = resting_result
+            legacy_step.last_triggered_at = now
+            legacy_step.save(update_fields=["last_result", "last_triggered_at", "updated_at"])
+            AutomationNode.objects.filter(
+                automation=automation, legacy_step_id=legacy_step.pk
+            ).update(last_result=resting_result, last_triggered_at=now)
+            node.last_result = resting_result
+            node.last_triggered_at = now
+        else:
+            node.last_result = resting_result
+            node.last_triggered_at = now
+            node.save(update_fields=["last_result", "last_triggered_at", "updated_at"])
+        automation.last_triggered_at = now
+        automation.save(update_fields=["last_triggered_at", "updated_at"])
+        return run
 
     @classmethod
     def _step_has_event_source(cls, step, *, topic, device, device_changed_keys, trigger_payload):
@@ -437,6 +855,34 @@ class AutomationService:
             "source": source,
             "trigger_payload": payload,
         }
+        if automation.graph_version == GRAPH_VERSION:
+            snapshot = AutomationGraph.snapshot(automation)
+            AutomationGraph.validate_snapshot(snapshot)
+            entry_key = None
+            # Pick the first predicate that is actually true for this wake-up.
+            # For legacy AND Steps every Trigger maps to the same Condition
+            # node; for legacy OR Steps this selects the matching branch.
+            for trigger in triggers:
+                if cls.trigger_matches(
+                    trigger,
+                    now,
+                    trigger_payload=payload,
+                    resting=False,
+                ) is True:
+                    entry_key = AutomationGraph.legacy_trigger_entry_key(
+                        automation, trigger.pk
+                    )
+                    if entry_key is not None:
+                        break
+            if entry_key is None:
+                entry_key = AutomationGraph.legacy_step_entry_key(
+                    automation, step.pk
+                )
+            defaults.update({
+                "graph_version": GRAPH_VERSION,
+                "graph_snapshot": snapshot,
+                "entry_node_key": entry_key,
+            })
         if scheduled_for is not None:
             run, created = AutomationRun.objects.get_or_create(step=step, scheduled_for=scheduled_for, defaults=defaults)
         else:

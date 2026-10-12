@@ -56,7 +56,14 @@
                 <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
                 <span>{{ run.get_source_display }}</span>
             </div>
-            {% if run.waiting_action %}
+            {% if run.waiting_node %}
+            <p class="iot-execution-job__state">
+                그래프 지연 대기 · {{ run.waiting_node.available_at|date:"H:i" }}
+                {% if run.waiting_node.node and run.waiting_node.node.title %}
+                    · {{ run.waiting_node.node.title }}
+                {% endif %}
+            </p>
+            {% elif run.waiting_action %}
             <p class="iot-execution-job__state">
                 지연 대기 · {{ run.waiting_action.available_at|date:"H:i" }}
                 {% if run.waiting_action.device %}
