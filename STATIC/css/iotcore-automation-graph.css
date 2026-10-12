@@ -54,12 +54,15 @@
 .iot-graph-node__row { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iot-graph-node__join { margin: 2px 0; color: #d5b85f; font-size: .66rem; font-weight: 800; letter-spacing: .08em; }
 .iot-graph-node__muted { opacity: .58; }
-.iot-graph-port { position: absolute; z-index: 5; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #c6d2df; background: #17202b; cursor: crosshair; }
-.iot-graph-port:hover, .iot-graph-port.is-connecting { transform: scale(1.28); }
-.iot-graph-port--input { left: -8px; top: calc(50% - 7px); }
-.iot-graph-port--always { right: -8px; top: calc(50% - 7px); }
-.iot-graph-port--true { right: -8px; top: calc(42% - 7px); border-color: #76d39d; }
-.iot-graph-port--false { right: -8px; top: calc(76% - 7px); border-color: #df8585; }
+/* Keep the connector center fixed while widening its clickable area. */
+.iot-graph-port { position: absolute; z-index: 5; display: grid; place-items: center; box-sizing: border-box; width: 32px; height: 32px; padding: 0; border-radius: 50%; border: 0; background: transparent; cursor: crosshair; touch-action: none; }
+.iot-graph-port::before { content: ""; box-sizing: border-box; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--iot-graph-port-color, #c6d2df); background: #17202b; pointer-events: none; }
+.iot-graph-port:hover::before, .iot-graph-port.is-connecting::before { transform: scale(1.15); box-shadow: 0 0 0 3px rgba(106, 165, 235, .2); }
+.iot-graph-port:focus-visible { outline: 2px solid #6aa5eb; outline-offset: 2px; }
+.iot-graph-port--input { left: -16px; top: calc(50% - 16px); }
+.iot-graph-port--always { right: -16px; top: calc(50% - 16px); }
+.iot-graph-port--true { right: -16px; top: calc(42% - 16px); --iot-graph-port-color: #76d39d; }
+.iot-graph-port--false { right: -16px; top: calc(76% - 16px); --iot-graph-port-color: #df8585; }
 .iot-graph-port-label { position: absolute; right: 12px; font-size: .62rem; font-weight: 800; pointer-events: none; }
 .iot-graph-port-label--true { top: calc(42% - 8px); color: #8bdbac; }
 .iot-graph-port-label--false { top: calc(76% - 8px); color: #e59b9b; }
