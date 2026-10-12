@@ -6,6 +6,7 @@ from typing import Any
 
 import requests
 from django.conf import settings
+from ..monitoring.inference import monitor_inference
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,7 @@ class ASRClient:
     def enabled(self) -> bool:
         return bool(getattr(settings, "VOICE_ASR_ENABLED", False))
 
+    @monitor_inference("asr")
     def transcribe(
         self,
         *,

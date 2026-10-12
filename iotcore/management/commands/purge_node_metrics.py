@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from ...models import NodeMetricSample
+from ...models import AIInferenceEvent, NodeMetricSample
 
 
 class Command(BaseCommand):
@@ -23,8 +23,11 @@ class Command(BaseCommand):
         queryset = NodeMetricSample.objects.filter(recorded_at__lt=cutoff)
         count = queryset.count()
         queryset.delete()
+        events = AIInferenceEvent.objects.filter(started_at__lt=cutoff)
+        event_count = events.count()
+        events.delete()
         self.stdout.write(
             self.style.SUCCESS(
-                f"{count}개 시스템 telemetry 샘플 삭제 (보존 {hours}시간)"
+                f"{count}개 시스템 telemetry 샘플, {event_count}개 AI 처리 기록 삭제 (보존 {hours}시간)"
             )
         )

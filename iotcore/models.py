@@ -559,6 +559,7 @@ class NodeMetricSample(models.Model):
     storage_percent = models.FloatField(blank=True, null=True)
     storage_used_gb = models.FloatField(blank=True, null=True)
     storage_total_gb = models.FloatField(blank=True, null=True)
+    ai_status = models.JSONField(default=dict, blank=True)
     recorded_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -577,6 +578,31 @@ class NodeMetricSample(models.Model):
         )
 
 
+
+
+class AIInferenceEvent(models.Model):
+    """Timing/outcome metadata only; audio and recognized text are not stored."""
+
+    class Status(models.TextChoices):
+        PROCESSING = "processing", "처리 중"
+        SUCCESS = "success", "성공"
+        FAILED = "failed", "실패"
+        DISABLED = "disabled", "비활성"
+
+    node_uid = models.CharField(max_length=100, db_index=True)
+    request_id = models.CharField(max_length=32)
+    stage = models.CharField(max_length=10, choices=[("asr", "ASR"), ("nlp", "NLP")])
+    route = models.CharField(max_length=20, default="worker")
+    status = models.CharField(max_length=12, choices=Status.choices)
+    elapsed_ms = models.FloatField(null=True, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    started_at = models.DateTimeField(default=timezone.now, db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["request_id", "stage"], name="iotcore_ai_request_stage_unique")]
+        indexes = [models.Index(fields=["node_uid", "-started_at"], name="iotcore_ai_node_time_idx")]
 
 
 class AutomationRun(models.Model):

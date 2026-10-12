@@ -8,6 +8,7 @@ from django.urls import reverse
 
 from ...models import Automation, Device, DeviceState
 from ...monitoring.service import NodeTelemetryService
+from ...monitoring.inference import AIInferenceMonitor
 from ...room_entry.service import RoomEntryService
 from ...weather.service import KmaWeatherService
 
@@ -34,6 +35,24 @@ def logout_view(request):
 
 def staff_check(user):
     return user.is_staff
+
+
+def ai_node_snapshot(*, history_seconds=None):
+    uid = getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main")
+    node = NodeTelemetryService.snapshot(uid, history_seconds=history_seconds)
+    node["ai"] = AIInferenceMonitor.snapshot(node)
+    return node
+
+
+@login_required(login_url="common:login")
+@user_passes_test(staff_check, login_url="common:login")
+def ai_monitor(request):
+    node = ai_node_snapshot()
+    return render(request, "iotcore/ai_monitor.html", {
+        "ai_node": node,
+        "node_snapshots": {node["uid"]: node},
+        "node_metrics_url": reverse("iotcore:dashboard_node_metrics"),
+    })
 
 
 @login_required(login_url="common:login")
@@ -85,11 +104,13 @@ def dashboard(request):
         "environment": environment,
         "entry_status": RoomEntryService.snapshot(),
         "weather": KmaWeatherService.snapshot(),
-        "ai_node": NodeTelemetryService.snapshot(ai_uid),
+        "ai_node": ai_node_snapshot(),
         "pi5_node": NodeTelemetryService.snapshot(pi5_uid),
-        "ai_control_url": reverse("iotcore:automation_list"),
+        "ai_control_url": reverse("iotcore:ai_monitor"),
         "node_metrics_url": reverse("iotcore:dashboard_node_metrics"),
     }
+
+    context["node_snapshots"] = {node["uid"]: node for node in (context["ai_node"], context["pi5_node"])}
 
     return render(request, "iotcore/dashboard.html", context)
 
@@ -104,10 +125,7 @@ def dashboard_node_metrics(request):
             "entry_status": RoomEntryService.snapshot(),
             "weather": KmaWeatherService.snapshot(),
             "nodes": {
-                ai_uid: NodeTelemetryService.snapshot(
-                    ai_uid,
-                    history_seconds=60,
-                ),
+                ai_uid: ai_node_snapshot(history_seconds=60),
                 pi5_uid: NodeTelemetryService.snapshot(
                     pi5_uid,
                     history_seconds=60,

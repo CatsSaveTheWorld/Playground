@@ -35,6 +35,7 @@ urlpatterns = [
     path("login/", base.login_view, name="login_view"),
     path("logout/", base.logout_view, name="logout_view"),
     path("dashboard/", base.dashboard, name="dashboard"),
+    path("dashboard/ai/", base.ai_monitor, name="ai_monitor"),
     path(
         "dashboard/node-metrics/",
         base.dashboard_node_metrics,

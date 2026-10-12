@@ -1,9 +1,9 @@
 {% if monitor_link %}
-<a class="iot-panel iot-node-monitor iot-node-monitor--link"
+<a class="iot-panel iot-node-monitor iot-node-monitor--link{% if node.ai %} iot-node-monitor--ai{% endif %}"
    href="{{ monitor_link }}"
    data-node-monitor="{{ node.uid }}">
 {% else %}
-<article class="iot-panel iot-node-monitor" data-node-monitor="{{ node.uid }}">
+<article class="iot-panel iot-node-monitor{% if node.ai %} iot-node-monitor--ai{% endif %}" data-node-monitor="{{ node.uid }}">
 {% endif %}
     <div class="iot-node-monitor__head">
         <div>
@@ -82,14 +82,16 @@
 
     <div class="iot-node-monitor__offline" data-node-offline {% if node.online %}hidden{% endif %}>
         <div class="iot-node-offline__mark">○</div>
-        <strong>NODE OFFLINE</strong>
+        <strong>{% if node.ai %}PC 상태 데이터 없음{% else %}NODE OFFLINE{% endif %}</strong>
         <p>현재 성능 데이터를 수신할 수 없습니다.</p>
         <span>마지막 연결 <b data-node-last-seen>{% if node.last_seen %}{{ node.last_seen }}{% else %}기록 없음{% endif %}</b></span>
     </div>
 
+    {% if node.ai %}{% include "iotcore/partials/ai_inference_status.html" %}{% endif %}
+
     <div class="iot-node-monitor__footer">
         {% if monitor_link %}
-            <span>AI 제어 설정 열기 →</span>
+            <span>AI 추론 현황 자세히 보기 →</span>
         {% else %}
             <span>1초 telemetry · 24시간 raw 이력</span>
         {% endif %}

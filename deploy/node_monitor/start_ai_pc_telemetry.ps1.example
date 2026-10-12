@@ -7,6 +7,10 @@ $env:IOTCORE_TELEMETRY_INTERVAL = "1"
 $env:IOTCORE_STORAGE_PATH = "C:\"
 # Optional: use a specific adapter name such as "Ethernet 2".
 $env:IOTCORE_NETWORK_INTERFACE = ""
+$env:IOTCORE_ASR_HEALTH_URL = "http://127.0.0.1:6101/health"
+$env:IOTCORE_NLP_HEALTH_URL = "http://127.0.0.1:6201/health"
+$env:IOTCORE_HEALTH_INTERVAL = "5"
+$env:IOTCORE_GPU_MONITOR = "1"
 
 & "C:\IoTCore\node-telemetry\venv\Scripts\python.exe" `
   "C:\IoTCore\node-telemetry\node_telemetry_agent.py"

@@ -159,7 +159,80 @@
         return maxValue;
     };
 
+    const resultLabel = (event) => {
+        if (!event) return '처리 기록 없음';
+        if (event.route === 'automation_match') return '자동화 직접 매칭';
+        return { success: '최근 요청 성공', failed: '최근 요청 실패', processing: '요청 처리 중', disabled: '서비스 비활성' }[event.status] || '확인 불가';
+    };
+    const duration = (value) => value == null ? '—' : `${Number(value).toFixed(0)} ms`;
+    const updateAI = (card, ai) => {
+        if (!ai) return;
+        card.querySelectorAll('[data-ai-service]').forEach((element) => {
+            const service = ai.services?.[element.dataset.aiService] || {};
+            const badge = element.querySelector('[data-ai-service-state]');
+            badge.textContent = service.label || '확인 불가';
+            badge.dataset.aiState = service.status || 'unknown';
+            element.querySelector('[data-ai-service-model]').textContent =
+                [service.engine || service.model || '엔진 정보 없음', service.device].filter(Boolean).join(' · ');
+            const event = service.last_result;
+            element.querySelector('[data-ai-service-result]').textContent =
+                resultLabel(event) + (event?.elapsed_ms == null ? '' : ` · ${duration(event.elapsed_ms)}`);
+            element.querySelector('[data-ai-service-error]').textContent = service.stale ? '현재 상태 확인 대기' : (service.error || '');
+            element.querySelector('[data-ai-service-requested]').textContent = `최근 요청 ${formatLastSeen(event?.started_at)}`;
+            element.querySelector('[data-ai-service-checked]').textContent = `마지막 확인 ${formatLastSeen(service.checked_at)}`;
+        });
+        const gpuContainer = card.querySelector('[data-ai-gpus]');
+        if (gpuContainer) {
+            gpuContainer.replaceChildren();
+            const gpus = ai.gpu?.status === 'available' ? ai.gpu.devices || [] : [];
+            if (!gpus.length) {
+                const message = document.createElement('small');
+                message.textContent = ai.gpu?.error || '현재 GPU 데이터 없음';
+                gpuContainer.append(message);
+            }
+            gpus.forEach((gpu) => {
+                const row = document.createElement('div');
+                row.className = 'iot-ai-gpu__device';
+                const values = [gpu.name,
+                    `사용률 ${gpu.utilization_percent == null ? '확인 불가' : `${Number(gpu.utilization_percent).toFixed(0)}%`}`,
+                    `VRAM ${gpu.memory_used_mb == null || gpu.memory_total_mb == null ? '확인 불가' : `${Number(gpu.memory_used_mb).toFixed(0)} / ${Number(gpu.memory_total_mb).toFixed(0)} MiB`}`,
+                    `온도 ${gpu.temperature_c == null ? '확인 불가' : `${Number(gpu.temperature_c).toFixed(0)}°C`}`];
+                values.forEach((value, index) => {
+                    const cell = document.createElement(index === 0 ? 'strong' : 'span');
+                    cell.textContent = value;
+                    row.append(cell);
+                });
+                gpuContainer.append(row);
+            });
+        }
+        const history = Array.from(document.querySelectorAll('[data-ai-history]')).find((table) => table.dataset.aiHistory === card.dataset.nodeMonitor);
+        if (history) {
+            history.replaceChildren();
+            (ai.recent || []).forEach((event) => {
+                const row = document.createElement('tr');
+                [formatLastSeen(event.started_at), event.request_id.slice(0, 8), event.stage.toUpperCase(),
+                    event.route === 'automation_match' ? '자동화 직접 매칭' : '추론 서버',
+                    { success: '성공', failed: '실패', processing: '처리 중', disabled: '비활성' }[event.status] || '확인 불가',
+                    duration(event.elapsed_ms), event.error || ''].forEach((value) => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value;
+                    row.append(cell);
+                });
+                history.append(row);
+            });
+            if (!history.children.length) {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 7;
+                cell.textContent = '처리 기록 없음';
+                row.append(cell);
+                history.append(row);
+            }
+        }
+    };
+
     const updateCard = (card, node) => {
+        updateAI(card, node?.ai);
         const online = Boolean(node && node.online);
         const status = card.querySelector('[data-node-status]');
         const statusText = card.querySelector('[data-node-status-text]');
@@ -167,7 +240,7 @@
         const offlinePanel = card.querySelector('[data-node-offline]');
 
         status?.classList.toggle('is-online', online);
-        if (statusText) statusText.textContent = online ? 'ONLINE' : 'OFFLINE';
+        if (statusText) statusText.textContent = node?.transportError ? '확인 불가' : online ? 'ONLINE' : 'OFFLINE';
         if (onlinePanel) onlinePanel.hidden = !online;
         if (offlinePanel) offlinePanel.hidden = online;
 
@@ -241,34 +314,78 @@
         if (scale && maxValue) scale.textContent = `${maxValue.toFixed(maxValue < 10 ? 1 : 0)} Mbps`;
     };
 
+    const snapshots = new Map();
+    const acceptSnapshot = (uid, node) => {
+        const received = performance.now();
+        snapshots.set(uid, {
+            node, expires: received + (node.expires_in_seconds ?? 5) * 1000,
+            services: Object.fromEntries(Object.entries(node.ai?.services || {}).map(([name, service]) => [
+                name, received + (service.status === 'processing' ? 5 : service.expires_in_seconds || 0) * 1000,
+            ])),
+        });
+        const card = cards.get(uid);
+        if (card) updateCard(card, node);
+    };
+    try {
+        const initial = document.getElementById('node-monitor-initial');
+        if (initial) Object.entries(JSON.parse(initial.textContent)).forEach(([uid, node]) => acceptSnapshot(uid, node));
+    } catch (error) { console.warn('초기 모니터링 데이터 읽기 실패:', error); }
+
+    const expireSnapshots = () => {
+        const now = performance.now();
+        snapshots.forEach((entry, uid) => {
+            const node = JSON.parse(JSON.stringify(entry.node));
+            if (now >= entry.expires) {
+                node.online = false;
+                if (node.ai) node.ai.gpu = { status: 'unavailable', devices: [], error: '현재 GPU 데이터 없음' };
+            }
+            Object.entries(node.ai?.services || {}).forEach(([name, service]) => {
+                if (service.status !== 'disabled' && (now >= entry.services[name] || (!node.online && service.status !== 'processing'))) {
+                    service.status = 'unknown';
+                    service.label = '확인 불가';
+                    service.stale = true;
+                }
+            });
+            const card = cards.get(uid);
+            if (card) updateCard(card, node);
+        });
+    };
+
     let fetching = false;
     const refresh = async () => {
         if (fetching || document.hidden) return;
         fetching = true;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 4000);
         try {
             const response = await fetch(endpoint, {
                 method: 'GET',
                 headers: { Accept: 'application/json' },
                 cache: 'no-store',
+                signal: controller.signal,
             });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
             updateEntryStatus(data.entry_status);
             updateWeather(data.weather);
-            Object.entries(data.nodes || {}).forEach(([uid, node]) => {
-                const card = cards.get(uid);
-                if (card) updateCard(card, node);
-            });
+            Object.entries(data.nodes || {}).forEach(([uid, node]) => acceptSnapshot(uid, node));
         } catch (error) {
             console.warn('시스템 telemetry 갱신 실패:', error);
+            snapshots.forEach((entry) => { entry.node.transportError = true; });
+            expireSnapshots();
         } finally {
+            window.clearTimeout(timeout);
             fetching = false;
         }
     };
 
     refresh();
     const timer = window.setInterval(refresh, 2000);
-    window.addEventListener('pagehide', () => window.clearInterval(timer), { once: true });
+    const expirationTimer = window.setInterval(expireSnapshots, 1000);
+    window.addEventListener('pagehide', () => {
+        window.clearInterval(timer);
+        window.clearInterval(expirationTimer);
+    }, { once: true });
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) refresh();
     });

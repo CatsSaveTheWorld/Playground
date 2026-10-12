@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from iotcore.ai.asr_client import ASRClient
 from iotcore.ai.nlp_client import NLPClient, NLPResult
 from iotcore.ai.service import AIControlService
+from iotcore.monitoring.inference import AIInferenceMonitor
 
 MAX_VOICE_UPLOAD_BYTES = 20 * 1024 * 1024
 
@@ -100,6 +101,7 @@ def voice_upload(request):
         # single device action (e.g. "에어컨 냉방 실행" -> mode_cool only).
         matched_automation = AIControlService.resolve_automation_from_text(asr_result.text)
         if matched_automation is not None:
+            AIInferenceMonitor.direct_match(request_id)
             nlp_result = NLPResult(
                 ok=True,
                 text=asr_result.text,

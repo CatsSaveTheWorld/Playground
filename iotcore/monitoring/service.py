@@ -8,6 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from ..models import Device, NodeMetricSample
+from .inference import normalize_ai_payload
 
 
 class NodeTelemetryError(ValueError):
@@ -68,6 +69,7 @@ class NodeTelemetryService:
 
         return NodeMetricSample.objects.create(
             device=device,
+            ai_status=normalize_ai_payload(payload.get("ai")),
             cpu_percent=cls._number(
                 payload.get("cpu_percent"),
                 label="CPU",
@@ -209,4 +211,6 @@ class NodeTelemetryService:
             "last_seen": latest.recorded_at.isoformat(),
             "current": current,
             "history": history,
+            "ai_status": latest.ai_status,
+            "expires_in_seconds": max(0, (latest.recorded_at + timedelta(seconds=offline_seconds) - now).total_seconds()),
         }

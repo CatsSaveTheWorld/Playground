@@ -5,6 +5,7 @@ from typing import Any
 
 import requests
 from django.conf import settings
+from ..monitoring.inference import monitor_inference
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,7 @@ class NLPClient:
             getattr(settings, "VOICE_NLP_ENABLED", False)
         )
 
+    @monitor_inference("nlp")
     def parse(
         self,
         *,

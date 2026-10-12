@@ -11,6 +11,7 @@ import time
 
 import paho.mqtt.client as mqtt
 import psutil
+from ai_probe import AIProbeCollector
 
 
 class Config:
@@ -22,6 +23,10 @@ class Config:
     interval = max(0.5, float(os.environ.get("IOTCORE_TELEMETRY_INTERVAL", "1")))
     storage_path = os.environ.get("IOTCORE_STORAGE_PATH", "").strip()
     network_interface = os.environ.get("IOTCORE_NETWORK_INTERFACE", "").strip()
+    asr_health_url = os.environ.get("IOTCORE_ASR_HEALTH_URL", "").strip()
+    nlp_health_url = os.environ.get("IOTCORE_NLP_HEALTH_URL", "").strip()
+    gpu_enabled = os.environ.get("IOTCORE_GPU_MONITOR", "0").lower() in {"1", "true", "yes"}
+    health_interval = float(os.environ.get("IOTCORE_HEALTH_INTERVAL", "5"))
 
     @classmethod
     def topic(cls) -> str:
@@ -123,7 +128,8 @@ def main() -> None:
     if Config.username:
         client.username_pw_set(Config.username, read_password())
     client.reconnect_delay_set(min_delay=1, max_delay=30)
-    client.connect(Config.host, Config.port, 60)
+    # Also retry when the broker is unavailable at agent startup.
+    client.connect_async(Config.host, Config.port, 60)
     client.loop_start()
 
     psutil.cpu_percent(interval=None)
@@ -131,6 +137,11 @@ def main() -> None:
     previous_time = time.monotonic()
     next_storage_at = 0.0
     cached_storage = None
+    ai = None
+    if Config.asr_health_url or Config.nlp_health_url or Config.gpu_enabled:
+        ai = AIProbeCollector({"asr": Config.asr_health_url, "nlp": Config.nlp_health_url},
+                              gpu_enabled=Config.gpu_enabled, interval=Config.health_interval)
+        ai.start()
 
     print(
         f"telemetry started: {Config.topic()} / every {Config.interval:.1f}s",
@@ -170,6 +181,9 @@ def main() -> None:
                 "storage": cached_storage or {},
             }
 
+            if ai is not None:
+                payload["ai"] = ai.snapshot()
+
             client.publish(
                 Config.topic(),
                 json.dumps(payload, separators=(",", ":")),
@@ -181,6 +195,8 @@ def main() -> None:
             if remaining > 0:
                 time.sleep(remaining)
     finally:
+        if ai is not None:
+            ai.stop()
         client.loop_stop()
         client.disconnect()
 
