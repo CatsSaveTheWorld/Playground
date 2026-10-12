@@ -416,7 +416,11 @@
 
     function selectNode(key) {
         state.selectedNodeKey = key;
-        renderNodes();
+        // Preserve the live drag handle and its pointer capture when selecting.
+        // Rebuilding nodes here detaches the element receiving pointer events.
+        nodesLayer.querySelectorAll(".iot-graph-node").forEach(element => {
+            element.classList.toggle("is-selected", element.dataset.nodeKey === key);
+        });
         renderInspector();
     }
 
