@@ -3,8 +3,15 @@
     const root = document.querySelector('.history-page');
     if (!root) return;
     root.addEventListener('click', async event => {
-        const button = event.target.closest('[data-history-url]');
-        if (!button || !root.contains(button)) return;
+        const summary = event.target.closest('.history-summary');
+        if (!summary || !root.contains(summary)) return;
+        const control = event.target.closest('a, button, input, select, textarea, label, [contenteditable]');
+        if (control && !control.closest('[data-history-url]')) return;
+        const selection = window.getSelection();
+        if (event.detail > 0 && selection && !selection.isCollapsed
+            && summary.contains(selection.anchorNode) && summary.contains(selection.focusNode)) return;
+        const button = summary.querySelector('[data-history-url]');
+        if (!button) return;
         const row = document.getElementById(button.getAttribute('aria-controls'));
         const expanded = button.getAttribute('aria-expanded') !== 'true';
         button.setAttribute('aria-expanded', String(expanded));
