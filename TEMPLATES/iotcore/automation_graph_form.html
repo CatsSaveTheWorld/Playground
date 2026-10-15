@@ -3,7 +3,7 @@
 {% block title %}{% if is_update %}{{ automation.name }}{% elif is_immediate %}새 즉시 실행{% else %}새 예약 실행{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/iotcore-automation-graph.css' %}?v=20261012-2">
+<link rel="stylesheet" href="{% static 'css/iotcore-automation-graph.css' %}?v=20261015-1">
 {% endblock %}
 
 {% block content %}
@@ -88,7 +88,21 @@
                     <span class="iot-graph-zoom" id="graph-zoom-label">100%</span>
                     <button type="button" class="iot-button" id="graph-zoom-in" title="확대">＋</button>
                     <button type="button" class="iot-button" id="graph-fit">맞춤</button>
+                    <button type="button" class="iot-button" id="graph-readable" title="선택한 Node 또는 START를 읽기 편한 크기로 표시">읽기 크기</button>
                 </div>
+            </div>
+
+            <div class="iot-graph-layout-toolbar">
+                <div class="iot-graph-toolbar__group">
+                    <button type="button" class="iot-button" id="graph-arrange">자동 정리</button>
+                    <button type="button" class="iot-button" id="graph-layout-undo" disabled>정리 되돌리기</button>
+                </div>
+                <span id="graph-layout-message" role="status" aria-live="polite">배치를 바꿔도 실행 순서는 유지됩니다.</span>
+            </div>
+            <div class="iot-graph-layout-preview" id="graph-layout-preview" hidden>
+                <span>정리된 배치 미리보기 · 조건과 실행 순서는 그대로입니다.</span>
+                <button type="button" class="iot-button iot-button--primary" id="graph-layout-apply">배치 적용</button>
+                <button type="button" class="iot-button" id="graph-layout-cancel">취소</button>
             </div>
 
             <div class="iot-graph-editor__body">
@@ -116,7 +130,7 @@
         <div class="iot-graph-savebar">
             <div>
                 <strong id="graph-save-state">저장 전 검증 대기</strong>
-                <small>Edge 실행 순서는 같은 출력에서 대상 Node의 화면상 위 → 아래 순서로 저장됩니다.</small>
+                <small>실행 순서는 연결 목록의 ↑·↓로 변경합니다. Node 이동과 자동 정리는 실행 순서를 바꾸지 않습니다.</small>
             </div>
             <div class="iot-page-actions">
                 <a class="iot-button" href="{% url 'iotcore:automation_list' %}?type={{ automation.automation_type|default:'scheduled' }}">취소</a>
@@ -133,5 +147,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/iotcore-automation-graph.js' %}?v=20261012-2"></script>
+<script src="{% static 'js/iotcore-graph-layout.js' %}?v=20261015-1"></script>
+<script src="{% static 'js/iotcore-automation-graph.js' %}?v=20261015-1"></script>
 {% endblock %}

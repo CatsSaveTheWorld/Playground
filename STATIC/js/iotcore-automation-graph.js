@@ -26,6 +26,20 @@
     const saveState = document.getElementById("graph-save-state");
     const zoomLabel = document.getElementById("graph-zoom-label");
 
+    const layout = window.IoTGraphLayout;
+    if (!layout) {
+        statusElement.textContent = "그래프 정리 기능을 불러오지 못했습니다. 새로고침해 주세요.";
+        form.addEventListener("submit", event => event.preventDefault());
+        return;
+    }
+    const layoutMessage = document.getElementById("graph-layout-message");
+    const pinStorageKey = `iotcore-graph-pins:${location.pathname}`;
+    let storedPins = [];
+    try { storedPins = JSON.parse(localStorage.getItem(pinStorageKey) || "[]"); } catch (_error) { /* optional preference */ }
+    const pinnedNodes = new Set(Array.isArray(storedPins) ? storedPins : []);
+    let edgeFrame = null;
+    let edgeGeometry = null;
+
     const NODE_WIDTH = {start: 160, end: 160, condition: 236, action: 236, delay: 236};
     const TYPE_LABEL = {start: "START", condition: "CONDITION", action: "ACTION", delay: "DELAY", end: "END"};
     const CONDITION_LABEL = {schedule: "날짜 / 시간", device_state: "기기 상태 / 변화", mqtt_event: "MQTT 이벤트", weather: "현재 날씨"};
@@ -62,6 +76,9 @@
             order: Number(edge.order || 1),
         })),
         selectedNodeKey: null,
+        selectedEdgeId: null,
+        layoutPreview: null,
+        layoutUndo: null,
         pendingConnection: null,
         zoom: 1,
         panX: 24,
@@ -152,6 +169,7 @@
         state.dirty = true;
         saveState.textContent = message;
         validateAndReport(false);
+        updateLayoutControls();
     }
 
     function defaultNode(type) {
@@ -179,6 +197,8 @@
             const element = document.createElement("article");
             element.className = `iot-graph-node iot-graph-node--${node.type}${state.selectedNodeKey === node.key ? " is-selected" : ""}${node.enabled === false ? " is-disabled" : ""}`;
             element.dataset.nodeKey = node.key;
+            element.classList.toggle("is-pinned", pinnedNodes.has(node.key));
+            element.title = nodeTitle(node) + (pinnedNodes.has(node.key) ? " · 자동 정리 위치 고정" : "");
             element.style.left = `${node.x}px`;
             element.style.top = `${node.y}px`;
 
@@ -260,7 +280,8 @@
             bindPorts(element, node);
             nodesLayer.appendChild(element);
         });
-        requestAnimationFrame(renderEdges);
+        requestEdgeRender();
+        updateLayoutControls();
     }
 
     function portPoint(nodeKey, kind, outcome = null) {
@@ -277,72 +298,208 @@
     }
 
     function orderedEdges() {
-        const grouped = new Map();
-        state.edges.forEach((edge, index) => {
-            const key = `${edge.source}|${edge.outcome}`;
-            if (!grouped.has(key)) grouped.set(key, []);
-            grouped.get(key).push({edge, index});
+        return layout.orderedEdges(state.edges);
+    }
+
+    function captureLayout() {
+        return {positions:Object.fromEntries(state.nodes.map(n=>[n.key,{x:n.x,y:n.y}])),
+            zoom:state.zoom,panX:state.panX,panY:state.panY,signature:layout.signature(serialize())};
+    }
+
+    function restoreLayout(snapshot) {
+        state.nodes.forEach(node=> {
+            if (snapshot.positions[node.key]) Object.assign(node,snapshot.positions[node.key]);
         });
-        const result = [];
-        grouped.forEach(values => {
-            values.sort((left, right) => {
-                const a = nodeByKey(left.edge.target) || {x: 0, y: 0};
-                const b = nodeByKey(right.edge.target) || {x: 0, y: 0};
-                return a.y - b.y || a.x - b.x || left.index - right.index;
-            });
-            values.forEach((value, index) => result.push({...value.edge, order: index + 1}));
+        state.zoom=snapshot.zoom;state.panX=snapshot.panX;state.panY=snapshot.panY;
+    }
+
+    function updateLayoutControls() {
+        const preview=Boolean(state.layoutPreview);
+        document.getElementById("graph-layout-preview").hidden=!preview;
+        nodesLayer.inert=preview;
+        inspector.inert=preview;
+        document.querySelectorAll("[data-add-node]").forEach(button=>{button.disabled=preview;});
+        document.getElementById("graph-arrange").disabled=preview || Boolean(state.pendingConnection);
+        document.getElementById("graph-layout-undo").disabled=preview || !state.layoutUndo
+            || state.layoutUndo.signature!==layout.signature(serialize());
+    }
+
+    function arrangePreview() {
+        if(state.layoutPreview || state.pendingConnection) return;
+        const errors=validateGraph();
+        if(errors.length) {layoutMessage.textContent=errors[0];return;}
+        try {
+            const before=captureLayout();
+            const dimensions=Object.fromEntries([...nodesLayer.children].map(el=>[el.dataset.nodeKey,
+                {width:el.offsetWidth,height:el.offsetHeight}]));
+            const positions=layout.arrange(state.nodes,state.edges,dimensions,pinnedNodes);
+            state.layoutPreview=before;
+            state.nodes.forEach(node=>Object.assign(node,positions[node.key]));
+            if(layout.signature(serialize())!==before.signature) throw Error("실행 구조가 달라져 정리를 취소했습니다.");
+            layoutMessage.textContent="미리보기를 확인한 뒤 배치 적용 또는 취소를 선택하세요.";
+            renderAll();
+            requestAnimationFrame(fitGraph);
+        } catch(error) {
+            if(state.layoutPreview) restoreLayout(state.layoutPreview);
+            state.layoutPreview=null;
+            renderAll();
+            layoutMessage.textContent=error.message;
+        }
+    }
+
+    function applyLayoutPreview() {
+        const previous=state.layoutPreview;
+        if(!previous) return;
+        if(previous.signature!==layout.signature(serialize())) {
+            cancelLayoutPreview();
+            layoutMessage.textContent="편집 내용이 달라져 정리를 취소했습니다.";
+            return;
+        }
+        state.layoutUndo=previous;
+        state.layoutPreview=null;
+        markDirty("정리된 배치 적용됨 · 저장 전");
+        layoutMessage.textContent="배치를 적용했습니다. 실행 순서는 유지됩니다. 저장 전 되돌릴 수 있습니다.";
+        renderAll();
+    }
+
+    function cancelLayoutPreview() {
+        if(!state.layoutPreview) return;
+        restoreLayout(state.layoutPreview);
+        state.layoutPreview=null;
+        layoutMessage.textContent="미리보기를 취소하고 이전 배치로 돌아왔습니다.";
+        renderAll();
+    }
+
+    function undoLayout() {
+        if(!state.layoutUndo || state.layoutPreview || state.layoutUndo.signature!==layout.signature(serialize())) return;
+        restoreLayout(state.layoutUndo);
+        state.layoutUndo=null;
+        markDirty("이전 배치로 복원됨 · 저장 전");
+        layoutMessage.textContent="자동 정리 전 배치로 돌아왔습니다.";
+        renderAll();
+    }
+
+    function moveEdge(edge, delta) {
+        const group=orderedEdges().filter(e=>e.source===edge.source && e.outcome===edge.outcome);
+        const index=group.findIndex(e=>e.id===edge.id),next=index+delta;
+        if(index<0 || next<0 || next>=group.length) return;
+        [group[index],group[next]]=[group[next],group[index]];
+        group.forEach((e,i)=>{state.edges.find(original=>original.id===e.id).order=i+1;});
+        markDirty("분기 실행 순서 변경됨");
+        renderAll();
+    }
+
+    function applyRouteHighlight() {
+        const selected=state.selectedNodeKey;
+        const ancestors=new Set(selected?[selected]:[]),descendants=new Set(ancestors);
+        for(const [set,reverse] of [[ancestors,true],[descendants,false]]) {
+            const queue=[...set];
+            while(queue.length) {
+                const key=queue.shift();
+                state.edges.forEach(edge=> {
+                    if((reverse?edge.target:edge.source)!==key) return;
+                    const next=reverse?edge.source:edge.target;
+                    if(!set.has(next)) {set.add(next);queue.push(next);}
+                });
+            }
+        }
+        const active=new Set(state.edges.filter(e=>state.selectedEdgeId ? e.id===state.selectedEdgeId
+            : (ancestors.has(e.source)&&ancestors.has(e.target)) || (descendants.has(e.source)&&descendants.has(e.target))).map(e=>e.id));
+        edgesLayer.querySelectorAll("[data-edge-id]").forEach(el=> {
+            el.classList.toggle("is-dimmed",Boolean(selected)&&!active.has(el.dataset.edgeId));
+            el.classList.toggle("is-highlighted",Boolean(selected)&&active.has(el.dataset.edgeId));
         });
-        return result;
+    }
+
+    function requestEdgeRender() {
+        if(edgeFrame) return;
+        edgeFrame=requestAnimationFrame(()=>{edgeFrame=null;renderEdges();});
     }
 
     function renderEdges() {
+        const rectangles=[],ports=new Map();
+        [...nodesLayer.children].forEach(el=> {
+            const node=nodeByKey(el.dataset.nodeKey);
+            if(!node) return;
+            rectangles.push({key:node.key,x:node.x,y:node.y,width:el.offsetWidth,height:el.offsetHeight});
+            el.querySelectorAll("[data-port]").forEach(port=>ports.set(`${node.key}|${port.dataset.port}|${port.dataset.outcome||''}`,
+                {x:node.x+port.offsetLeft+port.offsetWidth/2,y:node.y+port.offsetTop+port.offsetHeight/2}));
+        });
+        const edges=orderedEdges().map(edge=>({...edge,
+            sourcePoint:ports.get(`${edge.source}|output|${edge.outcome}`),targetPoint:ports.get(`${edge.target}|input|`)}))
+            .filter(e=>e.sourcePoint && e.targetPoint);
+        const geometry=JSON.stringify({rectangles,edges});
+        if(geometry===edgeGeometry) {applyRouteHighlight();return;}
+        edgeGeometry=geometry;
+        const routes=layout.routeEdges(rectangles,edges);
         edgesLayer.replaceChildren();
-        orderedEdges().forEach(edge => {
-            const source = portPoint(edge.source, "output", edge.outcome);
-            const target = portPoint(edge.target, "input");
-            if (!source || !target) return;
-            const bend = Math.max(70, Math.abs(target.x - source.x) * .42);
-            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            path.setAttribute("d", `M ${source.x} ${source.y} C ${source.x + bend} ${source.y}, ${target.x - bend} ${target.y}, ${target.x} ${target.y}`);
-            path.setAttribute("class", `iot-graph-edge iot-graph-edge--${edge.outcome}`);
-            edgesLayer.appendChild(path);
-
-            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            label.setAttribute("x", String(source.x + 16));
-            label.setAttribute("y", String(source.y - 8));
-            label.setAttribute("class", `iot-graph-edge-label iot-graph-edge-label--${edge.outcome}`);
-            const outcomeLabel = edge.outcome === "always" ? "" : edge.outcome.toUpperCase();
-            label.textContent = `${outcomeLabel}${outcomeLabel ? " · " : ""}${edge.order}`;
+        const maxX=Math.max(1000,...rectangles.map(r=>r.x+r.width),...routes.flatMap(r=>r.points.map(p=>p.x)))+100;
+        const maxY=Math.max(800,...rectangles.map(r=>r.y+r.height),...routes.flatMap(r=>r.points.map(p=>p.y)))+100;
+        world.style.width=nodesLayer.style.width=`${maxX}px`;
+        world.style.height=nodesLayer.style.height=`${maxY}px`;
+        edgesLayer.setAttribute("width",maxX);edgesLayer.setAttribute("height",maxY);
+        edgesLayer.style.width=`${maxX}px`;edgesLayer.style.height=`${maxY}px`;
+        routes.forEach(({edge,d,fallback})=> {
+            const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+            path.setAttribute("d",d);
+            path.setAttribute("class",`iot-graph-edge iot-graph-edge--${edge.outcome}${fallback?' is-unrouted':''}`);
+            path.dataset.edgeId=edge.id;
+            const hit=path.cloneNode();
+            hit.setAttribute("class","iot-graph-edge-hit");
+            const title=document.createElementNS("http://www.w3.org/2000/svg","title");
+            title.textContent=`${nodeTitle(nodeByKey(edge.source))} → ${nodeTitle(nodeByKey(edge.target))} · ${edge.outcome.toUpperCase()} #${edge.order}`
+                +(fallback?" · 경로가 혼잡합니다. 자동 정리 또는 Node 이동을 사용하세요.":"");
+            hit.appendChild(title);
+            hit.addEventListener("pointerdown",event=>event.stopPropagation());
+            hit.addEventListener("click",event=> {
+                event.stopPropagation();
+                if(state.layoutPreview) return;
+                selectNode(edge.source);state.selectedEdgeId=edge.id;renderInspector();applyRouteHighlight();
+            });
+            edgesLayer.append(path,hit);
+            const label=document.createElementNS("http://www.w3.org/2000/svg","text");
+            label.setAttribute("x",edge.sourcePoint.x+14+(edge.order-1)*12);
+            label.setAttribute("y",edge.sourcePoint.y-10-(edge.order-1)*14);
+            label.setAttribute("class",`iot-graph-edge-label iot-graph-edge-label--${edge.outcome}`);
+            label.dataset.edgeId=edge.id;
+            label.textContent=`${edge.outcome==='always'?'':edge.outcome.toUpperCase()+' · '}${edge.order}`;
             edgesLayer.appendChild(label);
         });
+        if(routes.some(r=>r.fallback)) layoutMessage.textContent="일부 선의 경로가 혼잡합니다. 자동 정리 또는 Node 이동으로 여백을 확보하세요.";
+        applyRouteHighlight();
     }
+
 
     function bindNodeDrag(handle, element, node) {
         handle.addEventListener("pointerdown", event => {
-            if (event.button !== 0) return;
+            if (event.button !== 0 || state.layoutPreview) return;
             event.stopPropagation();
             selectNode(node.key);
             const startX = event.clientX;
             const startY = event.clientY;
             const originX = node.x;
             const originY = node.y;
+            let moved = false;
             try { handle.setPointerCapture(event.pointerId); } catch (_error) { /* synthetic/ended pointer */ }
             const move = moveEvent => {
                 node.x = Math.round(originX + (moveEvent.clientX - startX) / state.zoom);
                 node.y = Math.round(originY + (moveEvent.clientY - startY) / state.zoom);
                 element.style.left = `${node.x}px`;
                 element.style.top = `${node.y}px`;
-                renderEdges();
+                moved = true;
+                requestEdgeRender();
                 state.dirty = true;
             };
             const up = () => {
                 handle.removeEventListener("pointermove", move);
                 handle.removeEventListener("pointerup", up);
-                markDirty("Node 위치 변경됨");
+                handle.removeEventListener("pointercancel", up);
+                if (moved) markDirty("Node 위치 변경됨");
                 renderInspector();
             };
             handle.addEventListener("pointermove", move);
             handle.addEventListener("pointerup", up);
+            handle.addEventListener("pointercancel", up);
         });
     }
 
@@ -402,7 +559,9 @@
         if (!allowed.includes(outcome)) { setStatus("이 Node에서 사용할 수 없는 출력입니다.", true); return false; }
         if (state.edges.some(edge => edge.source === source && edge.target === target && edge.outcome === outcome)) { setStatus("이미 같은 연결이 있습니다.", true); return false; }
         if (wouldCreateCycle(source, target)) { setStatus("순환 경로는 만들 수 없습니다.", true); return false; }
-        state.edges.push({id: `edge-${uuid()}`, source, target, outcome, order: 1});
+        const order = 1 + Math.max(0, ...orderedEdges().filter(e => e.source === source && e.outcome === outcome).map(e => e.order));
+        state.edges = orderedEdges();
+        state.edges.push({id: `edge-${uuid()}`, source, target, outcome, order});
         markDirty("Edge 추가됨");
         return true;
     }
@@ -416,12 +575,14 @@
 
     function selectNode(key) {
         state.selectedNodeKey = key;
+        state.selectedEdgeId = null;
         // Preserve the live drag handle and its pointer capture when selecting.
         // Rebuilding nodes here detaches the element receiving pointer events.
         nodesLayer.querySelectorAll(".iot-graph-node").forEach(element => {
             element.classList.toggle("is-selected", element.dataset.nodeKey === key);
         });
         renderInspector();
+        applyRouteHighlight();
     }
 
     function removeSelectedNode() {
@@ -487,6 +648,20 @@
         const heading = document.createElement("div");
         heading.innerHTML = `<h2>${escapeHtml(TYPE_LABEL[node.type] || node.type)}</h2><p>${escapeHtml(nodeTitle(node))}</p>`;
         inspector.appendChild(heading);
+        const pinLabel = document.createElement("label");
+        pinLabel.className = "iot-graph-inspector__label iot-graph-pin-label";
+        const pin = document.createElement("input");
+        pin.type = "checkbox";
+        pin.checked = pinnedNodes.has(node.key);
+        pinLabel.append(pin, document.createTextNode(" 자동 정리 시 위치 고정"));
+        pinLabel.title = "이 브라우저에서 기억합니다. 직접 드래그해서 이동할 수 있습니다.";
+        pin.addEventListener("change", () => {
+            if (pin.checked) pinnedNodes.add(node.key); else pinnedNodes.delete(node.key);
+            try { localStorage.setItem(pinStorageKey, JSON.stringify([...pinnedNodes])); } catch (_error) { /* storage may be blocked */ }
+            renderNodes();
+            layoutMessage.textContent = "위치 고정 설정은 이 브라우저에서 기억합니다.";
+        });
+        inspector.appendChild(pinLabel);
 
         if (!["start", "end"].includes(node.type)) {
             const title = createInput("text", node.title || "");
@@ -828,7 +1003,7 @@
     function renderOutgoingInspector(node) {
         const section = document.createElement("div");
         section.className = "iot-graph-inspector__section";
-        section.innerHTML = "<h3>연결</h3><p>같은 출력의 실행 순서는 대상 Node의 화면상 위 → 아래 위치로 자동 결정됩니다.</p>";
+        section.innerHTML = "<h3>연결</h3><p>같은 출력의 실행 순서는 ↑·↓로 변경합니다. Node 위치와는 독립적입니다.</p>";
         const list = document.createElement("div");
         list.className = "iot-graph-edge-list";
         const edges = orderedEdges().filter(edge => edge.source === node.key);
@@ -840,6 +1015,7 @@
         edges.forEach(edge => {
             const row = document.createElement("div");
             row.className = "iot-graph-edge-row";
+            row.classList.toggle("is-selected", state.selectedEdgeId === edge.id);
             const outcome = document.createElement("span");
             outcome.className = "iot-graph-edge-row__outcome";
             outcome.textContent = edge.outcome === "always" ? `#${edge.order}` : `${edge.outcome.toUpperCase()} #${edge.order}`;
@@ -851,7 +1027,22 @@
             remove.className = "iot-graph-mini-button iot-graph-mini-button--danger";
             remove.textContent = "삭제";
             remove.addEventListener("click", () => removeEdge(edge));
-            row.append(outcome, target, remove);
+            const controls = document.createElement("div");
+            controls.className = "iot-graph-edge-controls";
+            const group = edges.filter(e => e.outcome === edge.outcome);
+            const index = group.findIndex(e => e.id === edge.id);
+            [["↑", -1], ["↓", 1]].forEach(([label, delta]) => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "iot-graph-mini-button";
+                button.textContent = label;
+                button.setAttribute("aria-label", `${target.textContent} 실행 순서 ${delta < 0 ? '앞으로' : '뒤로'}`);
+                button.disabled = index + delta < 0 || index + delta >= group.length;
+                button.addEventListener("click", () => moveEdge(edge, delta));
+                controls.appendChild(button);
+            });
+            controls.appendChild(remove);
+            row.append(outcome, target, controls);
             list.appendChild(row);
         });
         section.appendChild(list);
@@ -965,6 +1156,7 @@
         renderNodes();
         renderInspector();
         validateAndReport(false);
+        updateLayoutControls();
     }
 
     function fitGraph() {
@@ -972,12 +1164,12 @@
         const minX = Math.min(...state.nodes.map(node => node.x));
         const minY = Math.min(...state.nodes.map(node => node.y));
         const maxX = Math.max(...state.nodes.map(node => node.x + (NODE_WIDTH[node.type] || 236)));
-        const maxY = Math.max(...state.nodes.map(node => node.y + 160));
+        const maxY = Math.max(...state.nodes.map(node => node.y + (nodesLayer.querySelector(`[data-node-key="${CSS.escape(node.key)}"]`)?.offsetHeight || 160)));
         const width = Math.max(1, maxX - minX + 120);
         const height = Math.max(1, maxY - minY + 120);
         const availableWidth = Math.max(200, viewport.clientWidth);
         const availableHeight = Math.max(200, viewport.clientHeight);
-        state.zoom = clamp(Math.min(availableWidth / width, availableHeight / height), .35, 1.35);
+        state.zoom = clamp(Math.min(availableWidth / width, availableHeight / height), .12, 1.35);
         state.panX = (availableWidth - (maxX - minX) * state.zoom) / 2 - minX * state.zoom;
         state.panY = (availableHeight - (maxY - minY) * state.zoom) / 2 - minY * state.zoom;
         applyTransform();
@@ -985,8 +1177,20 @@
 
     document.querySelectorAll("[data-add-node]").forEach(button => button.addEventListener("click", () => addNode(button.dataset.addNode)));
     document.getElementById("graph-fit").addEventListener("click", fitGraph);
-    document.getElementById("graph-zoom-in").addEventListener("click", () => { state.zoom = clamp(state.zoom + .1, .35, 1.8); applyTransform(); });
-    document.getElementById("graph-zoom-out").addEventListener("click", () => { state.zoom = clamp(state.zoom - .1, .35, 1.8); applyTransform(); });
+    document.getElementById("graph-readable").addEventListener("click", () => {
+        const node = nodeByKey(state.selectedNodeKey) || state.nodes.find(n => n.type === "start");
+        if (!node) return;
+        state.zoom = .8;
+        state.panX = viewport.clientWidth / 2 - (node.x + (NODE_WIDTH[node.type] || 236) / 2) * state.zoom;
+        state.panY = viewport.clientHeight / 2 - (node.y + 64) * state.zoom;
+        applyTransform();
+    });
+    document.getElementById("graph-arrange").addEventListener("click", arrangePreview);
+    document.getElementById("graph-layout-apply").addEventListener("click", applyLayoutPreview);
+    document.getElementById("graph-layout-cancel").addEventListener("click", cancelLayoutPreview);
+    document.getElementById("graph-layout-undo").addEventListener("click", undoLayout);
+    document.getElementById("graph-zoom-in").addEventListener("click", () => { state.zoom = clamp(state.zoom + .1, .12, 1.8); applyTransform(); });
+    document.getElementById("graph-zoom-out").addEventListener("click", () => { state.zoom = clamp(state.zoom - .1, .12, 1.8); applyTransform(); });
 
     viewport.addEventListener("wheel", event => {
         event.preventDefault();
@@ -995,7 +1199,7 @@
         const mouseY = event.clientY - rect.top;
         const worldX = (mouseX - state.panX) / state.zoom;
         const worldY = (mouseY - state.panY) / state.zoom;
-        const nextZoom = clamp(state.zoom * (event.deltaY < 0 ? 1.1 : .9), .35, 1.8);
+        const nextZoom = clamp(state.zoom * (event.deltaY < 0 ? 1.1 : .9), .12, 1.8);
         state.panX = mouseX - worldX * nextZoom;
         state.panY = mouseY - worldY * nextZoom;
         state.zoom = nextZoom;
@@ -1003,7 +1207,7 @@
     }, {passive:false});
 
     viewport.addEventListener("pointerdown", event => {
-        if (event.button !== 0 || event.target.closest(".iot-graph-node")) return;
+        if (event.button !== 0 || event.target.closest(".iot-graph-node, .iot-graph-edge-hit")) return;
         const startX = event.clientX;
         const startY = event.clientY;
         const originX = state.panX;
@@ -1025,6 +1229,11 @@
     });
 
     document.addEventListener("keydown", event => {
+        if (state.layoutPreview) {
+            if (event.key === "Escape") { event.preventDefault(); cancelLayoutPreview(); }
+            return;
+        }
+        if (event.key === "Escape" && !state.pendingConnection) selectNode(null);
         if ((event.key === "Delete" || event.key === "Backspace") && state.selectedNodeKey && !event.target.matches("input, textarea, select")) {
             event.preventDefault();
             removeSelectedNode();
@@ -1037,6 +1246,11 @@
     });
 
     form.addEventListener("submit", event => {
+        if (state.layoutPreview) {
+            event.preventDefault();
+            layoutMessage.textContent = "미리보기에서 배치 적용 또는 취소를 먼저 선택하세요.";
+            return;
+        }
         const errors = validateGraph();
         if (errors.length) {
             event.preventDefault();
@@ -1049,7 +1263,7 @@
     });
 
     window.addEventListener("beforeunload", event => {
-        if (!state.dirty) return;
+        if (!state.dirty && !state.layoutPreview) return;
         event.preventDefault();
         event.returnValue = "";
     });
@@ -1057,6 +1271,9 @@
         if (!event.defaultPrevented) state.dirty = false;
     });
 
+    form.addEventListener("input", event => {
+        if (event.target.closest(".iot-graph-settings")) state.dirty = true;
+    });
     renderAll();
     requestAnimationFrame(fitGraph);
 })();

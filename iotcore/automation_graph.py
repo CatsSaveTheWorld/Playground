@@ -555,20 +555,27 @@ class AutomationGraph:
             outcome = raw.get("outcome") or AutomationEdge.Outcome.ALWAYS
             if source not in node_by_key or target not in node_by_key:
                 raise GraphValidationError("존재하지 않는 Node를 연결한 Edge가 있습니다.")
-            edge_groups[(source, outcome)].append((index, target))
+            raw_order = raw.get("order")
+            if "order" in raw:
+                if isinstance(raw_order, bool) or not isinstance(raw_order, int) or raw_order <= 0:
+                    raise GraphValidationError("Edge 실행 순서는 1 이상의 정수여야 합니다.")
+            edge_groups[(source, outcome)].append((index, target, raw_order))
 
         edges = []
-        # Top-to-bottom visual position is the user-facing execution order. The
-        # stable index is materialized here and is what the runtime executes.
+        # Execution order belongs to the edge, independently of visual layout.
+        # Older editor payloads omit order entirely; preserve their historical
+        # top-to-bottom interpretation without accepting ambiguous mixed groups.
         for (source, outcome), values in edge_groups.items():
-            values.sort(
-                key=lambda pair: (
-                    node_by_key[pair[1]]["y"],
-                    node_by_key[pair[1]]["x"],
-                    pair[0],
-                )
-            )
-            for order, (_index, target) in enumerate(values, start=1):
+            explicit = [value[2] for value in values if value[2] is not None]
+            if explicit:
+                if len(explicit) != len(values) or len(set(explicit)) != len(explicit):
+                    raise GraphValidationError("같은 출력의 실행 순서는 빠짐없이 중복 없이 지정하세요.")
+                values.sort(key=lambda value: value[2])
+            else:
+                values.sort(key=lambda value: (
+                    node_by_key[value[1]]["y"], node_by_key[value[1]]["x"], value[0],
+                ))
+            for order, (_index, target, _raw_order) in enumerate(values, start=1):
                 edges.append({
                     "source": source,
                     "target": target,

@@ -225,6 +225,76 @@ class AutomationGraphValidationTests(AutomationGraphTestMixin, TestCase):
             AutomationGraph.replace_from_payload(automation, current)
 
 
+class AutomationGraphLayoutOrderTests(AutomationGraphTestMixin, TestCase):
+    def ordered_graph(self):
+        automation = self.make_automation()
+        start = self.node(automation, AutomationNode.Type.START, x=0, y=0)
+        first = self.node(automation, AutomationNode.Type.ACTION, x=300, y=500)
+        second = self.node(automation, AutomationNode.Type.ACTION, x=300, y=0)
+        end = self.node(automation, AutomationNode.Type.END, x=600, y=200)
+        self.action(first, function="power_on")
+        self.action(second, function="power_off")
+        self.edge(automation, start, first, order=1)
+        self.edge(automation, start, second, order=2)
+        self.edge(automation, first, end)
+        self.edge(automation, second, end)
+        return automation, start, first, second
+
+    @patch("iotcore.scheduler.executor.DeviceService.execute_step", return_value=(True, "ok"))
+    @patch.object(AutomationExecutor, "DEFAULT_ACTION_DELAY", 0)
+    def test_layout_only_save_preserves_snapshot_and_device_execution_order(self, execute_step):
+        automation, start, first, second = self.ordered_graph()
+        payload = AutomationGraph.snapshot(automation)
+        # Deliberately reverse the visible order and the transport array order.
+        for node in payload["nodes"]:
+            node["x"] = -node["x"]
+            node["y"] = 1000 - node["y"]
+        payload["edges"].reverse()
+        updated = AutomationGraph.replace_from_payload(automation, payload)
+        result = AutomationGraph.snapshot(updated)
+        branches = sorted([e for e in result["edges"] if e["source"] == str(start.key)], key=lambda e:e["order"])
+        self.assertEqual([e["target"] for e in branches], [str(first.key), str(second.key)])
+        executed = []
+        execute_step.side_effect = lambda action: (executed.append(action.function) or True, "ok")
+        success, _ = AutomationExecutor.execute(updated)
+        self.assertTrue(success)
+        self.assertEqual(executed, ["power_on", "power_off"])
+
+    def test_explicit_reorder_changes_only_edge_order(self):
+        automation, start, first, second = self.ordered_graph()
+        payload = AutomationGraph.snapshot(automation)
+        before_nodes = payload["nodes"]
+        for edge in payload["edges"]:
+            if edge["source"] == str(start.key):
+                edge["order"] = 2 if edge["target"] == str(first.key) else 1
+        normalized = AutomationGraph.normalize_editor_payload(payload)
+        branches = [e for e in normalized["edges"] if e["source"] == str(start.key)]
+        self.assertEqual([e["target"] for e in branches], [str(second.key), str(first.key)])
+        self.assertEqual([n["y"] for n in normalized["nodes"]], [n["y"] for n in before_nodes])
+
+    def test_ambiguous_partial_and_duplicate_orders_are_rejected(self):
+        automation, start, _, _ = self.ordered_graph()
+        for invalid in [None, 1, 0, -1, True, 1.5, "2"]:
+            with self.subTest(order=invalid):
+                payload = AutomationGraph.snapshot(automation)
+                branch = next(e for e in payload["edges"] if e["source"] == str(start.key) and e["order"] == 2)
+                if invalid is None:
+                    del branch["order"]
+                else:
+                    branch["order"] = invalid
+                with self.assertRaises(GraphValidationError):
+                    AutomationGraph.normalize_editor_payload(payload)
+
+    def test_legacy_payload_without_orders_keeps_visual_fallback(self):
+        automation, start, first, second = self.ordered_graph()
+        payload = AutomationGraph.snapshot(automation)
+        for edge in payload["edges"]:
+            del edge["order"]
+        normalized = AutomationGraph.normalize_editor_payload(payload)
+        branches = [e for e in normalized["edges"] if e["source"] == str(start.key)]
+        self.assertEqual([e["target"] for e in branches], [str(second.key), str(first.key)])
+
+
 class AutomationGraphLegacyCompatibilityTests(AutomationGraphTestMixin, TestCase):
     def test_legacy_and_step_is_losslessly_grouped_in_one_condition_node(self):
         automation = Automation.objects.create(name="Legacy AND", automation_type=Automation.Type.SCHEDULED)
