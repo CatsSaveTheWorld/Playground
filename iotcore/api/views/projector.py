@@ -1,3 +1,4 @@
+from ...manual_control_history import record_manual_control
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -114,7 +115,7 @@ def projector_action(request, device_id):
             status=400,
         )
 
-    success, message = DeviceService.control(
+    success, message = record_manual_control(DeviceService.control,
         device_id=device.id,
         motion=motion,
         success_message=ACTION_MESSAGES.get(motion),

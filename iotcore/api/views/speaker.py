@@ -1,3 +1,4 @@
+from ...manual_control_history import record_manual_control
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
@@ -136,7 +137,7 @@ def speaker_entry(request, **overrides):
     )
     # print(f"[DEBUG] success_message : {success_message}")
 
-    success, message = DeviceService.control(
+    success, message = record_manual_control(DeviceService.control,
         device_id=device.id,
         motion=motion,
         success_message=success_message,

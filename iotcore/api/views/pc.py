@@ -1,3 +1,4 @@
+from ...manual_control_history import record_manual_control
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
@@ -60,7 +61,7 @@ def _handle_pc_control(request, *, forced_action=None):
     if error:
         return _validation_error(error, status=status)
 
-    success, message = DeviceService.control(device.id, action)
+    success, message = record_manual_control(DeviceService.control,device.id, action)
     return JsonResponse(
         {
             "success": success,

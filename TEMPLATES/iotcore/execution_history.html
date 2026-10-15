@@ -1,12 +1,30 @@
 {% extends "iotcore/base_iotcore.html" %}
+{% load static tz %}
 {% block title %}실행 기록{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/iotcore-execution-history.css' %}?v=20261015-1">{% endblock %}
 {% block content %}
-<div class="iot-page">
+{% timezone "Asia/Seoul" %}
+<div class="iot-page history-page">
     <header class="iot-page-header">
-        <div><p class="iot-eyebrow">EXECUTION HISTORY</p><h1>실행 기록</h1><p>시퀀스·예약 실행·기기 제어의 통합 이력 화면이 들어갈 자리입니다.</p></div>
+        <div><p class="iot-eyebrow">EXECUTION HISTORY</p><h1>실행 기록</h1><p>시퀀스 · 예약 실행 · 기기 제어</p></div><span class="history-zone">한국 시간 · KST</span>
     </header>
-    <section class="iot-panel iot-placeholder-page">
-        <div><h2>실행 기록 UI 준비 완료</h2><p>이번 개편에서는 화면과 URL만 구성했습니다. 실제 실행 데이터 통합 조회와 필터 기능은 다음 단계에서 연결합니다.</p></div>
-    </section>
+    <form method="get" class="history-filters">
+        <label>시작일 {{ history_filter.start }}</label><label>종료일 {{ history_filter.end }}</label><label>결과 {{ history_filter.status }}</label><button type="submit" class="iot-button">조회</button><a class="iot-button" href="{% url 'iotcore:execution_history' %}">오늘</a>
+    </form>
+    {% if history_filter.errors %}<div class="history-notice" role="alert">{{ history_filter.errors }}</div>{% endif %}
+    <table class="history-table"><thead><tr><th class="history-time-col" scope="col">시각 ↓</th><th scope="col">작업</th><th class="history-source-col" scope="col">실행 계기</th><th class="history-result-col" scope="col">결과</th><th class="history-duration-col" scope="col">소요</th></tr></thead><tbody>
+    {% for run in history_page %}
+        <tr id="history-run-{{ run.id }}" class="history-summary">
+            <td class="history-time-col"><time datetime="{{ run.history_at|date:'c' }}"><small>{{ run.history_at|date:'Y.m.d' }}</small>{{ run.history_at|date:'H:i:s' }}</time><small>{% if run.started_at %}시작{% else %}요청 · 미시작{% endif %}</small></td>
+            <td><button type="button" class="history-toggle" aria-expanded="false" aria-controls="history-detail-{{ run.id }}" data-history-url="{% url 'iotcore:execution_history_detail' run.id %}"><span class="history-arrow" aria-hidden="true">▸</span>{{ run.history_name }}</button><small>{{ run.history_kind }}</small></td>
+            <td class="history-source-col">{{ run.get_source_display }}</td><td class="history-result-col"><span class="history-badge history-status-{{ run.history_status }}">{{ run.history_label }}</span></td><td class="history-duration-col">{{ run.history_duration }}</td>
+        </tr>
+        <tr class="history-detail-row" id="history-detail-{{ run.id }}" hidden><td colspan="5"><div class="history-detail-content" aria-live="polite"></div></td></tr>
+    {% empty %}<tr><td colspan="5" class="history-empty">선택한 기간에 실행 기록이 없습니다.</td></tr>{% endfor %}
+    </tbody></table>
+    <footer class="history-pagination"><span>{{ history_page.paginator.count }}건 · 하위 실행은 상위 작업에 포함 · 시각 내림차순</span><nav aria-label="실행 기록 페이지">{% if history_page.has_previous %}<a class="iot-button" href="?{{ history_query }}&amp;page={{ history_page.previous_page_number }}">이전</a>{% endif %}<span>{{ history_page.number }} / {{ history_page.paginator.num_pages }}</span>{% if history_page.has_next %}<a class="iot-button" href="?{{ history_query }}&amp;page={{ history_page.next_page_number }}">다음</a>{% endif %}</nav></footer>
+    <p class="history-notice">실행으로 접수된 작업의 기록입니다. 작업을 생성하지 않은 상시 조건 감시는 포함하지 않습니다. 새 기록은 조회할 때 반영됩니다.</p>
 </div>
+{% endtimezone %}
 {% endblock %}
+{% block extra_js %}<script src="{% static 'js/iotcore-execution-history.js' %}?v=20261015-1" defer></script>{% endblock %}

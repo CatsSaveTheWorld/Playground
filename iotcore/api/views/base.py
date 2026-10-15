@@ -3,7 +3,10 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.conf import settings
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_GET
+from ...execution_history import history_context, execution_detail_context
+from ...models import AutomationRun
 from django.urls import reverse
 
 from ...models import Automation, Device, DeviceState
@@ -136,8 +139,16 @@ def dashboard_node_metrics(request):
 
 
 @login_required(login_url="common:login")
+@require_GET
 def execution_history(request):
-    return render(request, "iotcore/execution_history.html")
+    return render(request, "iotcore/execution_history.html", history_context(request))
+
+
+@login_required(login_url="common:login")
+@require_GET
+def execution_history_detail(request, run_id):
+    run = get_object_or_404(AutomationRun, pk=run_id, root_run__isnull=True, parent_action_run__isnull=True)
+    return render(request, "iotcore/execution_history_detail.html", execution_detail_context(run))
 
 
 @login_required(login_url="common:login")

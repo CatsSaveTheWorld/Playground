@@ -79,6 +79,7 @@ urlpatterns = [
     path("automations/", automation.automation_list, name="automation_list"),
     # Reverse-compatibility alias. Generated UI links use automation_list.
     path("automations/", schedule.schedule_list, name="schedule_list"),
+    path("execution-history/<int:run_id>/", base.execution_history_detail, name="execution_history_detail"),
     path(
         "execution-history/",
         base.execution_history,

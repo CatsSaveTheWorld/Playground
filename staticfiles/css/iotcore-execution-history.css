@@ -1,0 +1,26 @@
+.history-page { min-width: 0; }
+.history-zone,.history-notice { color: var(--iot-muted); font-size: 12px; }
+.history-filters { display:flex; align-items:end; flex-wrap:wrap; gap:12px; margin:20px 0; }
+.history-filters label { display:grid; gap:6px; color:var(--iot-muted); font-size:12px; }
+.history-filters input,.history-filters select { background:var(--iot-surface-3); color:var(--iot-text); border:1px solid var(--iot-border-soft); padding:8px; min-height:39px; }
+.history-table { width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px; }
+.history-table th { text-align:left; font-weight:400; color:var(--iot-muted); }
+.history-table th,.history-table td { padding:13px 9px; border-bottom:1px solid var(--iot-border-soft); vertical-align:top; overflow-wrap:anywhere; }
+.history-time-col { width:120px; font-variant-numeric:tabular-nums; }
+.history-table small { display:block; color:var(--iot-muted); font-size:11px; margin-top:4px; }
+.history-source-col { width:94px; }.history-result-col { width:100px; }.history-duration-col { width:90px; text-align:right; font-variant-numeric:tabular-nums; }
+.history-toggle { display:inline; text-align:left; background:transparent; border:none; padding:0; color:var(--iot-text); cursor:pointer; }
+.history-arrow { color:var(--iot-accent); margin-right:6px; }.history-summary.is-expanded { background:var(--iot-accent-soft); }
+.history-toggle:focus-visible { outline:2px solid var(--iot-accent); outline-offset:4px; }
+.history-badge { display:inline-block; border:1px solid var(--iot-border-soft); padding:3px 6px; font-size:11px; white-space:nowrap; }
+.history-status-success { color:var(--iot-success); }.history-status-failed { color:var(--iot-danger); border-color:var(--iot-danger); }
+.history-status-no_action,.history-status-skipped,.history-status-cancelled { color:var(--iot-muted); }.history-status-running,.history-status-waiting,.history-status-pending { color:var(--iot-warning); }
+.history-detail-row[hidden] { display:none!important; }.history-table .history-detail-row>td { padding:0; }
+.history-detail { background:var(--iot-surface-3); padding:18px; border-bottom:1px solid var(--iot-accent); }
+.history-detail-heading,.history-stamps,.history-pagination,.history-pagination nav { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+.history-detail-heading span,.history-stamps { color:var(--iot-muted); font-size:11px; }.history-stamps { justify-content:flex-start; border-bottom:1px solid var(--iot-border-soft); padding:14px 0; }.history-stamps time { color:var(--iot-text); }
+.history-events { margin:0; padding:0; list-style:none; }.history-event { display:grid; grid-template-columns:175px minmax(0,1fr); gap:14px; padding-top:14px; line-height:1.55; }
+.history-event>time { font-variant-numeric:tabular-nums; color:var(--iot-muted); font-size:11px; }.history-event p { font-size:12px; margin:4px 0 0; white-space:pre-wrap; }.history-event small,.history-evidence { font-size:11px; color:var(--iot-muted); }.history-event-child>div { border-left:1px solid var(--iot-border-soft); padding-left:12px; }.history-evidence { display:grid; gap:3px; margin-top:7px; }
+.history-verification { border-top:1px solid var(--iot-border-soft); margin-top:18px; padding-top:12px; color:var(--iot-muted); font-size:11px; }.history-pagination { margin:18px 0; font-size:12px; color:var(--iot-muted); }.history-empty { padding:40px 10px!important; text-align:center; color:var(--iot-muted); }.history-detail-content[aria-busy=true] { padding:18px; color:var(--iot-muted); }.history-load-error { padding:16px; color:var(--iot-danger); }
+@media(max-width:900px) { .history-event { grid-template-columns:minmax(0,1fr); gap:3px; }.history-source-col { width:80px; }.history-time-col { width:105px; }.history-duration-col { width:65px; } }
+@media(max-width:600px) { .history-table,.history-table thead,.history-table tbody { display:block; }.history-table tr { display:grid; grid-template-columns:95px minmax(0,1fr) 83px; }.history-table .history-detail-row,.history-table tr:has(.history-empty) { display:block; }.history-table th,.history-table td { padding:12px 4px; min-width:0; }.history-source-col,.history-duration-col { display:none; }.history-time-col,.history-result-col { width:auto; }.history-detail { padding:14px 10px; }.history-filters input,.history-filters select { max-width:100%; font-size:16px; }.history-filters label { min-width:0; } }

@@ -1,3 +1,4 @@
+from ...manual_control_history import record_manual_control
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
@@ -77,7 +78,7 @@ def aircon_entry(request):
     )
 
     # 서비스 호출
-    success, message = DeviceService.control(
+    success, message = record_manual_control(DeviceService.control,
         device_id=device.id,
         motion=motion,
         success_message=success_message,
@@ -182,7 +183,7 @@ def aircon_set_temp(request):
     motion = f"set_temp_{temperature}"
     success_message = f"에어컨 온도가 {temperature}°C로 설정되었습니다."
 
-    success, message = DeviceService.control(
+    success, message = record_manual_control(DeviceService.control,
         device_id=device_id,
         motion=motion,
         success_message=success_message,

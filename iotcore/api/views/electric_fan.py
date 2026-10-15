@@ -1,3 +1,4 @@
+from ...manual_control_history import record_manual_control
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
@@ -109,7 +110,7 @@ def electricfan_control(request):
     except ValueError as exc:
         return _validation_error(str(exc))
 
-    success, message = DeviceService.control(
+    success, message = record_manual_control(DeviceService.control,
         device.id,
         action,
         fan_value=fan_value,

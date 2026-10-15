@@ -201,7 +201,7 @@ class AutomationExecutor:
 
         if not steps:
             run.planned_at = now
-            run.save(update_fields=["planned_at"])
+            run.save(update_fields=["planned_at", "graph_snapshot"])
             cls._set_run_terminal(
                 run,
                 AutomationRun.Status.FAILED,
@@ -209,9 +209,11 @@ class AutomationExecutor:
             )
             return
 
+        history_steps = []
         executed_any = False
         next_ancestry = ancestry + (automation.pk,)
         for step in steps:
+            evidence = []
             matched = AutomationService.trigger_list_matches(
                 list(step.triggers.order_by("order", "id")),
                 now,
@@ -219,14 +221,18 @@ class AutomationExecutor:
                 operator=step.trigger_operator,
                 resting=False,
                 empty_matches=True,
+                evidence=evidence,
             )
+            if evidence:
+                history_steps.append({"order": step.order, "matched": matched, "evaluated_at": now.isoformat(), "evidence": evidence})
+                run.graph_snapshot = {"history_steps": history_steps}
             if matched is not True:
                 continue
 
             actions = list(step.actions.order_by("order", "id"))
             if not actions:
                 run.planned_at = now
-                run.save(update_fields=["planned_at"])
+                run.save(update_fields=["planned_at", "graph_snapshot"])
                 cls._set_run_terminal(
                     run,
                     AutomationRun.Status.FAILED,
@@ -280,7 +286,7 @@ class AutomationExecutor:
                     )
 
         run.planned_at = now
-        run.save(update_fields=["planned_at"])
+        run.save(update_fields=["planned_at", "graph_snapshot"])
         if not executed_any:
             cls._set_run_terminal(
                 run,
@@ -444,6 +450,7 @@ class AutomationExecutor:
                     AutomationGraph.condition_as_trigger(item)
                     for item in node.get("conditions", [])
                 ]
+                evidence = []
                 matched = AutomationService.trigger_list_matches(
                     triggers,
                     timezone.now(),
@@ -451,12 +458,13 @@ class AutomationExecutor:
                     operator="and",
                     resting=False,
                     empty_matches=False,
+                    evidence=evidence,
                 )
                 if matched is None:
                     cls._finish_graph_node(
                         node_run,
                         AutomationRun.Status.SKIPPED,
-                        {"matched": None},
+                        {"matched": None, "evidence": evidence},
                         message="조건 값을 확인할 수 없어 이 경로를 종료했습니다.",
                         dispatch=False,
                     )
@@ -466,7 +474,7 @@ class AutomationExecutor:
                     if matched
                     else AutomationEdge.Outcome.FALSE
                 )
-                result = {"matched": bool(matched), "outcome": outcome}
+                result = {"matched": bool(matched), "outcome": outcome, "evidence": evidence}
             elif node_type == AutomationNode.Type.ACTION:
                 cls._queue_graph_actions(run, node_run, node)
                 result = {"queued_actions": len(node.get("actions", []))}

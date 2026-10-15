@@ -1,3 +1,4 @@
+from ...manual_control_history import record_manual_control
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
@@ -76,7 +77,7 @@ def main_led_entry(request):
 
     # print(f"[DEBUG] 서비스 호출 시작")
     # 서비스 호출
-    success, message = DeviceService.control(
+    success, message = record_manual_control(DeviceService.control,
         device_id=device.id,
         motion=motion,
         success_message=success_message,

@@ -1,4 +1,4 @@
-{% load execution_status %}
+{% load execution_status history_format tz %}{% timezone "Asia/Seoul" %}
 {% execution_status_snapshot 5 as execution_status %}
 <aside class="iot-execution-panel" id="iotExecutionPanel" aria-label="실행 현황">
     <div class="iot-execution-panel__header">
@@ -25,9 +25,10 @@
         {% for run in execution_status.pending_runs %}
         <div class="iot-execution-job">
             <div class="iot-execution-columns">
-                <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
+                <span>{{ run|history_run_name }}</span>
                 <span>{{ run.get_source_display }}</span>
             </div>
+            <small class="iot-execution-job__time">요청 {{ run.created_at|date:"Y.m.d H:i:s" }}{% if run.started_at %} · 시작 {{ run.started_at|date:"Y.m.d H:i:s" }}{% endif %}</small>
             <form method="post"
                   action="{% url 'iotcore:automation_run_cancel' run.id %}"
                   onsubmit="return confirm('대기 중인 작업을 취소할까요? 기기 상태는 변경되지 않습니다.');">
@@ -53,19 +54,19 @@
         {% for run in execution_status.running_runs %}
         <div class="iot-execution-job">
             <div class="iot-execution-columns">
-                <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
+                <span>{{ run|history_run_name }}</span>
                 <span>{{ run.get_source_display }}</span>
             </div>
             {% if run.waiting_node %}
             <p class="iot-execution-job__state">
-                그래프 지연 대기 · {{ run.waiting_node.available_at|date:"H:i" }}
+                그래프 지연 대기 · {{ run.waiting_node.available_at|date:"Y.m.d H:i:s" }}
                 {% if run.waiting_node.node and run.waiting_node.node.title %}
                     · {{ run.waiting_node.node.title }}
                 {% endif %}
             </p>
             {% elif run.waiting_action %}
             <p class="iot-execution-job__state">
-                지연 대기 · {{ run.waiting_action.available_at|date:"H:i" }}
+                지연 대기 · {{ run.waiting_action.available_at|date:"Y.m.d H:i:s" }}
                 {% if run.waiting_action.device %}
                     · {{ run.waiting_action.device.name }}
                 {% endif %}
@@ -78,6 +79,7 @@
                 실행 중 · {{ run.running_action.device.name }}
             </p>
             {% endif %}
+            <small class="iot-execution-job__time">요청 {{ run.created_at|date:"Y.m.d H:i:s" }}{% if run.started_at %} · 시작 {{ run.started_at|date:"Y.m.d H:i:s" }}{% endif %}</small>
             <form method="post"
                   action="{% url 'iotcore:automation_run_cancel' run.id %}"
                   onsubmit="return confirm('이 작업을 취소할까요? 현재 기기 상태는 유지되며 아직 시작하지 않은 작업만 취소됩니다.');">
@@ -102,9 +104,10 @@
         </div>
         {% for run in execution_status.completed_runs %}
         <div class="iot-execution-columns">
-            <span>{{ run.automation_name|default:"삭제된 자동화" }}</span>
+            <span>{{ run|history_run_name }}</span>
             <span>{{ run.get_status_display }}</span>
         </div>
+        <small class="iot-execution-job__time">완료 {{ run.finished_at|date:"Y.m.d H:i:s"|default:"기록 없음" }}</small>
         {% empty %}
         <div class="iot-execution-empty">최근 실행 결과가 여기에 표시됩니다.</div>
         {% endfor %}
@@ -116,3 +119,4 @@
         전체 실행 기록 보기 <span aria-hidden="true">→</span>
     </a>
 </aside>
+{% endtimezone %}

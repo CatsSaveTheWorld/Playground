@@ -899,11 +899,24 @@ class AutomationService:
         return run
 
     @classmethod
-    def trigger_list_matches(cls, triggers, now, trigger_payload=None, *, operator=Step.TriggerOperator.AND, resting=False, empty_matches=True):
+    def trigger_list_matches(cls, triggers, now, trigger_payload=None, *, operator=Step.TriggerOperator.AND, resting=False, empty_matches=True, evidence=None):
         triggers = list(triggers)
         if not triggers:
             return empty_matches
-        results = [cls.trigger_matches(t, now, trigger_payload=trigger_payload, resting=resting) for t in triggers]
+        results = []
+        for trigger in triggers:
+            if evidence is None:
+                result = cls.trigger_matches(trigger, now, trigger_payload=trigger_payload, resting=resting)
+            else:
+                config = trigger.config or {}
+                item = {"type": trigger.trigger_type, "name": config.get("device_name") or trigger.trigger_type,
+                        "key": config.get("key") or config.get("metric") or "", "operator": config.get("operator") or "",
+                        "expected": cls._history_scalar(config.get("value")), "evaluated_at": now.isoformat(),
+                        "observed_known": False, "observed_at": None}
+                result = cls.trigger_matches(trigger, now, trigger_payload=trigger_payload, resting=resting, evidence=item)
+                item["matched"] = result
+                evidence.append(item)
+            results.append(result)
         if operator == Step.TriggerOperator.OR:
             if any(r is True for r in results):
                 return True
@@ -913,7 +926,7 @@ class AutomationService:
         return None if any(r is None for r in results) else True
 
     @classmethod
-    def trigger_matches(cls, trigger, now, trigger_payload=None, *, resting=False):
+    def trigger_matches(cls, trigger, now, trigger_payload=None, *, resting=False, evidence=None):
         trigger_payload = trigger_payload or {}
         config = trigger.config or {}
 
@@ -941,6 +954,8 @@ class AutomationService:
             field = config.get("field") or "value"
             current = get_nested_value(trigger_payload.get("payload", {}), field)
             previous = (trigger_payload.get("previous") or {}).get(field, _MISSING)
+            if evidence is not None:
+                evidence.update(observed=cls._history_scalar(current), observed_known=current is not _MISSING)
             return compare_value(operator, current, config.get("value"), previous)
 
         if trigger.trigger_type == Trigger.Type.DEVICE_STATE:
@@ -979,6 +994,10 @@ class AutomationService:
             )
             if previous is None:
                 previous = _MISSING
+            if evidence is not None:
+                evidence.update(name=device.name if device is not None else '기기 상태', operator=operator,
+                                observed=cls._history_scalar(current), observed_known=current is not _MISSING,
+                                observed_at=state.updated_at.isoformat() if state is not None else None)
             return compare_value(operator, current, config.get("value"), previous)
 
         if trigger.trigger_type == Trigger.Type.WEATHER:
@@ -1005,9 +1024,25 @@ class AutomationService:
                 return None
             if not math.isfinite(current) or not math.isfinite(expected):
                 return None
+            if evidence is not None:
+                observed_at = weather.get("fetched_at") or weather.get("updated_at")
+                if hasattr(observed_at, "isoformat"):
+                    observed_at = observed_at.isoformat()
+                evidence.update(observed=current, expected=expected, observed_known=True,
+                                observed_at=observed_at if isinstance(observed_at, str) else None)
             return compare_value(operator, current, expected)
 
         return False
+
+    @staticmethod
+    def _history_scalar(value):
+        if value is _MISSING or value is None:
+            return None
+        if isinstance(value, (bool, int)):
+            return value
+        if isinstance(value, float):
+            return value if math.isfinite(value) else None
+        return value[:256] if isinstance(value, str) else "구조화된 값"
 
     @classmethod
     def update_device_state(cls, topic, payload):

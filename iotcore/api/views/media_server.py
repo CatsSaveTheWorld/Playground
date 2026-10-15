@@ -5,6 +5,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from ...infrastructure.remote_tasks.client import RemoteTaskClient
 from ...models import Device
+from ...manual_control_history import record_manual_result
 from .common import parse_request_data
 
 
@@ -100,7 +101,7 @@ def media_server_play_video(request, device_id):
             status=400,
         )
 
-    result = _remote_result(
+    result = record_manual_result(_remote_result,
         device,
         "media.play_video",
         {"video_id": video_id},
@@ -119,7 +120,7 @@ def media_server_play_video(request, device_id):
 @require_POST
 def media_server_stop(request, device_id):
     device = _get_media_server(device_id)
-    result = _remote_result(device, "media.stop", timeout=8)
+    result = record_manual_result(_remote_result, device, "media.stop", timeout=8)
     return JsonResponse(
         {
             "success": bool(result.get("success")),

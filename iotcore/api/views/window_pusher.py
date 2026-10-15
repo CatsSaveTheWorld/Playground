@@ -1,3 +1,4 @@
+from ...manual_control_history import record_manual_control
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
@@ -48,7 +49,7 @@ def window_pusher_control(request, device_id):
         except ValueError as exc:
             return _error(str(exc))
 
-    success, message = DeviceService.control(
+    success, message = record_manual_control(DeviceService.control,
         device.id,
         action,
         window_position=position,
