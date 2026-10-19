@@ -148,7 +148,7 @@ def execution_history(request):
 @require_GET
 def execution_history_detail(request, run_id):
     run = get_object_or_404(AutomationRun, pk=run_id, root_run__isnull=True, parent_action_run__isnull=True)
-    return render(request, "iotcore/execution_history_detail.html", execution_detail_context(run))
+    return render(request, "iotcore/execution_history_detail.html", execution_detail_context(run, request.GET))
 
 
 @login_required(login_url="common:login")

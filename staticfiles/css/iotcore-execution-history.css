@@ -27,3 +27,22 @@
 
 .history-summary { cursor:pointer; }
 .history-summary:hover,.history-summary:focus-within { background:var(--iot-accent-soft); }
+.history-filters { display:block; padding:18px; border:1px solid var(--iot-border-soft); background:var(--iot-surface-2); }
+.history-filter-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; align-items:start; }
+.history-filter-grid>label,.history-picker-field { min-width:0; display:grid; gap:6px; color:var(--iot-muted); font-size:12px; }
+.history-filter-grid input,.history-filter-grid select { width:100%; min-width:0; box-sizing:border-box; border-radius:4px; }
+.history-filter-grid [hidden],.history-picker-panel [hidden],.history-saved[hidden] { display:none!important; }
+.history-query { grid-column:span 2; }
+.history-filter-actions,.history-shortcuts,.history-saved,.history-active-filters { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.history-filter-actions { margin-top:14px; }.history-shortcuts { margin-top:20px; }.history-checkbox { display:flex!important; align-items:center; margin-right:auto; gap:8px; }
+.history-checkbox input,.history-picker-options input { min-height:0; width:auto; accent-color:var(--iot-accent); }
+.history-advanced { border-top:1px solid var(--iot-border-soft); margin-top:16px; padding-top:14px; }.history-advanced>summary { cursor:pointer; color:var(--iot-text); font-size:13px; }.history-advanced>.history-filter-grid { margin-top:14px; }
+.history-picker { position:relative; }.history-picker>summary { display:flex; align-items:center; justify-content:space-between; list-style:none; cursor:pointer; box-sizing:border-box; min-height:39px; padding:8px; border:1px solid var(--iot-border-soft); background:var(--iot-surface-3); color:var(--iot-text); border-radius:4px; }.history-picker>summary::-webkit-details-marker { display:none; }
+.history-picker-panel { position:absolute; top:calc(100% + 4px); left:0; z-index:20; width:300px; max-width:calc(100vw - 70px); padding:12px; box-sizing:border-box; background:var(--iot-surface-3); border:1px solid var(--iot-border-soft); border-radius:6px; box-shadow:0 8px 30px #0006; }
+.history-picker-options { max-height:230px; overflow:auto; margin:10px 0; }.history-picker-options label { display:flex; align-items:start; gap:8px; padding:7px 3px; font-size:13px; color:var(--iot-text); overflow-wrap:anywhere; }.history-picker-options input { margin-top:3px; flex-shrink:0; }
+.history-clear-picker { border:0; background:transparent; color:var(--iot-accent); cursor:pointer; padding:5px 0; }.history-choice-empty { color:var(--iot-muted); }
+.history-saved { margin:14px 0; font-size:12px; }.history-saved input,.history-saved select { background:var(--iot-surface-3); border:1px solid var(--iot-border-soft); color:var(--iot-text); min-height:36px; padding:7px; box-sizing:border-box; min-width:0; max-width:100%; border-radius:4px; }
+.history-filter-chip { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--iot-border-soft); padding:5px 9px; color:var(--iot-text); text-decoration:none; font-size:12px; border-radius:20px; overflow-wrap:anywhere; }.history-filter-chip:hover { border-color:var(--iot-accent); }.history-results { font-size:12px; color:var(--iot-muted); margin:18px 0 8px; }.history-results strong { color:var(--iot-text); }
+.history-search-match { background:var(--iot-accent-soft); border-left:2px solid var(--iot-accent); padding-left:10px; }.history-match-label { color:var(--iot-accent); font-size:11px; margin-left:5px; }.history-filter-errors { color:var(--iot-danger); }
+.history-picker summary:focus-visible,.history-filter-chip:focus-visible { outline:2px solid var(--iot-accent); outline-offset:2px; }
+@media(max-width:600px) { .history-filters { padding:12px; }.history-filter-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }.history-query { grid-column:1/-1; }.history-saved input,.history-saved select { font-size:16px; }.history-picker-panel { width:270px; }.history-picker-field:nth-child(even) .history-picker-panel { left:auto; right:0; }.history-active-filters { gap:6px; }.history-filter-chip { font-size:11px; max-width:100%; box-sizing:border-box; }.history-filter-actions { gap:10px; }.history-checkbox { width:100%; } }

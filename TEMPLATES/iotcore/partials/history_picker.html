@@ -1,0 +1,12 @@
+<div class="history-picker-field">
+    <span id="{{ field.auto_id }}_label">{{ field.label }}</span>
+    <details class="history-picker" data-picker>
+        <summary aria-labelledby="{{ field.auto_id }}_label"><span data-picker-count>선택</span><span aria-hidden="true">⌄</span></summary>
+        <div class="history-picker-panel">
+            <input type="search" class="history-choice-search" aria-label="{{ field.label }} 선택 항목 검색" placeholder="항목 검색" autocomplete="off">
+            <div class="history-picker-options">{{ field }}</div>
+            <p class="history-choice-empty" hidden>일치하는 항목이 없습니다.</p>
+            <button type="button" class="history-clear-picker">선택 해제</button>
+        </div>
+    </details>
+</div>
