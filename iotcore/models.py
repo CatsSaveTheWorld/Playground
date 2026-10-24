@@ -78,7 +78,7 @@ class AIServiceRoute(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        constraints = [models.CheckConstraint(condition=models.Q(active_device__isnull=True) | models.Q(standby_device__isnull=True) | ~models.Q(active_device=models.F('standby_device')), name='ai_route_distinct_devices')]
+        constraints = [models.CheckConstraint(check=models.Q(active_device__isnull=True) | models.Q(standby_device__isnull=True) | ~models.Q(active_device=models.F('standby_device')), name='ai_route_distinct_devices')]
 
 
 class Controller(models.Model):

@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
             ('active_device', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='active_ai_routes', to='iotcore.device')),
             ('standby_device', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='standby_ai_routes', to='iotcore.device')),
         ],
-        options={'constraints': [models.CheckConstraint(condition=models.Q(active_device__isnull=True) | models.Q(standby_device__isnull=True) | ~models.Q(active_device=models.F('standby_device')), name='ai_route_distinct_devices')]},
+        options={'constraints': [models.CheckConstraint(check=models.Q(active_device__isnull=True) | models.Q(standby_device__isnull=True) | ~models.Q(active_device=models.F('standby_device')), name='ai_route_distinct_devices')]},
     ),
         migrations.RemoveConstraint(model_name='aiinferenceevent', name='iotcore_ai_request_stage_unique'),
         migrations.AddConstraint(model_name='aiinferenceevent', constraint=models.UniqueConstraint(fields=['request_id', 'stage', 'node_uid'], name='ai_request_stage_node_unique')),
