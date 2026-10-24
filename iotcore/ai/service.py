@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from django.core.exceptions import ValidationError
 
 from ..device.services.device_service import DeviceService
+from .pc_actions import PC_AI_ACTIONS
 from ..device_actions import DeviceActionRegistry
 from ..models import Automation, AutomationRun, Device
 from ..scheduler.executor import AutomationExecutor
@@ -94,6 +95,8 @@ class AIControlService:
 
     @staticmethod
     def execute_device_action(*, device, function, parameter=None):
+        if function in PC_AI_ACTIONS:
+            raise ValidationError('AI 모델 배치 전환은 기기 제어 또는 등록된 자동화에서 실행하세요.')
         supported = {action.code for action in DeviceActionRegistry.get_actions(device.device_type)}
         if function not in supported:
             raise ValidationError(

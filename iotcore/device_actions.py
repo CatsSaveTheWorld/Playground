@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from .ai.pc_actions import PC_AI_ACTIONS
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,7 @@ class DeviceActionRegistry:
                 code="power_off",
                 display_name="전원 끄기",
             ),
+            *[DeviceAction(code=code, display_name=spec['label']) for code, spec in PC_AI_ACTIONS.items()],
         ],
 
         "light": [

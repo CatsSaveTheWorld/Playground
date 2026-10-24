@@ -1,6 +1,9 @@
 import requests
 import time
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import DatabaseError
+from ...ai.pc_actions import PC_AI_ACTIONS
 
 from ..repositories.controller_repository import ControllerRepository
 from ..repositories.ircode_repository import IRCodeRepository
@@ -12,6 +15,7 @@ from ...infrastructure.music_assistant.client import MusicAssistantClient
 from ...infrastructure.remote_tasks.client import RemoteTaskClient
 from ...infrastructure.tuya.client import TuyaClient
 from ...infrastructure.wol.client import WOLClient
+from ...infrastructure.pc_shutdown import PCShutdownClient
 from .window_pusher_service import WindowPusherService
 
 
@@ -113,7 +117,7 @@ class DeviceService:
         error_message = f"지원하지 않는 프로토콜입니다. ({device.protocol})"
 
         if device.device_type == 'pc':
-            if device.protocol != 'tcpip':
+            if motion not in PC_AI_ACTIONS and device.protocol != 'tcpip':
                 return False, (
                     "PC는 TCP/IP 프로토콜로 등록되어야 합니다. "
                     f"(현재 {device.protocol})"
@@ -256,6 +260,11 @@ class DeviceService:
         not by itself prove ON or OFF.
         """
         patch = DeviceService._infer_state_patch(motion, parameters or {})
+        if (device.device_type == 'pc' and motion == 'power_off'
+                and (device.control_config or {}).get('shutdown_transport') == 'mqtt'):
+            # A signed acknowledgement proves acceptance, not that Windows has
+            # finished closing apps. Do not report a completed power-off yet.
+            patch = {'shutdown_requested': True}
 
         # Backward compatibility for existing projector Actions that still store
         # the raw IR ``power`` toggle.  Once the operator has synchronized the
@@ -359,6 +368,19 @@ class DeviceService:
         agent.  The browser never supplies MAC/IP credentials; it only sends the
         Device id and action.
         """
+        if motion in PC_AI_ACTIONS:
+            from ...ai.routing import assign_role_for_automation, RoutingConflict
+            spec = PC_AI_ACTIONS[motion]
+            try:
+                assign_role_for_automation(spec['service'], device.pk, spec['role'])
+            except ValidationError as exc:
+                return False, '; '.join(exc.messages)
+            except RoutingConflict as exc:
+                return False, str(exc)
+            except DatabaseError:
+                return False, 'AI 배치 저장에 실패했습니다. 다시 실행해 주세요.'
+            return True, f"{device.name} · {spec['label']} 완료" + (' (배치만 저장)' if spec['service'] == 'tts' else '')
+
         config = dict(device.control_config or {})
 
         if motion == "power_on":
@@ -379,6 +401,11 @@ class DeviceService:
             return True, f"{device.name}에 WOL 패킷을 전송했습니다."
 
         if motion == "power_off":
+            transport = str(config.get('shutdown_transport') or 'http').strip().lower()
+            if transport == 'mqtt':
+                return PCShutdownClient.execute(device.device_uid)
+            if transport != 'http':
+                return False, f"{device.name}의 종료 통신 방식 설정이 올바르지 않습니다."
             ip_address = str(config.get("ip_address") or "").strip()
             if not ip_address:
                 return False, f"{device.name}의 IP 주소가 등록되어 있지 않습니다."

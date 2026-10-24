@@ -137,6 +137,24 @@ def assign_role(service, device_id, role, revision):
             raise RoutingConflict('설정이 변경됐습니다. 최신 설정을 다시 확인하세요.')
 
 
+def assign_role_for_automation(service, device_id, role):
+    """Read the current revision at execution time, then use the UI role rules."""
+    if service not in SERVICES or role not in ('active', 'standby', 'off'):
+        raise ValidationError('모델 또는 역할이 올바르지 않습니다.')
+    if not Device.objects.filter(pk=device_id, device_type='pc', device_role__in=['control', 'hybrid']).exists():
+        raise ValidationError('제어 가능한 PC를 찾을 수 없습니다.')
+    with transaction.atomic():
+        route = AIServiceRoute.objects.select_for_update().filter(pk=service).first()
+        if route is None:
+            if role == 'off':
+                return
+            AIServiceRoute.objects.get_or_create(service=service)
+            route = AIServiceRoute.objects.select_for_update().get(pk=service)
+        if role == 'off' and device_id not in (route.active_device_id, route.standby_device_id):
+            return
+        assign_role(service, device_id, role, route.revision)
+
+
 def snapshot():
     routes = {route.service: route for route in AIServiceRoute.objects.select_related('active_device', 'standby_device')}
     result = {}
