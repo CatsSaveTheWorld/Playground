@@ -1,0 +1,22 @@
+<section class="iot-ai-routing" aria-label="모델별 요청 대상과 현재 사용 상태">
+    <div class="iot-ai-routing__heading"><strong>모델 사용 현황</strong><span>Django → AI 워커</span></div>
+    {% for route in node.ai.routing %}
+    <div class="iot-ai-routing__row" data-ai-route="{{ route.service }}" data-route-state="{{ route.state }}">
+        <div class="iot-ai-routing__model-head">
+            <strong class="iot-ai-routing__model">{{ route.label }}</strong>
+            <span class="iot-ai-badge" data-route-status data-ai-state="{{ route.status }}">{{ route.status_label }}</span>
+        </div>
+        <div class="iot-ai-routing__body">
+            <div class="iot-ai-routing__targets">
+                <div><span>액티브</span><strong data-route-active>{{ route.active.name }}</strong></div>
+                <div><span>스탠바이</span><strong data-route-standby>{{ route.standby.name }}</strong></div>
+            </div>
+            <p class="iot-ai-routing__note" data-route-note>{{ route.note }}</p>
+            <p class="iot-ai-routing__model-info" data-route-model {% if not route.model %}hidden{% endif %}>{{ route.model }}</p>
+            <p class="iot-ai-routing__usage" data-route-usage {% if not route.usage %}hidden{% endif %}>{{ route.usage }}</p>
+            <p class="iot-ai-routing__error" data-route-error {% if not route.error %}hidden{% endif %}>{{ route.error }}</p>
+        </div>
+    </div>
+    {% endfor %}
+    <p class="iot-ai-routing__freshness" data-route-freshness role="status" hidden></p>
+</section>

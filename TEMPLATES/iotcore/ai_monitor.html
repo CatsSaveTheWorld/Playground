@@ -1,30 +1,17 @@
 {% extends "iotcore/base_iotcore.html" %}
 {% load static %}
 {% block title %}AI 추론 PC 현황{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/iotcore-ai-monitor.css' %}?v=20261012-1">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/iotcore-ai-monitor.css' %}?v=20261024-monitor-center-6">{% endblock %}
 {% block content %}
 <div class="iot-page">
     <header class="iot-page-header">
-        <div><p class="iot-eyebrow">AI INFERENCE</p><h1>AI 추론 PC 현황</h1><p>PC 자원과 추론 서비스 상태, 최근 음성 요청 결과를 확인합니다.</p></div>
+        <div><p class="iot-eyebrow">AI INFERENCE</p><h1>AI 추론 PC 현황</h1><p>PC 자원과 모델별 요청 대상, 현재 처리 상태를 확인합니다.</p></div>
         <a class="iot-button" href="{% url 'iotcore:dashboard' %}">대시보드</a>
     </header>
     {% include "iotcore/partials/node_monitor_card.html" with node=ai_node eyebrow="AI INFERENCE" title="AI 추론 PC" %}
-    <section class="iot-panel iot-ai-history">
-        <h2>최근 음성 요청</h2>
-        <p>처리 시간은 서비스 왕복 시간입니다. 자동화 직접 매칭은 외부 NLP 호출을 생략합니다.</p>
-        <div class="iot-ai-history__scroll">
-            <table class="iot-ai-history__table">
-                <thead><tr><th>시각</th><th>요청 ID</th><th>단계</th><th>처리 경로</th><th>결과</th><th>처리 시간</th><th>오류</th></tr></thead>
-                <tbody data-ai-history="{{ ai_node.uid }}">
-                {% for event in ai_node.ai.recent %}
-                    <tr><td>{{ event.started_at }}</td><td>{{ event.request_id|slice:':8' }}</td><td>{{ event.stage|upper }}</td><td>{% if event.route == 'automation_match' %}자동화 직접 매칭{% else %}추론 서버{% endif %}</td><td>{{ event.status }}</td><td>{% if event.elapsed_ms != None %}{{ event.elapsed_ms|floatformat:0 }} ms{% else %}—{% endif %}</td><td>{{ event.error }}</td></tr>
-                {% empty %}<tr><td colspan="7">처리 기록 없음</td></tr>{% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </section>
+
 </div>
 {{ node_snapshots|json_script:"node-monitor-initial" }}
 <script>window.IOTCORE_NODE_METRICS_URL = "{{ node_metrics_url|escapejs }}";</script>
-<script src="{% static 'js/iotcore-dashboard-monitor.js' %}?v=20261012-ai-1"></script>
+<script src="{% static 'js/iotcore-dashboard-monitor.js' %}?v=20261024-monitor-balance-5"></script>
 {% endblock %}

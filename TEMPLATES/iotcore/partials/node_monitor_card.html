@@ -1,14 +1,9 @@
-{% if monitor_link %}
-<a class="iot-panel iot-node-monitor iot-node-monitor--link{% if node.ai %} iot-node-monitor--ai{% endif %}"
-   href="{{ monitor_link }}"
-   data-node-monitor="{{ node.uid }}">
-{% else %}
 <article class="iot-panel iot-node-monitor{% if node.ai %} iot-node-monitor--ai{% endif %}" data-node-monitor="{{ node.uid }}">
-{% endif %}
     <div class="iot-node-monitor__head">
         <div>
             <span class="iot-status-card__kicker">{{ eyebrow }}</span>
             <h3>{{ title }}</h3>
+            {% if node.ai %}<small class="iot-ai-resource-source">PC 자원: <span data-ai-resource-name>{{ node.name }}</span></small>{% endif %}
         </div>
         <span class="iot-node-status{% if node.online %} is-online{% endif %}" data-node-status>
             <i></i>
@@ -16,18 +11,30 @@
         </span>
     </div>
 
-    <div class="iot-node-monitor__online" data-node-online {% if not node.online %}hidden{% endif %}>
-        <div class="iot-node-metric-grid">
+    {% if node.ai %}
+    <div class="iot-ai-node-tabs" role="tablist" aria-label="자원 모니터링 PC 선택">
+        {% for pc in ai_nodes %}
+        <button type="button" role="tab" id="ai-resource-tab-{{ forloop.counter }}"
+            data-ai-node-tab="{{ pc.uid }}" aria-controls="ai-resource-panel"
+            aria-selected="{% if pc.uid == node.uid %}true{% else %}false{% endif %}"
+            tabindex="{% if pc.uid == node.uid %}0{% else %}-1{% endif %}">{{ pc.name }}</button>
+        {% endfor %}
+    </div>
+    <div id="ai-resource-panel" role="tabpanel" aria-labelledby="ai-resource-tab-1" tabindex="0">
+    {% endif %}
+
+    <div class="iot-node-monitor__online" data-node-online {% if not node.online and not node.ai %}hidden{% endif %}>
+        <div class="iot-node-metric-grid{% if node.ai %} iot-node-metric-grid--ai{% endif %}">
             <div class="iot-node-metric iot-node-metric--cpu">
                 <span class="iot-node-metric__label">CPU</span>
-                <div class="iot-radial-gauge" data-cpu-gauge style="--gauge-value: {% if node.current %}{{ node.current.cpu_percent|default:0 }}{% else %}0{% endif %};">
+                <div class="iot-radial-gauge" data-cpu-gauge style="--gauge-value: {% if node.online and node.current %}{{ node.current.cpu_percent|default:0 }}{% else %}0{% endif %};">
                     <div>
-                        <strong data-cpu-value>{% if node.current %}{{ node.current.cpu_percent|floatformat:0 }}{% else %}--{% endif %}</strong><span>%</span>
+                        <strong data-cpu-value>{% if node.online and node.current %}{{ node.current.cpu_percent|floatformat:0 }}{% else %}--{% endif %}</strong><span>%</span>
                     </div>
                 </div>
                 <small class="iot-node-metric__detail" data-cpu-clock-detail>
-                    {% if node.current and node.current.cpu_current_ghz != None %}
-                        {{ node.current.cpu_current_ghz|floatformat:1 }}{% if node.current.cpu_max_ghz != None %} / {{ node.current.cpu_max_ghz|floatformat:1 }}{% endif %} GHz
+                    {% if node.online and node.current and node.current.cpu_current_ghz != None %}
+                        {{ node.current.cpu_current_ghz|floatformat:1 }}{% if node.online and node.current.cpu_max_ghz != None %} / {{ node.current.cpu_max_ghz|floatformat:1 }}{% endif %} GHz
                     {% else %}
                         --
                     {% endif %}
@@ -36,10 +43,10 @@
 
             <div class="iot-node-metric iot-node-metric--memory">
                 <span class="iot-node-metric__label">RAM</span>
-                <strong class="iot-node-metric__value"><span data-memory-value>{% if node.current %}{{ node.current.memory_percent|floatformat:0 }}{% else %}--{% endif %}</span>%</strong>
-                <div class="iot-meter"><i data-memory-bar style="width: {% if node.current %}{{ node.current.memory_percent|default:0 }}{% else %}0{% endif %}%;"></i></div>
+                <strong class="iot-node-metric__value"><span data-memory-value>{% if node.online and node.current %}{{ node.current.memory_percent|floatformat:0 }}{% else %}--{% endif %}</span>%</strong>
+                <div class="iot-meter"><i data-memory-bar style="width: {% if node.online and node.current %}{{ node.current.memory_percent|default:0 }}{% else %}0{% endif %}%;"></i></div>
                 <small class="iot-node-metric__detail" data-memory-detail>
-                    {% if node.current and node.current.memory_used_gb != None and node.current.memory_total_gb != None %}
+                    {% if node.online and node.current and node.current.memory_used_gb != None and node.current.memory_total_gb != None %}
                         {{ node.current.memory_used_gb|floatformat:1 }} / {{ node.current.memory_total_gb|floatformat:1 }} GB
                     {% else %}
                         --
@@ -47,25 +54,29 @@
                 </small>
             </div>
 
+            {% if not node.ai %}
             <div class="iot-node-metric iot-node-metric--storage">
                 <span class="iot-node-metric__label">STORAGE</span>
                 <div class="iot-semi-gauge">
                     <svg viewBox="0 0 120 66" aria-hidden="true">
                         <path class="iot-semi-gauge__track" pathLength="100" d="M10 60 A50 50 0 0 1 110 60"></path>
                         <path class="iot-semi-gauge__value" data-storage-arc pathLength="100" d="M10 60 A50 50 0 0 1 110 60"
-                              stroke-dasharray="{% if node.current and node.current.storage_percent != None %}{{ node.current.storage_percent }}{% else %}0{% endif %} 100"></path>
+                              stroke-dasharray="{% if node.online and node.current and node.current.storage_percent != None %}{{ node.current.storage_percent }}{% else %}0{% endif %} 100"></path>
                     </svg>
-                    <strong><span data-storage-value>{% if node.current and node.current.storage_percent != None %}{{ node.current.storage_percent|floatformat:0 }}{% else %}--{% endif %}</span>%</strong>
+                    <strong><span data-storage-value>{% if node.online and node.current and node.current.storage_percent != None %}{{ node.current.storage_percent|floatformat:0 }}{% else %}--{% endif %}</span>%</strong>
                 </div>
                 <small class="iot-node-metric__detail" data-storage-detail>
-                    {% if node.current and node.current.storage_used_gb != None and node.current.storage_total_gb != None %}
+                    {% if node.online and node.current and node.current.storage_used_gb != None and node.current.storage_total_gb != None %}
                         {{ node.current.storage_used_gb|floatformat:0 }} / {{ node.current.storage_total_gb|floatformat:0 }} GB
                     {% else %}
                         --
                     {% endif %}
                 </small>
             </div>
+            {% endif %}
         </div>
+
+        {% if node.ai %}{% include "iotcore/partials/ai_gpu_status.html" %}{% endif %}
 
         <div class="iot-network-monitor">
             <div class="iot-network-monitor__head">
@@ -74,8 +85,8 @@
             </div>
             <canvas data-network-chart aria-label="최근 60초 네트워크 다운로드 및 업로드 사용량"></canvas>
             <div class="iot-network-monitor__legend">
-                <span><i class="is-download"></i>받기 <strong><span data-download-value>{% if node.current %}{{ node.current.download_mbps|floatformat:1 }}{% else %}--{% endif %}</span> Mbps</strong></span>
-                <span><i class="is-upload"></i>보내기 <strong><span data-upload-value>{% if node.current %}{{ node.current.upload_mbps|floatformat:1 }}{% else %}--{% endif %}</span> Mbps</strong></span>
+                <span><i class="is-download"></i>받기 <strong><span data-download-value>{% if node.online and node.current %}{{ node.current.download_mbps|floatformat:1 }}{% else %}--{% endif %}</span> Mbps</strong></span>
+                <span><i class="is-upload"></i>보내기 <strong><span data-upload-value>{% if node.online and node.current %}{{ node.current.upload_mbps|floatformat:1 }}{% else %}--{% endif %}</span> Mbps</strong></span>
             </div>
         </div>
     </div>
@@ -87,17 +98,13 @@
         <span>마지막 연결 <b data-node-last-seen>{% if node.last_seen %}{{ node.last_seen }}{% else %}기록 없음{% endif %}</b></span>
     </div>
 
-    {% if node.ai %}{% include "iotcore/partials/ai_inference_status.html" %}{% endif %}
+    {% if node.ai %}</div>{% if not hide_models %}{% include "iotcore/partials/ai_inference_status.html" %}{% endif %}{% endif %}
 
     <div class="iot-node-monitor__footer">
         {% if monitor_link %}
-            <span>AI 추론 현황 자세히 보기 →</span>
+            <a href="{{ monitor_link }}">AI 추론 현황 자세히 보기 →</a>
         {% else %}
             <span>1초 telemetry · 24시간 raw 이력</span>
         {% endif %}
     </div>
-{% if monitor_link %}
-</a>
-{% else %}
 </article>
-{% endif %}

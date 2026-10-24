@@ -12,6 +12,7 @@ from django.urls import reverse
 from ...models import Automation, Device, DeviceState
 from ...monitoring.service import NodeTelemetryService
 from ...monitoring.inference import AIInferenceMonitor
+from ...monitoring.routing import routing_summary
 from ...room_entry.service import RoomEntryService
 from ...weather.service import KmaWeatherService
 
@@ -40,20 +41,31 @@ def staff_check(user):
     return user.is_staff
 
 
-def ai_node_snapshot(*, history_seconds=None):
-    uid = getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main")
+def ai_node_snapshot(*, uid=None, history_seconds=None, routes=None):
+    uid = uid or getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main")
     node = NodeTelemetryService.snapshot(uid, history_seconds=history_seconds)
     node["ai"] = AIInferenceMonitor.snapshot(node)
+    node["ai"]["routing"] = routing_summary() if routes is None else routes
     return node
+
+
+def ai_node_snapshots(*, history_seconds=None):
+    preferred = getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main")
+    registered = set(Device.objects.filter(device_type='pc').values_list('device_uid', flat=True))
+    uids = list(dict.fromkeys(uid for uid in (preferred, 'home-ai-main', 'home-ai-sub1')
+                             if uid == preferred or uid in registered))
+    routes = routing_summary()
+    return {uid: ai_node_snapshot(uid=uid, history_seconds=history_seconds, routes=routes) for uid in uids}
 
 
 @login_required(login_url="common:login")
 @user_passes_test(staff_check, login_url="common:login")
 def ai_monitor(request):
-    node = ai_node_snapshot()
+    nodes = ai_node_snapshots(history_seconds=60)
     return render(request, "iotcore/ai_monitor.html", {
-        "ai_node": node,
-        "node_snapshots": {node["uid"]: node},
+        "ai_node": next(iter(nodes.values())),
+        "ai_nodes": list(nodes.values()),
+        "node_snapshots": nodes,
         "node_metrics_url": reverse("iotcore:dashboard_node_metrics"),
     })
 
@@ -100,20 +112,21 @@ def dashboard(request):
             ),
         }
 
-    ai_uid = getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main")
+    ai_nodes = ai_node_snapshots(history_seconds=60)
     pi5_uid = getattr(settings, "IOTCORE_PI5_NODE_UID", "pi5")
 
     context = {
         "environment": environment,
         "entry_status": RoomEntryService.snapshot(),
         "weather": KmaWeatherService.snapshot(),
-        "ai_node": ai_node_snapshot(),
+        "ai_node": next(iter(ai_nodes.values())),
+        "ai_nodes": list(ai_nodes.values()),
         "pi5_node": NodeTelemetryService.snapshot(pi5_uid),
         "ai_control_url": reverse("iotcore:ai_monitor"),
         "node_metrics_url": reverse("iotcore:dashboard_node_metrics"),
     }
 
-    context["node_snapshots"] = {node["uid"]: node for node in (context["ai_node"], context["pi5_node"])}
+    context["node_snapshots"] = {**ai_nodes, context["pi5_node"]["uid"]: context["pi5_node"]}
 
     return render(request, "iotcore/dashboard.html", context)
 
@@ -121,14 +134,14 @@ def dashboard(request):
 @login_required(login_url="common:login")
 @user_passes_test(staff_check, login_url="common:login")
 def dashboard_node_metrics(request):
-    ai_uid = getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main")
+    ai_nodes = ai_node_snapshots(history_seconds=60)
     pi5_uid = getattr(settings, "IOTCORE_PI5_NODE_UID", "pi5")
     return JsonResponse(
         {
             "entry_status": RoomEntryService.snapshot(),
             "weather": KmaWeatherService.snapshot(),
             "nodes": {
-                ai_uid: ai_node_snapshot(history_seconds=60),
+                **ai_nodes,
                 pi5_uid: NodeTelemetryService.snapshot(
                     pi5_uid,
                     history_seconds=60,

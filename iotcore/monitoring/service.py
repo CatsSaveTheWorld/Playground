@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from ..models import Device, NodeMetricSample
 from .inference import normalize_ai_payload
@@ -137,6 +138,21 @@ class NodeTelemetryService:
             ),
         )
 
+    @staticmethod
+    def gpu_history_point(sample):
+        payload = sample.ai_status if isinstance(sample.ai_status, dict) else {}
+        gpu = payload.get('gpu') or {}
+        if not isinstance(gpu, dict) or gpu.get('status') != 'available':
+            return []
+        try:
+            checked = parse_datetime(gpu.get('checked_at') or '')
+            ttl = max(5, int(getattr(settings, 'AI_MONITOR_STALE_SECONDS', 15)))
+            valid = checked and timezone.is_aware(checked) and -1 <= (sample.recorded_at-checked).total_seconds() <= ttl
+        except (TypeError, ValueError):
+            valid = False
+        devices = gpu.get('devices')
+        return devices[:8] if valid and isinstance(devices, list) else []
+
     @classmethod
     def snapshot(cls, device_uid: str, *, history_seconds: int | None = None) -> dict:
         device = Device.objects.filter(device_uid=device_uid).first()
@@ -200,6 +216,7 @@ class NodeTelemetryService:
                     "timestamp": sample.recorded_at.isoformat(),
                     "download_mbps": sample.download_mbps,
                     "upload_mbps": sample.upload_mbps,
+                    "gpu": cls.gpu_history_point(sample),
                 }
                 for sample in samples
             ]

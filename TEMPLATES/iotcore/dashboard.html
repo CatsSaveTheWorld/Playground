@@ -1,7 +1,7 @@
 {% extends "iotcore/base_iotcore.html" %}
 {% load static %}
 {% block title %}대시보드{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/iotcore-ai-monitor.css' %}?v=20261012-1">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/iotcore-ai-monitor.css' %}?v=20261024-monitor-center-6">{% endblock %}
 {% block content %}
 <div class="iot-page">
     <header class="iot-page-header">
@@ -255,9 +255,14 @@
             </div>
         </div>
 
-        <div class="iot-system-grid">
-            {% include "iotcore/partials/node_monitor_card.html" with node=ai_node eyebrow="AI INFERENCE" title="AI 추론 PC" monitor_link=ai_control_url %}
-            {% include "iotcore/partials/node_monitor_card.html" with node=pi5_node eyebrow="MEDIA NODE" title="Raspberry Pi 5" %}
+        <div class="iot-system-grid iot-system-grid--balanced" data-monitor-layout>
+            {% include "iotcore/partials/node_monitor_card.html" with node=ai_node eyebrow="AI INFERENCE" title="AI 추론 PC" monitor_link=ai_control_url hide_models=True %}
+            <div class="iot-system-side">
+                {% include "iotcore/partials/node_monitor_card.html" with node=pi5_node eyebrow="MEDIA NODE" title="Raspberry Pi 5" %}
+                <article class="iot-panel iot-model-monitor" data-ai-routing-panel aria-label="AI 모델 사용 현황">
+                    {% include "iotcore/partials/ai_inference_status.html" with node=ai_node %}
+                </article>
+            </div>
         </div>
     </section>
 
@@ -587,5 +592,5 @@
 window.IOTCORE_NODE_METRICS_URL = "{{ node_metrics_url|escapejs }}";
 </script>
 {{ node_snapshots|json_script:"node-monitor-initial" }}
-<script src="{% static 'js/iotcore-dashboard-monitor.js' %}?v=20261012-ai-1"></script>
+<script src="{% static 'js/iotcore-dashboard-monitor.js' %}?v=20261024-monitor-balance-5"></script>
 {% endblock %}
