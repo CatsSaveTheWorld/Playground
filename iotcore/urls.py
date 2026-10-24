@@ -22,6 +22,7 @@ from iotcore.api.views import (
 app_name = "iotcore"
 
 urlpatterns = [
+    path('speaker/<int:device_id>/snapshot/', speaker.speaker_snapshot, name='speaker_snapshot'),
     # ─────────────────────────────────────────────────────────────
     # Canonical IoTCore pages
     # ─────────────────────────────────────────────────────────────

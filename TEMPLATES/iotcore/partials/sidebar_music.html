@@ -1,0 +1,48 @@
+{% if music_visible %}
+<section class="iot-music" id="iotSidebarMusic" aria-label="사이드바 음악 제어">
+    <button class="iot-music__toggle" id="iotMusicToggle" type="button" aria-expanded="true" aria-controls="iotMusicBody">
+        <span class="iot-music__heading"><span aria-hidden="true">♫</span> 음악 제어</span>
+        <span class="iot-music__chevron" aria-hidden="true">⌄</span>
+    </button>
+    <div class="iot-music__body" id="iotMusicBody">
+        {% if music_speakers %}
+        <label class="iot-music__sr" for="iotMusicDevice">제어할 스피커</label>
+        <select id="iotMusicDevice" class="iot-music__device" {% if music_speakers|length == 1 %}hidden{% endif %}>
+            {% for speaker in music_speakers %}<option value="{{ speaker.id }}">{{ speaker.name }}</option>{% endfor %}
+        </select>
+        {% if music_speakers|length == 1 %}<p class="iot-music__device-name">{{ music_speakers.0.name }}</p>{% endif %}
+        <p class="iot-music__track" id="iotMusicTrack">재생 정보 확인 중…</p>
+        <fieldset class="iot-music__controls" id="iotMusicControls">
+            <legend class="iot-music__sr">음악 재생 제어</legend>
+            <label class="iot-music__label" for="iotMusicPlaylist">재생목록</label>
+            <div class="iot-music__playlist">
+                <select id="iotMusicPlaylist" aria-label="재생목록"><option value="">불러오는 중…</option></select>
+                <button type="button" data-music-action="playlist" id="iotMusicPlaylistPlay" disabled>재생</button>
+            </div>
+            <div class="iot-music__transport" role="group" aria-label="재생 제어">
+                <button type="button" data-music-action="previous" aria-label="이전 곡" title="이전 곡">│◀</button>
+                <button type="button" data-music-action="resume" aria-label="재생" title="재생">▶</button>
+                <button type="button" data-music-action="pause" aria-label="일시정지" title="일시정지">Ⅱ</button>
+                <button type="button" data-music-action="next" aria-label="다음 곡" title="다음 곡">▶│</button>
+            </div>
+            <label class="iot-music__label iot-music__volume-label" for="iotMusicVolume">음량 <output id="iotMusicVolumeValue" for="iotMusicVolume">—</output></label>
+            <div class="iot-music__volume">
+                <input id="iotMusicVolume" type="range" min="0" max="100" step="1" value="30" aria-label="음량">
+                <button type="button" data-music-action="volume">적용</button>
+            </div>
+            <div class="iot-music__modes">
+                <div><label class="iot-music__label" for="iotMusicShuffle">셔플</label>
+                    <select id="iotMusicShuffle" aria-label="셔플"><option value="">상태 확인</option><option value="off">끄기</option><option value="on">켜기</option></select></div>
+                <div><label class="iot-music__label" for="iotMusicRepeat">반복 재생</label>
+                    <select id="iotMusicRepeat" aria-label="반복 재생"><option value="">상태 확인</option><option value="off">끄기</option><option value="all">전체 반복</option><option value="one">한 곡 반복</option></select></div>
+            </div>
+        </fieldset>
+        <div class="iot-music__feedback"><p id="iotMusicStatus" role="status" aria-live="polite">재생할 목록을 선택하세요.</p>
+            <button type="button" id="iotMusicRefresh" aria-label="음악 정보 새로고침" title="음악 정보 새로고침">↻</button></div>
+        {% else %}
+        <p class="iot-music__empty">등록된 스피커가 없습니다.</p>
+        {% endif %}
+    </div>
+</section>
+{{ music_speakers|json_script:"iotSidebarMusicConfig" }}
+{% endif %}

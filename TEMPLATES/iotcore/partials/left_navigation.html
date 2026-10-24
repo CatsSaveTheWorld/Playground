@@ -1,3 +1,4 @@
+{% load sidebar_music %}
 <aside class="iot-primary-nav" id="iotPrimaryNav" aria-label="IoTCore 주 메뉴">
     <nav>
         <p class="iot-nav-label">CONTROL</p>
@@ -41,8 +42,11 @@
         {% endif %}
     </nav>
 
-    <div class="iot-nav-footer">
-        <span>IoTCore Central Control</span>
-        <small>Ubuntu · Django · MQTT</small>
+    <div class="iot-nav-bottom">
+        {% sidebar_music %}
+        <div class="iot-nav-footer">
+            <span>IoTCore Central Control</span>
+            <small>Ubuntu · Django · MQTT</small>
+        </div>
     </div>
 </aside>

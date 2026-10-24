@@ -1,13 +1,50 @@
 from ...manual_control_history import record_manual_control
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.cache import never_cache
 from .common import parse_request_data
 from ...device.repositories.device_repository import DeviceRepository
 from ...device.services.device_service import DeviceService
+from ...infrastructure.music_assistant.client import MusicAssistantClient
 
 
 REPEAT_MODES = {"off", "all", "one"}
+
+
+@login_required(login_url="common:login")
+@require_GET
+@never_cache
+def speaker_snapshot(request, device_id):
+    """Read-only data for the global controller; never dispatch a device action."""
+    device = DeviceRepository.get_by_id(device_id)
+    if not device:
+        return JsonResponse({'success': False, 'message': '스피커를 찾을 수 없습니다.'}, status=404)
+    if device.device_type != 'speaker' or not device.is_controllable:
+        return JsonResponse({'success': False, 'message': '제어 가능한 스피커가 아닙니다.'}, status=400)
+    if request.GET.get('section') == 'playlists':
+        playlists, error = MusicAssistantClient.get_playlists()
+        return JsonResponse({'success': not bool(error), 'playlists': playlists, 'message': error or ''},
+                            status=502 if error else 200)
+
+    player_id, error = MusicAssistantClient.resolve_player_id(player_id=device.device_uid, player_name=device.name)
+    if not player_id:
+        return JsonResponse({'success': False, 'message': error or '플레이어를 찾을 수 없습니다.'}, status=502)
+    player, error = MusicAssistantClient.get_player_state(player_id)
+    if error:
+        return JsonResponse({'success': False, 'message': error}, status=502)
+    queue, queue_error = MusicAssistantClient.get_queue_state(player_id)
+    queue = queue or {}
+    item = queue.get('current_item') or {}
+    media = item.get('media_item') or {}
+    return JsonResponse({'success': True, 'state': {
+        'available': player.get('available'),
+        'playback': queue.get('state') or player.get('state') or 'unknown',
+        'track': media.get('name') or item.get('name') or '',
+        'volume': player.get('volume_level'),
+        'shuffle': queue.get('shuffle_enabled'),
+        'repeat': queue.get('repeat_mode'),
+    }, 'message': queue_error or ''})
 
 motion_messages = {
     "play_playlist": "플레이 리스트를 재생합니다!", 

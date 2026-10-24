@@ -1,0 +1,46 @@
+.iot-primary-nav > nav { flex-shrink: 0; }
+.iot-nav-bottom { margin-top: auto; padding-top: 20px; min-width: 0; flex-shrink: 0; }
+.iot-music { margin-bottom: 16px; border: 1px solid var(--iot-border-soft); background: var(--iot-accent-soft); font-size: 11px; }
+.iot-music [hidden] { display: none !important; }
+.iot-music__toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 39px; padding: 8px 10px; border: 0; background: transparent; color: var(--iot-accent); text-align: left; cursor: pointer; }
+.iot-music__heading { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 750; }
+.iot-music__heading > span { font-size: 17px; }
+.iot-music__chevron { transition: transform .15s ease; }
+.iot-music__toggle[aria-expanded="true"] .iot-music__chevron { transform: rotate(180deg); }
+.iot-music__body { padding: 0 10px 10px; border-top: 1px solid var(--iot-border-soft); }
+.iot-music__device-name { margin: 10px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iot-muted); font-size: 10px; }
+.iot-music select { width: 100%; min-width: 0; height: 31px; padding: 0 5px; border: 1px solid var(--iot-border-soft); border-radius: 0; background: var(--iot-bg); color: var(--iot-text); font-size: 11px; text-overflow: ellipsis; }
+.iot-music .iot-music__device { margin-top: 10px; }
+.iot-music__track { margin: 4px 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iot-text); font-size: 11px; }
+.iot-music__controls { min-width: 0; margin: 0; padding: 0; border: 0; }
+.iot-music__label { display: block; margin-bottom: 5px; color: var(--iot-accent); font-size: 10px; font-weight: 650; }
+.iot-music__playlist, .iot-music__volume { display: grid; grid-template-columns: minmax(0, 1fr) 38px; gap: 5px; align-items: center; }
+.iot-music__body button { min-width: 0; min-height: 31px; padding: 0 4px; border: 1px solid var(--iot-border-soft); border-radius: 0; background: transparent; color: var(--iot-text); font-size: 11px; cursor: pointer; }
+.iot-music button:hover { background: var(--iot-accent-soft); color: var(--iot-accent); border-color: var(--iot-accent); }
+.iot-music :is(button, select, input):focus-visible { outline: 2px solid var(--iot-accent); outline-offset: 2px; }
+.iot-music button:disabled, .iot-music__controls:disabled { opacity: .5; cursor: wait; }
+.iot-music__transport { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin: 9px 0 10px; }
+.iot-music__body [data-music-action="resume"] { color: var(--iot-accent); border-color: var(--iot-accent); background: var(--iot-accent-soft); }
+.iot-music__volume-label { display: flex; justify-content: space-between; align-items: center; }
+.iot-music__volume-label output { color: var(--iot-text); font-variant-numeric: tabular-nums; }
+.iot-music__volume input { width: 100%; min-width: 0; margin: 0; accent-color: var(--iot-accent); cursor: pointer; }
+.iot-music__modes { display: grid; grid-template-columns: 1fr 1.25fr; gap: 7px; margin-top: 10px; }
+.iot-music__modes > div { min-width: 0; }
+.iot-music__feedback { display: flex; align-items: flex-start; gap: 5px; margin-top: 9px; }
+.iot-music__feedback p { flex: 1; margin: 0; color: var(--iot-muted); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.iot-music__feedback p.is-error { color: var(--iot-danger); }
+.iot-music__feedback button { flex: 0 0 24px; min-height: 24px; color: var(--iot-accent); }
+.iot-music__empty { margin: 12px 0 0; color: var(--iot-muted); line-height: 1.6; }
+.iot-music__sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 860px) { .iot-primary-nav { height: calc(100dvh - var(--iot-topbar-height)); } }
+@media (max-height: 800px) {
+    .iot-primary-nav { overflow-y: hidden; padding-top: 12px; padding-bottom: 12px; }
+    .iot-primary-nav > nav { flex: 1 1 auto; min-height: 70px; overflow-y: auto; }
+    .iot-primary-nav .iot-nav-link { min-height: 36px; margin-top: 1px; margin-bottom: 1px; }
+    .iot-primary-nav .iot-nav-label { margin-top: 8px; margin-bottom: 5px; }
+    .iot-nav-bottom { padding-top: 12px; }
+    .iot-nav-bottom .iot-nav-footer { padding-top: 10px; }
+    .iot-music { margin-bottom: 10px; }
+    .iot-music__body { max-height: min(330px, calc(100dvh - var(--iot-topbar-height) - 190px)); overflow-y: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .iot-music__chevron { transition: none; } }
