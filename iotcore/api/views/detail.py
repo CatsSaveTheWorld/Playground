@@ -8,6 +8,7 @@ from ...device.services.device_state_service import DeviceStateService
 from ...device.services.window_pusher_service import WindowPusherService
 from ...infrastructure.music_assistant.client import MusicAssistantClient
 from ...models import Controller, Device
+from ...ai.routing import snapshot as ai_routing_snapshot
 
 
 @login_required(login_url="common:login")
@@ -78,6 +79,12 @@ def device_control(request):
         d for d in visible_devices if d.device_type in {"media_server", "media_node"}
     ]
     speaker_devices = [d for d in visible_devices if d.device_type == "speaker"]
+    ai_routes = ai_routing_snapshot()
+    for device in pc_devices:
+        device.ai_route_rows = [{'service': key, 'label': key.upper(),
+            'role': 'active' if value['active'] and value['active']['id'] == device.pk else
+                    'standby' if value['standby'] and value['standby']['id'] == device.pk else 'off'}
+            for key, value in ai_routes.items()]
 
     rendered_types = {
         "pc",
@@ -104,6 +111,7 @@ def device_control(request):
         "locations": locations,
         "selected_location": selected_location,
         "pc_devices": pc_devices,
+        "ai_routes": ai_routes,
         "aircon_controllers": aircon_controllers,
         "fan_devices": fan_devices,
         "window_pusher_cards": window_pusher_cards,

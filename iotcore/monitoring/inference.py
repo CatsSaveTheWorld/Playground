@@ -92,10 +92,10 @@ class AIInferenceMonitor:
             return None
 
     @classmethod
-    def start(cls, stage, request_id):
+    def start(cls, stage, request_id, *, node_uid=None, route='worker'):
         return cls._write(lambda: AIInferenceEvent.objects.create(
-            node_uid=getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main"),
-            request_id=request_id, stage=stage, status=AIInferenceEvent.Status.PROCESSING,
+            node_uid=node_uid or getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main"),
+            request_id=request_id, stage=stage, route=route, status=AIInferenceEvent.Status.PROCESSING,
         ))
 
     @classmethod
@@ -108,9 +108,9 @@ class AIInferenceMonitor:
         ))
 
     @classmethod
-    def direct_match(cls, request_id):
+    def direct_match(cls, request_id, *, node_uid=None):
         cls._write(lambda: AIInferenceEvent.objects.create(
-            node_uid=getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main"),
+            node_uid=node_uid or getattr(settings, "IOTCORE_AI_NODE_UID", "home-ai-main"),
             request_id=request_id, stage="nlp", route="automation_match",
             status="success", finished_at=timezone.now(),
         ))
@@ -174,7 +174,8 @@ def monitor_inference(stage):
     def decorate(function):
         @wraps(function)
         def wrapped(self, *args, **kwargs):
-            event = AIInferenceMonitor.start(stage, kwargs["request_id"])
+            event = AIInferenceMonitor.start(stage, kwargs["request_id"], node_uid=getattr(self, 'node_uid', None),
+                                             route='standby' if getattr(self, 'route_role', '') == 'standby' else 'worker')
             started = perf_counter()
             try:
                 result = function(self, *args, **kwargs)

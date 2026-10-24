@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import requests
 from django.conf import settings
 from ..monitoring.inference import monitor_inference
+from .routing import dispatch
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,10 @@ class ASRResult:
     elapsed_ms: float | None = None
     error: str = ""
     http_status: int | None = None
+    unavailable: bool = False
+    node_uid: str = ''
+    used_standby: bool = False
+    attempts: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -26,6 +31,10 @@ class ASRResult:
             "text": self.text,
             "language": self.language,
             "error": self.error,
+            "unavailable": self.unavailable,
+            "node_uid": self.node_uid,
+            "used_standby": self.used_standby,
+            "attempts": self.attempts,
         }
         if self.language_probability is not None:
             data["language_probability"] = self.language_probability
@@ -54,8 +63,19 @@ class ASRClient:
     def enabled(self) -> bool:
         return bool(getattr(settings, "VOICE_ASR_ENABLED", False))
 
-    @monitor_inference("asr")
     def transcribe(
+        self, *, audio_path: Path | None = None, audio_bytes: bytes | None = None,
+        filename: str = 'voice.wav', request_id: str, client_id: str = '', language: str = 'ko',
+    ) -> ASRResult:
+        kwargs = dict(audio_path=audio_path, audio_bytes=audio_bytes, filename=filename,
+                      request_id=request_id, client_id=client_id, language=language)
+        if not self.enabled or (audio_bytes is None and audio_path is None):
+            return self._transcribe(**kwargs)
+        return dispatch(self, 'asr', lambda attempt: attempt._transcribe(**kwargs),
+                        lambda error: ASRResult(ok=False, error=error, unavailable=True))
+
+    @monitor_inference('asr')
+    def _transcribe(
         self,
         *,
         audio_path: Path | None = None,
@@ -114,6 +134,7 @@ class ASRClient:
             return ASRResult(
                 ok=False,
                 error=f"{type(exc).__name__}: {exc}",
+                unavailable=True,
             )
         except OSError as exc:
             return ASRResult(
@@ -128,7 +149,11 @@ class ASRClient:
                 ok=False,
                 error=f"ASR worker returned non-JSON response: {response.text[:300]}",
                 http_status=response.status_code,
+                unavailable=response.ok or response.status_code >= 500 or response.status_code in (408, 429),
             )
+
+        if not isinstance(payload, dict) or (payload.get('ok') is True and not isinstance(payload.get('text'), str)):
+            return ASRResult(ok=False, error='ASR 응답 형식이 올바르지 않습니다.', unavailable=True, http_status=response.status_code)
 
         if not response.ok or not payload.get("ok", False):
             detail = payload.get("detail")
@@ -140,6 +165,7 @@ class ASRClient:
                 ok=False,
                 error=error,
                 http_status=response.status_code,
+                unavailable=response.status_code >= 500 or response.status_code in (408, 429),
             )
 
         return ASRResult(

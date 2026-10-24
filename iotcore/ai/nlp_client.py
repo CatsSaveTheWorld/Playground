@@ -6,6 +6,7 @@ from typing import Any
 import requests
 from django.conf import settings
 from ..monitoring.inference import monitor_inference
+from .routing import dispatch
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,10 @@ class NLPResult:
     error: str = ""
     elapsed_ms: float | None = None
     http_status: int | None = None
+    unavailable: bool = False
+    node_uid: str = ''
+    used_standby: bool = False
+    attempts: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -43,6 +48,10 @@ class NLPResult:
             "confidence": self.confidence,
             "matched_by": self.matched_by,
             "error": self.error,
+            "unavailable": self.unavailable,
+            "node_uid": self.node_uid,
+            "used_standby": self.used_standby,
+            "attempts": self.attempts,
         }
 
         if self.elapsed_ms is not None:
@@ -74,8 +83,17 @@ class NLPClient:
             getattr(settings, "VOICE_NLP_ENABLED", False)
         )
 
-    @monitor_inference("nlp")
     def parse(
+        self, *, text: str, request_id: str, client_id: str = '', language: str = 'ko',
+    ) -> NLPResult:
+        kwargs = dict(text=text, request_id=request_id, client_id=client_id, language=language)
+        if not self.enabled:
+            return self._parse(**kwargs)
+        return dispatch(self, 'nlp', lambda attempt: attempt._parse(**kwargs),
+                        lambda error: NLPResult(ok=False, text=text, error=error, unavailable=True))
+
+    @monitor_inference('nlp')
+    def _parse(
         self,
         *,
         text: str,
@@ -119,6 +137,7 @@ class NLPClient:
                 ok=False,
                 text=text,
                 error=f"{type(exc).__name__}: {exc}",
+                unavailable=True,
             )
 
         try:
@@ -133,7 +152,11 @@ class NLPClient:
                     f"{response.text[:300]}"
                 ),
                 http_status=response.status_code,
+                unavailable=response.ok or response.status_code >= 500 or response.status_code in (408, 429),
             )
+
+        if not isinstance(payload, dict):
+            return NLPResult(ok=False, text=text, error='NLP 응답 형식이 올바르지 않습니다.', unavailable=True, http_status=response.status_code)
 
         if not response.ok:
             return NLPResult(
@@ -141,7 +164,13 @@ class NLPClient:
                 text=text,
                 error=str(payload),
                 http_status=response.status_code,
+                unavailable=response.status_code >= 500 or response.status_code in (408, 429),
             )
+
+        try:
+            confidence = float(payload.get('confidence', 0.0))
+        except (TypeError, ValueError):
+            return NLPResult(ok=False, text=text, error='NLP 응답 신뢰도가 올바르지 않습니다.', unavailable=True, http_status=response.status_code)
 
         return NLPResult(
             ok=bool(payload.get("ok", False)),
@@ -159,9 +188,7 @@ class NLPClient:
             device_uid=payload.get("device_uid"),
             function=payload.get("function"),
             parameters=payload.get("parameters") or {},
-            confidence=float(
-                payload.get("confidence", 0.0)
-            ),
+            confidence=confidence,
             matched_by=str(
                 payload.get("matched_by", "")
             ),

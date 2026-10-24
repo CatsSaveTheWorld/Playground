@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 
 from iotcore.api.views import (
+    ai_routing,
     ai,
     aircon,
     automation,
@@ -22,6 +23,8 @@ from iotcore.api.views import (
 app_name = "iotcore"
 
 urlpatterns = [
+    path('ai/routing/', ai_routing.routing_state, name='ai_routing_state'),
+    path('ai/routing/assign/', ai_routing.routing_assign, name='ai_routing_assign'),
     path('speaker/<int:device_id>/snapshot/', speaker.speaker_snapshot, name='speaker_snapshot'),
     # ─────────────────────────────────────────────────────────────
     # Canonical IoTCore pages

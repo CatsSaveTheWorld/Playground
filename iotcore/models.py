@@ -66,6 +66,21 @@ class Device(models.Model):
         return f"{self.name} ({self.device_type})"
 
 
+class AIServiceRoute(models.Model):
+    """Persist the preferred/standby PC independently for each inference stage."""
+    service = models.CharField(max_length=8, primary_key=True, choices=[('asr', 'ASR'), ('nlp', 'NLP'), ('tts', 'TTS')])
+    active_device = models.ForeignKey(Device, null=True, blank=True, on_delete=models.SET_NULL, related_name='active_ai_routes')
+    standby_device = models.ForeignKey(Device, null=True, blank=True, on_delete=models.SET_NULL, related_name='standby_ai_routes')
+    configured = models.BooleanField(default=False)
+    failover_enabled = models.BooleanField(default=True)
+    revision = models.PositiveIntegerField(default=1)
+    last_result = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(active_device__isnull=True) | models.Q(standby_device__isnull=True) | ~models.Q(active_device=models.F('standby_device')), name='ai_route_distinct_devices')]
+
+
 class Controller(models.Model):
     """
     IoT 컨트롤러 정보 테이블 (ESP32 리모컨)
@@ -601,7 +616,7 @@ class AIInferenceEvent(models.Model):
 
     class Meta:
         ordering = ["-started_at", "-id"]
-        constraints = [models.UniqueConstraint(fields=["request_id", "stage"], name="iotcore_ai_request_stage_unique")]
+        constraints = [models.UniqueConstraint(fields=["request_id", "stage", "node_uid"], name="ai_request_stage_node_unique")]
         indexes = [models.Index(fields=["node_uid", "-started_at"], name="iotcore_ai_node_time_idx")]
 
 

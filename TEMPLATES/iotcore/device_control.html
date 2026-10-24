@@ -1,6 +1,8 @@
 {% extends "iotcore/base_iotcore.html" %}
+{% load static %}
 {% block title %}기기 제어{% endblock %}
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/iotcore-ai-routing.css' %}?v=20261024-1">
 <style>
 .device-control-content {
     width: 100%;
@@ -759,6 +761,7 @@
             <span class="fan-control-label">전원</span>
             <button onclick="sendAction('/iotcore/pc/power_on/', event)">전원 켜기</button>
             <button onclick="sendAction('/iotcore/pc/power_off/', event)">전원 끄기</button>
+            {% include "iotcore/partials/pc_ai_routing.html" %}
           </div>
         </div>
       {% endfor %}
@@ -1083,6 +1086,8 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ ai_routes|json_script:"iotAiRoutingConfig" }}
+<script src="{% static 'js/iotcore-ai-routing.js' %}?v=20261024-1" defer></script>
 <script>
 
 

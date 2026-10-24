@@ -101,7 +101,7 @@ def voice_upload(request):
         # single device action (e.g. "에어컨 냉방 실행" -> mode_cool only).
         matched_automation = AIControlService.resolve_automation_from_text(asr_result.text)
         if matched_automation is not None:
-            AIInferenceMonitor.direct_match(request_id)
+            AIInferenceMonitor.direct_match(request_id, node_uid=getattr(asr_result, 'node_uid', ''))
             nlp_result = NLPResult(
                 ok=True,
                 text=asr_result.text,
@@ -119,6 +119,18 @@ def voice_upload(request):
                 client_id=client_id,
                 language=asr_result.language or "ko",
             )
+
+    unavailable_stage = 'asr' if getattr(asr_result, 'unavailable', False) else 'nlp' if nlp_result and getattr(nlp_result, 'unavailable', False) else ''
+    if unavailable_stage:
+        failed = asr_result if unavailable_stage == 'asr' else nlp_result
+        response = JsonResponse({
+            'ok': False, 'request_id': request_id, 'error': 'ai_workers_unavailable',
+            'stage': unavailable_stage, 'message': 'AI 워커에 연결할 수 없습니다. 잠시 후 다시 요청해 주세요.',
+            'attempts': failed.attempts, 'asr': asr_result.as_dict(),
+            'nlp': nlp_result.as_dict() if nlp_result else None, 'execution': None,
+        }, status=503)
+        response['Retry-After'] = '5'
+        return response
 
     execution = None
 

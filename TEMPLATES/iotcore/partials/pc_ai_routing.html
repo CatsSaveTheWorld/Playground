@@ -1,0 +1,26 @@
+<section class="pc-ai-routing" data-pc-id="{{ device.pk }}"
+    data-state-url="{% url 'iotcore:ai_routing_state' %}"
+    data-assign-url="{% url 'iotcore:ai_routing_assign' %}"
+    aria-label="{{ device.name }} AI 워커 배치">
+    <div class="pc-ai-routing__header"><strong>AI 요청 배치</strong><button type="button" class="pc-ai-probe">연결 확인</button></div>
+    <p class="pc-ai-routing__hint">모델별로 이 PC의 역할을 선택하세요.</p>
+    {% for row in device.ai_route_rows %}
+    <div class="pc-ai-routing__row" data-service="{{ row.service }}">
+        <label for="ai-role-{{ device.pk }}-{{ row.service }}">{{ row.label }}</label>
+        <select id="ai-role-{{ device.pk }}-{{ row.service }}" aria-label="{{ row.label }} 요청 역할"
+                data-role-select data-editable="{% if request.user.is_staff and device.control_config.ip_address %}true{% else %}false{% endif %}"
+                {% if not request.user.is_staff or not device.control_config.ip_address %}disabled{% endif %}>
+            <option value="active" {% if row.role == 'active' %}selected{% endif %}>액티브</option>
+            <option value="standby" {% if row.role == 'standby' %}selected{% endif %}>스탠바이</option>
+            <option value="off" {% if row.role == 'off' %}selected{% endif %}>미사용</option>
+        </select>
+        <p class="pc-ai-routing__selection" data-selection-summary></p>
+        <p class="pc-ai-routing__outcome" data-routing-outcome>{% if row.service == 'tts' %}연동 준비 중 · 배치만 저장{% else %}최근 요청 없음{% endif %}</p>
+        <span class="pc-ai-routing__health" data-worker-health>{% if row.service == 'tts' %}연동 준비 중{% else %}연결 확인 전{% endif %}</span>
+    </div>
+    {% endfor %}
+    <p class="pc-ai-routing__hint">장애 시 스탠바이를 한 번 사용합니다.<br>두 워커 모두 실패하면 요청을 중단합니다.</p>
+    {% if not device.control_config.ip_address %}<p class="pc-ai-routing__message is-error">PC IP 주소를 먼저 등록하세요.</p>{% endif %}
+    {% if not request.user.is_staff %}<p class="pc-ai-routing__hint">관리자만 배치를 변경할 수 있습니다.</p>{% endif %}
+    <p class="pc-ai-routing__message" data-routing-message role="status" aria-live="polite"></p>
+</section>
